@@ -111,6 +111,11 @@ pub fn install_ca(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> 
 }
 
 #[tauri::command]
+pub fn uninstall_ca(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    state.ca.uninstall_from_system().map_err(err)
+}
+
+#[tauri::command]
 pub fn export_ca(state: tauri::State<'_, Arc<AppState>>) -> Result<String, String> {
     Ok(state.ca.cert_pem.clone())
 }

@@ -190,6 +190,8 @@ const en: Dict = {
     "For HTTPS interception to work, the Tucano Root CA must be trusted by your OS. Install it once — without it, browsers will show certificate errors and many sites won't be captured at all.",
   "set.caTrustedBtn": "Trusted in this OS",
   "set.installCa": "Install Tucano Root CA",
+  "set.uninstallCa": "Uninstall CA",
+  "set.uninstallCaConfirm": "Remove the Tucano Root CA from this system's trust store? HTTPS interception will stop working until you reinstall it.",
   "set.exportCa": "Export .pem",
   "set.whyTitle": "Why isn't a site captured?",
   "set.why1":
@@ -242,7 +244,7 @@ const en: Dict = {
   "sk.context": "Mark selected flow with color",
   "sk.delete": "Delete selected flows / remove mark",
   "sk.selectAll": "Select all visible flows",
-  "sk.markColor": "Mark selected · 0=none, 1=red, 2=orange, 3=yellow, 4=green, 5=blue, 6=purple",
+  "sk.markColor": "Color selected flows (0 clears)",
 };
 
 const ptBR: Dict = {
@@ -411,6 +413,8 @@ const ptBR: Dict = {
     "Para a interceptação HTTPS funcionar, o CA raiz do Tucano precisa ser confiado pelo seu SO. Instale uma vez — sem isso, navegadores mostram erros de certificado e muitos sites não serão capturados.",
   "set.caTrustedBtn": "Confiável neste SO",
   "set.installCa": "Instalar CA raiz do Tucano",
+  "set.uninstallCa": "Desinstalar CA",
+  "set.uninstallCaConfirm": "Remover o CA raiz do Tucano do trust store deste sistema? A interceptação HTTPS vai parar de funcionar até você reinstalar.",
   "set.exportCa": "Exportar .pem",
   "set.whyTitle": "Por que um site não está sendo capturado?",
   "set.why1":
@@ -462,6 +466,7 @@ const ptBR: Dict = {
   "sk.switchCat": "Trocar categoria",
   "sk.escape": "Fechar diálogos / limpar filtros",
   "sk.context": "Marcar captura com cor",
+  "sk.markColor": "Colorir capturas (0 remove)",
   "sk.delete": "Excluir capturas / remover marca",
   "sk.selectAll": "Selecionar todas visíveis",
 };
@@ -562,6 +567,8 @@ const ptPT: Dict = {
     "Para a interceptação HTTPS funcionar, o CA raiz do Tucano tem de ser fidedigno no seu SO.",
   "set.caTrustedBtn": "Fidedigno neste SO",
   "set.installCa": "Instalar CA raiz do Tucano",
+  "set.uninstallCa": "Desinstalar CA",
+  "set.uninstallCaConfirm": "Remover o CA raiz do Tucano do trust store deste sistema? A interceptação HTTPS vai parar de funcionar até você reinstalar.",
   "set.exportCa": "Exportar .pem",
   "set.whyTitle": "Porque é que um site não é capturado?",
   "set.shortcuts": "Atalhos de teclado",
@@ -761,6 +768,8 @@ const es: Dict = {
     "Para que la interceptación HTTPS funcione, el CA raíz de Tucano debe ser de confianza para tu SO.",
   "set.caTrustedBtn": "Confiable en este SO",
   "set.installCa": "Instalar CA raíz de Tucano",
+  "set.uninstallCa": "Desinstalar CA",
+  "set.uninstallCaConfirm": "¿Eliminar el CA raíz de Tucano del almacén de confianza? La interceptación HTTPS dejará de funcionar hasta reinstalar.",
   "set.exportCa": "Exportar .pem",
   "set.whyTitle": "¿Por qué un sitio no se captura?",
   "set.why1":
@@ -811,6 +820,7 @@ const es: Dict = {
   "sk.switchCat": "Cambiar categoría",
   "sk.escape": "Cerrar diálogos / limpiar filtros",
   "sk.context": "Marcar captura con color",
+  "sk.markColor": "Colorear capturas (0 quita)",
   "sk.delete": "Eliminar capturas / quitar marca",
   "sk.selectAll": "Seleccionar todas visibles",
 };

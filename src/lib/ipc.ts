@@ -9,6 +9,7 @@ export const ipc = {
   startCapture: (port: number) => invoke<void>("start_capture", { port }),
   stopCapture: () => invoke<void>("stop_capture"),
   installCa: () => invoke<void>("install_ca"),
+  uninstallCa: () => invoke<void>("uninstall_ca"),
   exportCa: () => invoke<string>("export_ca"),
   toggleSystemProxy: (on: boolean) => invoke<void>("toggle_system_proxy", { on }),
   clearFlows: () => invoke<void>("clear_flows"),

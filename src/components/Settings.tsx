@@ -8,19 +8,25 @@ import { ipc } from "../lib/ipc";
 import { t, LOCALES, currentLocale, setLocale, type Locale } from "../lib/i18n";
 import { themeMode, setTheme, type ThemeMode } from "../stores/theme";
 
+// Show shortcuts using the modifier symbol native to the user's platform.
+// macOS users see ⌘, Windows / Linux see Ctrl — no more "⌘ / Ctrl" double
+// labels cluttering the list.
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = IS_MAC ? "⌘" : "Ctrl";
+
 const SHORTCUTS: [string, string][] = [
-  ["⌘ / Ctrl + K", "sk.focusFilter"],
-  ["⌘ / Ctrl + L", "sk.clearAll"],
-  ["⌘ / Ctrl + S", "sk.saveSession"],
-  ["⌘ / Ctrl + O", "sk.openSession"],
-  ["⌘ / Ctrl + ,", "sk.openSettings"],
-  ["⌘ / Ctrl + A", "sk.selectAll"],
-  ["Space",        "sk.toggleProxy"],
-  ["1 – 9",        "sk.switchCat"],
-  ["⌘ / Ctrl + 0–6", "sk.markColor"],
-  ["Esc",          "sk.escape"],
-  ["Right click",  "sk.context"],
-  ["Delete",       "sk.delete"],
+  [`${MOD} + K`,    "sk.focusFilter"],
+  [`${MOD} + L`,    "sk.clearAll"],
+  [`${MOD} + S`,    "sk.saveSession"],
+  [`${MOD} + O`,    "sk.openSession"],
+  [`${MOD} + ,`,    "sk.openSettings"],
+  [`${MOD} + A`,    "sk.selectAll"],
+  ["Space",         "sk.toggleProxy"],
+  ["1 – 9",         "sk.switchCat"],
+  [`${MOD} + 0–6`,  "sk.markColor"],
+  ["Esc",           "sk.escape"],
+  ["Right click",   "sk.context"],
+  ["Delete",        "sk.delete"],
 ];
 
 async function refresh() { flowsStore.setStatus(await ipc.status()); }
@@ -55,6 +61,13 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
     setBusy(true);
     try { await ipc.installCa(); await refresh(); } finally { setBusy(false); }
   };
+  const uninstallCa = async () => {
+    if (!confirm(t("set.uninstallCaConfirm"))) return;
+    setBusy(true);
+    try { await ipc.uninstallCa(); await refresh(); }
+    catch (e) { console.error(e); alert(String(e)); }
+    finally { setBusy(false); }
+  };
   const exportCa = async () => {
     const pem = await ipc.exportCa();
     const blob = new Blob([pem], { type: "application/x-pem-file" });
@@ -67,7 +80,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
     <Show when={props.open}>
       <div class="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm" onClick={props.onClose}>
         <div
-          class="w-[680px] max-w-[92vw] max-h-[86vh] overflow-auto scroll-thin rounded-2xl
+          class="w-[880px] max-w-[92vw] max-h-[86vh] overflow-auto scroll-thin rounded-2xl
                  bg-white dark:bg-ink-600 text-ink-500 dark:text-ink-50
                  border border-ink-100 dark:border-ink-400/40 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
@@ -139,6 +152,12 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                 <ShieldCheck size={13} />
                 {flowsStore.status().caInstalled ? t("set.caTrustedBtn") : t("set.installCa")}
               </button>
+              <Show when={flowsStore.status().caInstalled}>
+                <button onClick={uninstallCa} disabled={busy()}
+                  class="h-9 px-4 text-xs rounded-xl border border-red-500/40 text-red-500 hover:bg-red-500/10 flex items-center gap-1.5">
+                  {t("set.uninstallCa")}
+                </button>
+              </Show>
               <button onClick={exportCa}
                 class="h-9 px-4 text-xs rounded-xl border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 flex items-center gap-1.5">
                 <Download size={13} /> {t("set.exportCa")}

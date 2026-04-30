@@ -37,14 +37,34 @@ mod macos {
     }
 
     fn pid_for_port(port: u16) -> Option<u32> {
+        // `lsof -iTCP:<port>` matches BOTH ends of a connection — the client
+        // (whose local port == port) AND the server-side socket on Tucano
+        // itself. We want only the client side, so we parse the connection
+        // string ("n127.0.0.1:54321->127.0.0.1:8888") and keep the record
+        // whose LEFT endpoint is `port`. We also filter out our own PID.
         let out = Command::new("lsof")
-            .args(["-nP", "-F", "p", "-iTCP", "-sTCP:ESTABLISHED"])
+            .args(["-nP", "-F", "pn", "-iTCP", "-sTCP:ESTABLISHED"])
             .arg(format!("-iTCP:{port}"))
             .output().ok()?;
         if !out.status.success() { return None; }
-        String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .find_map(|l| l.strip_prefix('p').and_then(|p| p.parse().ok()))
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let our_pid = std::process::id();
+        let port_suffix = format!(":{port}");
+
+        let mut current_pid: Option<u32> = None;
+        for line in stdout.lines() {
+            if let Some(p) = line.strip_prefix('p') {
+                current_pid = p.parse().ok();
+            } else if let Some(n) = line.strip_prefix('n') {
+                let Some(arrow) = n.find("->") else { continue };
+                let left = &n[..arrow];
+                if !left.ends_with(&port_suffix) { continue; }
+                let pid = current_pid?;
+                if pid == our_pid { continue; }
+                return Some(pid);
+            }
+        }
+        None
     }
 
     fn exe_path(pid: u32) -> Option<String> {
@@ -186,13 +206,27 @@ mod windows {
         ClientInfo { name, icon_data_url: None }
     }
     fn pid_for_port(port: u16) -> Option<u32> {
+        // netstat lines look like:
+        //   "  TCP    127.0.0.1:54321    127.0.0.1:8888    ESTABLISHED    12345"
+        // Columns: Proto, LocalAddr:Port, RemoteAddr:Port, State, PID.
+        // We want the row whose LOCAL port equals `port` (the client side),
+        // not the row whose remote port matches (server side = us).
         let netstat = Command::new("netstat").args(["-ano", "-p", "TCP"]).output().ok()?;
         let s = String::from_utf8_lossy(&netstat.stdout);
-        let needle = format!(":{port}");
-        s.lines()
-            .filter(|l| l.contains("ESTABLISHED") && l.contains(&needle))
-            .filter_map(|l| l.split_whitespace().last().and_then(|p| p.parse().ok()))
-            .next()
+        let our_pid = std::process::id();
+        let port_suffix = format!(":{port}");
+
+        for line in s.lines() {
+            if !line.contains("ESTABLISHED") { continue; }
+            let cols: Vec<&str> = line.split_whitespace().collect();
+            if cols.len() < 5 { continue; }
+            let local = cols[1];
+            if !local.ends_with(&port_suffix) { continue; }
+            let pid: u32 = match cols[4].parse() { Ok(p) => p, Err(_) => continue };
+            if pid == our_pid { continue; }
+            return Some(pid);
+        }
+        None
     }
     fn process_name(pid: u32) -> Option<String> {
         let out = Command::new("tasklist").args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"]).output().ok()?;

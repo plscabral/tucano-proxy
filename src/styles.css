@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+
 :root {
   --ink: #0C142E;
   --toucan: #F99245;
@@ -13,7 +14,7 @@ html, body, #root {
 }
 
 body {
-  font-family: Inter, system-ui, sans-serif;
+  font-family: Manrope, system-ui, sans-serif;
   background: #FAFAF7;
   color: #0C142E;
 }

@@ -27,7 +27,7 @@ export default function TopBar(props: { onOpenSettings: () => void }) {
   };
 
   return (
-    <header class="h-14 px-5 flex items-center gap-3 bg-white dark:bg-ink-500 border-b border-ink-100 dark:border-ink-400/30">
+    <header class="h-14 px-5 flex items-center gap-3 bg-transparent border-b border-ink-100 dark:border-ink-400/30">
       <img src={logo} alt="Tucano Proxy" class="h-9 w-9 object-contain shrink-0" />
       <div class="font-semibold text-[15px] tracking-tight">Tucano <span class="opacity-70">Proxy</span></div>
       <span class="text-[10px] uppercase tracking-[0.18em] text-toucan-400/90 mt-0.5">v0.1</span>

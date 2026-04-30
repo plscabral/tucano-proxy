@@ -19,6 +19,8 @@
         "minWidth": 900,
         "minHeight": 600,
         "decorations": true,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true,
         "transparent": false,
         "backgroundColor": "#0C142E",
         "dragDropEnabled": false

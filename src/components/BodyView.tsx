@@ -89,7 +89,7 @@ export default function BodyView(props: {
         <span class="opacity-60 mr-1 text-[10px] uppercase tracking-wider mono">{t("body.view")}</span>
         {modes.map((m) => (
           <button onClick={() => setMode(m)}
-            class={`px-2.5 h-7 rounded-lg transition mono text-[11px]
+            class={`px-2.5 h-7 rounded-lg transition mono text-[11px] uppercase tracking-wider
               ${mode() === m ? "bg-toucan-400 text-ink-500 font-medium" : "opacity-60 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20"}`}>
             {m}
           </button>

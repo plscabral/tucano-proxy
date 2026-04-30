@@ -63,6 +63,7 @@ pub fn run() {
             commands::start_capture,
             commands::stop_capture,
             commands::install_ca,
+            commands::uninstall_ca,
             commands::export_ca,
             commands::toggle_system_proxy,
             commands::clear_flows,

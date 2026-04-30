@@ -1,4 +1,5 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import { Copy, Check } from "lucide-solid";
 
 type Part = {
   name: string;
@@ -171,6 +172,16 @@ export default function FormViewer(props: {
     return [];
   });
 
+  const [copied, setCopied] = createSignal<string | null>(null);
+  const copy = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(id);
+      setTimeout(() => setCopied((c) => (c === id ? null : c)), 1200);
+    } catch {}
+  };
+  const btn = "h-6 px-2 rounded-md text-[10px] flex items-center gap-1 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 hover:border-toucan-400 hover:text-toucan-400";
+
   return (
     <div class="text-xs">
       <Show
@@ -186,28 +197,50 @@ export default function FormViewer(props: {
           </thead>
           <tbody>
             <For each={parts()}>
-              {(p) => (
-                <tr class="border-b border-ink-100/60 dark:border-ink-400/10 align-top">
-                  <td class="py-2 px-4 mono break-all">
-                    <div class="font-medium">{p.name}</div>
-                    <Show when={p.filename}>
-                      <div class="opacity-60 text-[10px] mt-1">filename: {p.filename}</div>
-                    </Show>
-                    <Show when={p.contentType}>
-                      <div class="opacity-60 text-[10px]">{p.contentType}</div>
-                    </Show>
-                    <div class="opacity-50 text-[10px] mt-1">{fmtSize(p.size)}</div>
-                  </td>
-                  <td class="py-2 px-4 mono break-all whitespace-pre-wrap">
-                    <Show
-                      when={p.isText}
-                      fallback={<span class="opacity-50 italic">(binary, {fmtSize(p.size)})</span>}
-                    >
-                      {p.value}
-                    </Show>
-                  </td>
-                </tr>
-              )}
+              {(p, i) => {
+                const kId = `fk${i()}`;
+                const vId = `fv${i()}`;
+                const lId = `fl${i()}`;
+                return (
+                  <tr class="group border-b border-ink-100/60 dark:border-ink-400/10 align-top hover:bg-toucan-400/5">
+                    <td class="py-2 px-4 mono break-all">
+                      <div class="font-medium">{p.name}</div>
+                      <Show when={p.filename}>
+                        <div class="opacity-60 text-[10px] mt-1">filename: {p.filename}</div>
+                      </Show>
+                      <Show when={p.contentType}>
+                        <div class="opacity-60 text-[10px]">{p.contentType}</div>
+                      </Show>
+                      <div class="opacity-50 text-[10px] mt-1">{fmtSize(p.size)}</div>
+                    </td>
+                    <td class="py-2 px-4 mono break-all whitespace-pre-wrap relative">
+                      <div class="flex gap-2">
+                        <span class="flex-1 min-w-0 break-all">
+                          <Show
+                            when={p.isText}
+                            fallback={<span class="opacity-50 italic">(binary, {fmtSize(p.size)})</span>}
+                          >
+                            {p.value}
+                          </Show>
+                        </span>
+                        <Show when={p.isText}>
+                          <span class="flex gap-1 opacity-0 group-hover:opacity-100 transition shrink-0 self-start">
+                            <button onClick={() => copy(kId, p.name)} title="Copy key" class={btn}>
+                              {copied() === kId ? <Check size={11} /> : <Copy size={11} />} key
+                            </button>
+                            <button onClick={() => copy(vId, p.value)} title="Copy value" class={btn}>
+                              {copied() === vId ? <Check size={11} /> : <Copy size={11} />} value
+                            </button>
+                            <button onClick={() => copy(lId, `${p.name}=${p.value}`)} title="Copy key=value" class={btn}>
+                              {copied() === lId ? <Check size={11} /> : <Copy size={11} />} both
+                            </button>
+                          </span>
+                        </Show>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }}
             </For>
           </tbody>
         </table>

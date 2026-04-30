@@ -68,6 +68,27 @@ impl CertAuthority {
         Ok(())
     }
 
+    pub fn uninstall_from_system(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        #[cfg(target_os = "macos")]
+        {
+            // -t certificate is the type; -c matches by common name. macOS may
+            // ask for the user's password via a system prompt — that's
+            // expected when removing trust roots.
+            let status = std::process::Command::new("security")
+                .args(["delete-certificate", "-c", "Tucano Root CA", "-t"])
+                .status()?;
+            if !status.success() { return Err("security delete-certificate failed".into()); }
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let status = std::process::Command::new("certutil")
+                .args(["-user", "-delstore", "ROOT", "Tucano Root CA"])
+                .status()?;
+            if !status.success() { return Err("certutil -delstore failed".into()); }
+        }
+        Ok(())
+    }
+
     pub fn is_installed(&self) -> bool {
         #[cfg(target_os = "macos")]
         {
