@@ -3,6 +3,7 @@ import { X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Mo
 import { getVersion } from "@tauri-apps/api/app";
 import { flowsStore } from "../stores/flows";
 import { updaterStore } from "../stores/updater";
+import { prefsStore } from "../stores/prefs";
 import { ipc } from "../lib/ipc";
 import { t, LOCALES, currentLocale, setLocale, type Locale } from "../lib/i18n";
 import { themeMode, setTheme, type ThemeMode } from "../stores/theme";
@@ -62,12 +63,6 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
     a.href = url; a.download = "tucano-root.pem"; a.click();
     URL.revokeObjectURL(url);
   };
-  const toggleSys = async () => {
-    setBusy(true);
-    try { await ipc.toggleSystemProxy(!flowsStore.status().systemProxyOn); await refresh(); }
-    finally { setBusy(false); }
-  };
-
   return (
     <Show when={props.open}>
       <div class="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm" onClick={props.onClose}>
@@ -117,22 +112,18 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                 onInput={(e) => setPort(Number(e.currentTarget.value) || 8888)}
                 class="w-28 h-9 px-3 mono text-sm rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
               />
-              <button
-                disabled={busy() || flowsStore.status().running}
-                onClick={async () => { await ipc.startProxy(port()); await refresh(); }}
-                class="h-9 px-4 text-xs rounded-xl bg-toucan-400 text-ink-500 font-medium disabled:opacity-40"
-              >{t("set.applyStart")}</button>
               <span class={`mono text-xs ${flowsStore.status().running ? "text-toucan-400" : "opacity-50"}`}>
                 ● {flowsStore.status().running ? t("set.running", { port: flowsStore.status().port }) : t("set.stopped")}
               </span>
             </div>
-            <Row icon={<Globe size={14} />} title={t("set.systemProxy")} hint={t("set.systemProxyHint")}>
-              <button onClick={toggleSys} disabled={busy()}
+            <Row icon={<Globe size={14} />} title={t("set.autoCapture")} hint={t("set.autoCaptureHint")}>
+              <button
+                onClick={() => prefsStore.setAutoCapture(!prefsStore.prefs().autoCapture)}
                 class={`h-9 px-4 text-xs rounded-xl border transition
-                  ${flowsStore.status().systemProxyOn
+                  ${prefsStore.prefs().autoCapture
                     ? "bg-toucan-400/15 border-toucan-400/60 text-toucan-400"
                     : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}>
-                {flowsStore.status().systemProxyOn ? t("set.enabled") : t("set.disabled")}
+                {prefsStore.prefs().autoCapture ? t("set.enabled") : t("set.disabled")}
               </button>
             </Row>
           </Section>

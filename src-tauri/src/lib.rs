@@ -60,6 +60,8 @@ pub fn run() {
             commands::get_status,
             commands::start_proxy,
             commands::stop_proxy,
+            commands::start_capture,
+            commands::stop_capture,
             commands::install_ca,
             commands::export_ca,
             commands::toggle_system_proxy,

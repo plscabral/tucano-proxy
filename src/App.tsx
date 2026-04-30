@@ -19,6 +19,7 @@ import { layoutStore } from "./stores/layout";
 import { sortStore } from "./stores/sort";
 import { sortFlows } from "./lib/sortFlows";
 import { updaterStore } from "./stores/updater";
+import { prefsStore } from "./stores/prefs";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export default function App() {
@@ -30,6 +31,17 @@ export default function App() {
     try {
       flowsStore.setStatus(await ipc.status());
       flowsStore.setFlows(await ipc.listFlows());
+      // Fiddler-style auto-start: bring up proxy + system proxy as soon as
+      // the window is ready, so the user is debugging immediately. Skipped
+      // if the user disabled it in Settings, or if something is already
+      // running (rehydration after a crash).
+      const st = flowsStore.status();
+      if (prefsStore.prefs().autoCapture && !st.running) {
+        try {
+          await ipc.startCapture(st.port);
+          flowsStore.setStatus(await ipc.status());
+        } catch (e) { console.warn("auto-start capture failed", e); }
+      }
     } catch (e) { console.warn("ipc unavailable?", e); }
 
     // Background update check on boot — silent on failure. If a new
@@ -109,7 +121,7 @@ export default function App() {
     } else if (!inField && e.key === " ") {
       e.preventDefault();
       const s = flowsStore.status();
-      if (s.running) await ipc.stopProxy(); else await ipc.startProxy(s.port);
+      if (s.running) await ipc.stopCapture(); else await ipc.startCapture(s.port);
       flowsStore.setStatus(await ipc.status());
     } else if (!inField && (e.key === "Delete" || e.key === "Backspace")) {
       const ids = flowsStore.selectedIds();

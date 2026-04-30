@@ -180,6 +180,9 @@ const en: Dict = {
   "set.systemProxy": "System proxy",
   "set.systemProxyHint":
     "Routes all OS traffic through Tucano. Reverts when you toggle off or quit.",
+  "set.autoCapture": "Auto-start capture on launch",
+  "set.autoCaptureHint":
+    "Start capturing (proxy + system proxy) automatically when Tucano opens. Stops cleanly when you quit.",
   "set.enabled": "Enabled",
   "set.disabled": "Disabled",
   "set.cert": "Root Certificate",
@@ -398,6 +401,9 @@ const ptBR: Dict = {
   "set.systemProxy": "Proxy do sistema",
   "set.systemProxyHint":
     "Roteia todo o tráfego do SO pelo Tucano. Reverte ao desligar ou sair.",
+  "set.autoCapture": "Iniciar captura automaticamente",
+  "set.autoCaptureHint":
+    "Liga o proxy + proxy do sistema assim que o Tucano abre. Desliga limpo ao fechar.",
   "set.enabled": "Ativado",
   "set.disabled": "Desativado",
   "set.cert": "Certificado raiz",
@@ -436,6 +442,16 @@ const ptBR: Dict = {
   "set.themeDark": "Escuro",
   "set.themeSystem": "Sistema",
   "set.language": "Idioma",
+
+  "set.ssl": "Proxy SSL",
+  "set.sslHint":
+    "Controle quais hosts HTTPS têm o corpo decifrado e capturado. Padrões: host exato, *.exemplo.com, api.foo.*",
+  "set.sslMode.all": "Capturar tudo HTTPS",
+  "set.sslMode.allowlist": "Apenas hosts permitidos",
+  "set.sslMode.blocklist": "Todos exceto bloqueados",
+  "set.sslHostsLabel": "Hosts (um por linha)",
+  "set.sslSave": "Salvar",
+  "set.sslSaved": "Salvo",
 
   "sk.focusFilter": "Focar filtro",
   "sk.clearAll": "Limpar todas as capturas",
@@ -536,6 +552,9 @@ const ptPT: Dict = {
   "set.systemProxy": "Proxy do sistema",
   "set.systemProxyHint":
     "Encaminha todo o tráfego do SO pelo Tucano. Reverte ao desligar ou sair.",
+  "set.autoCapture": "Iniciar captura automaticamente",
+  "set.autoCaptureHint":
+    "Liga o proxy + proxy do sistema assim que o Tucano abre. Desliga limpo ao fechar.",
   "set.enabled": "Activado",
   "set.disabled": "Desactivado",
   "set.cert": "Certificado raiz",
@@ -732,6 +751,9 @@ const es: Dict = {
   "set.systemProxy": "Proxy del sistema",
   "set.systemProxyHint":
     "Enruta todo el tráfico del SO por Tucano. Se revierte al apagar o salir.",
+  "set.autoCapture": "Iniciar captura automáticamente",
+  "set.autoCaptureHint":
+    "Activa el proxy + proxy del sistema al abrir Tucano. Se detiene limpiamente al cerrar.",
   "set.enabled": "Habilitado",
   "set.disabled": "Deshabilitado",
   "set.cert": "Certificado raíz",

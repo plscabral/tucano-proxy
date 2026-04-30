@@ -9,12 +9,8 @@ async function refresh() { flowsStore.setStatus(await ipc.status()); }
 
 export default function TopBar(props: { onOpenSettings: () => void }) {
   const s = flowsStore.status;
-  const start = async () => { await ipc.startProxy(s().port); await refresh(); };
-  const stop = async () => {
-    // stop_proxy on the backend also reverts system proxy automatically
-    await ipc.stopProxy();
-    await refresh();
-  };
+  const start = async () => { await ipc.startCapture(s().port); await refresh(); };
+  const stop = async () => { await ipc.stopCapture(); await refresh(); };
   const toggle = async (e: MouseEvent) => {
     // Drop focus so a follow-up Space key doesn't double-toggle (the
     // browser would re-fire click on the focused button AND the global

@@ -62,6 +62,49 @@ pub fn stop_proxy(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> 
     Ok(())
 }
 
+/// Atomic "Start capturing": brings up the local proxy server AND flips the
+/// OS-level system proxy so the user actually sees traffic. Mirrors the
+/// Fiddler/Proxyman model — one click = ready to debug.
+#[tauri::command]
+pub async fn start_capture(state: tauri::State<'_, Arc<AppState>>, port: u16) -> Result<(), String> {
+    // Start the proxy server (idempotent if already running).
+    if !state.running.load(Ordering::SeqCst) {
+        state.port.store(port, Ordering::SeqCst);
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        *state.stop_tx.lock() = Some(tx);
+        state.running.store(true, Ordering::SeqCst);
+        let st: Arc<AppState> = state.inner().clone();
+        tokio::spawn(async move {
+            if let Err(e) = proxy::run(st.clone(), port, rx).await {
+                tracing::error!("proxy error: {e}");
+            }
+            st.running.store(false, Ordering::SeqCst);
+        });
+    }
+    // Flip the OS proxy so traffic actually reaches us.
+    let active_port = state.port.load(Ordering::SeqCst);
+    if let Err(e) = system_proxy::set(true, active_port) {
+        tracing::error!("system_proxy set failed: {e}");
+        return Err(format!("system proxy: {e}"));
+    }
+    state.system_proxy_on.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+/// Atomic "Stop capturing": tears down the OS proxy first (so the user's
+/// internet is restored immediately) and then stops the local server.
+#[tauri::command]
+pub fn stop_capture(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    let port = state.port.load(Ordering::SeqCst);
+    if state.system_proxy_on.load(Ordering::SeqCst) {
+        let _ = system_proxy::set(false, port);
+        state.system_proxy_on.store(false, Ordering::SeqCst);
+    }
+    if let Some(tx) = state.stop_tx.lock().take() { let _ = tx.send(()); }
+    state.running.store(false, Ordering::SeqCst);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn install_ca(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
     state.ca.install_to_system().map_err(err)

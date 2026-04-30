@@ -5,9 +5,10 @@ import RawViewer from "../viewers/RawViewer";
 import HexViewer from "../viewers/HexViewer";
 import ImageViewer from "../viewers/ImageViewer";
 import HtmlViewer from "../viewers/HtmlViewer";
+import FormViewer from "../viewers/FormViewer";
 import { t } from "../lib/i18n";
 
-type Mode = "auto" | "json" | "xml" | "html" | "raw" | "hex" | "image";
+type Mode = "auto" | "json" | "xml" | "html" | "form" | "raw" | "hex" | "image";
 
 function detect(ct: string | null): Mode {
   if (!ct) return "raw";
@@ -15,6 +16,7 @@ function detect(ct: string | null): Mode {
   if (c.includes("json")) return "json";
   if (c.includes("xml")) return "xml";
   if (c.includes("html")) return "html";
+  if (c.includes("x-www-form-urlencoded") || c.includes("multipart/form-data")) return "form";
   if (c.startsWith("image/")) return "image";
   if (c.startsWith("text/")) return "raw";
   return "hex";
@@ -44,7 +46,7 @@ export default function BodyView(props: {
   const [mode, setMode] = createSignal<Mode>("auto");
   const [copied, setCopied] = createSignal(false);
   const effective = createMemo<Mode>(() => mode() === "auto" ? detect(props.contentType) : mode());
-  const modes: Mode[] = ["auto", "json", "xml", "html", "raw", "hex", "image"];
+  const modes: Mode[] = ["auto", "json", "xml", "html", "form", "raw", "hex", "image"];
 
   const byteSize = () => {
     if (!props.body) return 0;
@@ -120,6 +122,7 @@ export default function BodyView(props: {
               {effective() === "json" && <JsonViewer text={body()} />}
               {effective() === "xml" && <RawViewer text={body()} lang="xml" />}
               {effective() === "html" && <HtmlViewer text={body()} />}
+              {effective() === "form" && <FormViewer body={body()} encoding={props.encoding} contentType={props.contentType} />}
               {effective() === "raw" && <RawViewer text={body()} lang="raw" />}
               {effective() === "hex" && <HexViewer text={body()} encoding={props.encoding} />}
               {effective() === "image" && <ImageViewer body={body()} encoding={props.encoding} contentType={props.contentType} />}
