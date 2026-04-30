@@ -30,14 +30,13 @@ Get the latest installer from **[Releases](https://github.com/plscabral/tucano-p
 
 The app is currently **not code-signed**, so the OS will warn you the first time you open it.
 
-**macOS** — after dragging to `/Applications`, either:
+**macOS** — after dragging to `/Applications`, do one of:
 
 - Right-click the app → **Open** → **Open** in the dialog, or
-- *System Settings → Privacy & Security → "Open Anyway"*, or
-- From Terminal:
-  ```bash
-  xattr -cr "/Applications/Tucano Proxy.app"
-  ```
+- *System Settings → Privacy & Security → "Open Anyway"*.
+
+> If you ever see *"is damaged and can't be opened"*, run once:
+> `xattr -cr "/Applications/Tucano Proxy.app"`
 
 **Windows** — SmartScreen will say "Windows protected your PC". Click **More info → Run anyway**.
 

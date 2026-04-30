@@ -40,7 +40,10 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "Open source HTTP/HTTPS debugging proxy",
-    "longDescription": "Tucano is an open source desktop debugger for HTTP/HTTPS traffic — capture, inspect, filter and replay requests on Windows and macOS (Intel & Apple Silicon)."
+    "longDescription": "Tucano is an open source desktop debugger for HTTP/HTTPS traffic — capture, inspect, filter and replay requests on Windows and macOS (Intel & Apple Silicon).",
+    "macOS": {
+      "signingIdentity": "-"
+    }
   },
   "plugins": {}
 }
