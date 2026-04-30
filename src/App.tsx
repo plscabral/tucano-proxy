@@ -18,6 +18,8 @@ import { matchesCategory, CATEGORIES, type Category } from "./lib/category";
 import { layoutStore } from "./stores/layout";
 import { sortStore } from "./stores/sort";
 import { sortFlows } from "./lib/sortFlows";
+import { updaterStore } from "./stores/updater";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
@@ -29,6 +31,31 @@ export default function App() {
       flowsStore.setStatus(await ipc.status());
       flowsStore.setFlows(await ipc.listFlows());
     } catch (e) { console.warn("ipc unavailable?", e); }
+
+    // Background update check on boot — silent on failure. If a new
+    // version exists, download it so it's ready by the time the user
+    // notices the StatusBar indicator.
+    updaterStore.check()
+      .then(() => {
+        if (updaterStore.state() === "available") return updaterStore.download();
+      })
+      .catch((e) => console.warn("[updater] boot check failed", e));
+
+    // Auto-install on quit: if the user closes the app while an update
+    // is downloaded and waiting, apply it before the process exits so
+    // the next launch is already on the new version.
+    try {
+      const win = getCurrentWindow();
+      await win.onCloseRequested(async (e) => {
+        if (updaterStore.hasReadyUpdate()) {
+          e.preventDefault();
+          await updaterStore.installOnQuit();
+          // installOnQuit triggers a relaunch on success; if it returned
+          // (failure), force-close so the user isn't trapped.
+          await win.destroy();
+        }
+      });
+    } catch (e) { console.warn("[updater] could not hook close", e); }
   });
 
   const unNew = onFlowNew((f) => flowsStore.upsert(f));
@@ -36,8 +63,18 @@ export default function App() {
 
   const onKey = async (e: KeyboardEvent) => {
     const meta = e.metaKey || e.ctrlKey;
-    const tag = (e.target as HTMLElement)?.tagName;
-    const inField = tag === "INPUT" || tag === "TEXTAREA";
+    const target = e.target as HTMLElement | null;
+    const tag = target?.tagName;
+    const inField =
+      tag === "INPUT" ||
+      tag === "TEXTAREA" ||
+      tag === "SELECT" ||
+      // Buttons / links: let the browser dispatch native activation
+      // (Space/Enter on a focused button = click). Otherwise the global
+      // Space shortcut would double-toggle the capture button.
+      tag === "BUTTON" ||
+      tag === "A" ||
+      target?.isContentEditable === true;
 
     if (meta && e.key.toLowerCase() === "a" && !inField) {
       e.preventDefault();

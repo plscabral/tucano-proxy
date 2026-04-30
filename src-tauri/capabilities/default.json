@@ -8,6 +8,9 @@
     "core:event:default",
     "core:window:default",
     "dialog:default",
-    "store:default"
+    "store:default",
+    "updater:default",
+    "process:default",
+    "process:allow-restart"
   ]
 }

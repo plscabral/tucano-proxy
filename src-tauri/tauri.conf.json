@@ -45,5 +45,15 @@
       "signingIdentity": "-"
     }
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/plscabral/tucano-proxy/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCRTM1RUJDQUY3MjIxRDMKUldUVElYS3Z2RjdqYTdGZW1nemFqS05Ja2pBS2JIRjg0ZFVxNEkybUdOYWNzcFE5WnZYUHd5YTgK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
 }

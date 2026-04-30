@@ -38,6 +38,14 @@ impl SslSettings {
         }
     }
 
+    /// Whether to MITM-intercept this host at all (vs. tunnel raw bytes).
+    /// Hosts that need client-certificate authentication (smart cards,
+    /// PJe judicial system, banks) MUST be tunneled — interception breaks
+    /// the client-cert handshake. Mirrors `should_capture`.
+    pub fn should_intercept(&self, host: &str) -> bool {
+        self.should_capture(host)
+    }
+
     pub fn data_path(dir: &Path) -> PathBuf { dir.join("ssl-settings.json") }
 }
 

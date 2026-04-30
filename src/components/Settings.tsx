@@ -1,6 +1,8 @@
 import { createSignal, onMount, Show, For } from "solid-js";
-import { X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor, ChevronDown, Lock } from "lucide-solid";
+import { X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor, ChevronDown, Lock, RefreshCw } from "lucide-solid";
+import { getVersion } from "@tauri-apps/api/app";
 import { flowsStore } from "../stores/flows";
+import { updaterStore } from "../stores/updater";
 import { ipc } from "../lib/ipc";
 import { t, LOCALES, currentLocale, setLocale, type Locale } from "../lib/i18n";
 import { themeMode, setTheme, type ThemeMode } from "../stores/theme";
@@ -30,6 +32,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
   const [sslMode, setSslMode] = createSignal<SslMode>("all");
   const [sslHosts, setSslHosts] = createSignal("");
   const [sslSaved, setSslSaved] = createSignal(false);
+  const [appVersion, setAppVersion] = createSignal("");
 
   onMount(async () => {
     try {
@@ -37,6 +40,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
       setSslMode((s.mode as SslMode) || "all");
       setSslHosts((s.hosts || []).join("\n"));
     } catch {}
+    try { setAppVersion(await getVersion()); } catch {}
   });
 
   const saveSsl = async () => {
@@ -185,6 +189,58 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               <li>{t("set.why3")}</li>
               <li>{t("set.why4")}</li>
             </ul>
+          </Section>
+
+          <Section icon={<RefreshCw size={14} />} title={t("set.aboutTitle")}>
+            <div class="text-xs space-y-2">
+              <div class="flex items-center justify-between gap-3">
+                <span class="opacity-70">{t("set.currentVersion")}</span>
+                <span class="mono">{appVersion() || "—"}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="opacity-70">{t("set.updateStatus")}</span>
+                <span class="mono opacity-80">
+                  {updaterStore.state() === "idle" && t("updater.idle")}
+                  {updaterStore.state() === "checking" && t("updater.checking")}
+                  {updaterStore.state() === "available" && `${t("updater.available")} v${updaterStore.version()}`}
+                  {updaterStore.state() === "downloading" && `${t("updater.downloading")} ${Math.round(updaterStore.progress() * 100)}%`}
+                  {updaterStore.state() === "ready" && `${t("updater.ready")} v${updaterStore.version()}`}
+                  {updaterStore.state() === "upToDate" && t("updater.upToDate")}
+                  {updaterStore.state() === "error" && t("updater.error")}
+                </span>
+              </div>
+              <Show when={updaterStore.state() === "error" && updaterStore.error()}>
+                <div class="text-[11px] opacity-60 mono break-all">{updaterStore.error()}</div>
+              </Show>
+              <div class="flex gap-2 pt-1">
+                <Show
+                  when={updaterStore.state() === "available" || updaterStore.state() === "ready"}
+                  fallback={
+                    <button
+                      onClick={() => updaterStore.check()}
+                      disabled={updaterStore.state() === "checking" || updaterStore.state() === "downloading"}
+                      class="h-8 px-3 rounded-lg text-xs bg-ink-50 dark:bg-ink-500 hover:bg-ink-100 dark:hover:bg-ink-400/40 disabled:opacity-50"
+                    >{t("set.checkUpdates")}</button>
+                  }
+                >
+                  <Show when={updaterStore.state() === "available"}>
+                    <button
+                      onClick={() => updaterStore.download()}
+                      class="h-8 px-3 rounded-lg text-xs bg-toucan-400 text-ink-500 hover:bg-toucan-300"
+                    >{t("set.downloadUpdate")}</button>
+                  </Show>
+                  <Show when={updaterStore.state() === "ready"}>
+                    <button
+                      onClick={() => updaterStore.restart()}
+                      class="h-8 px-3 rounded-lg text-xs bg-toucan-400 text-ink-500 hover:bg-toucan-300"
+                    >{t("updater.restart")}</button>
+                  </Show>
+                </Show>
+              </div>
+              <Show when={updaterStore.notes()}>
+                <pre class="text-[11px] opacity-70 whitespace-pre-wrap font-sans pt-1 leading-relaxed">{updaterStore.notes()}</pre>
+              </Show>
+            </div>
           </Section>
 
           <Section icon={<Keyboard size={14} />} title={t("set.shortcuts")}>

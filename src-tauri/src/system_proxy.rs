@@ -41,19 +41,86 @@ mod macos {
         }
     }
 
+    /// Read the current proxy bypass domains for a network service.
+    fn get_bypass(svc: &str) -> Vec<String> {
+        let out = Command::new("networksetup")
+            .args(["-getproxybypassdomains", svc])
+            .output();
+        let stdout = match out {
+            Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
+            Err(_) => return vec![],
+        };
+        stdout
+            .lines()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty() && !s.starts_with("There aren't any"))
+            .collect()
+    }
+
+    fn snapshot_path() -> std::path::PathBuf {
+        dirs::data_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join("tucano")
+            .join("bypass-snapshot.json")
+    }
+
+    fn save_snapshot(map: &std::collections::HashMap<String, Vec<String>>) {
+        let path = snapshot_path();
+        if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
+        if let Ok(json) = serde_json::to_string(map) {
+            let _ = std::fs::write(&path, json);
+        }
+    }
+
+    fn load_snapshot() -> std::collections::HashMap<String, Vec<String>> {
+        std::fs::read_to_string(snapshot_path())
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+
     pub fn set(on: bool, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let svcs = services();
         if svcs.is_empty() {
             eprintln!("[tucano] no network services found");
         }
         let port_s = port.to_string();
-        for svc in &svcs {
-            if on {
+        if on {
+            // Snapshot current bypass list per service so we can restore on OFF,
+            // then clear it. macOS ships with `*.local 169.254/16` by default,
+            // and many setups also bypass localhost — which would prevent us
+            // from capturing dev servers and local apps. Force everything
+            // through the proxy while we're active.
+            let mut snap: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+            for svc in &svcs {
+                snap.insert(svc.clone(), get_bypass(svc));
+            }
+            save_snapshot(&snap);
+
+            for svc in &svcs {
                 run(&["-setwebproxy", svc, "127.0.0.1", &port_s]);
                 run(&["-setsecurewebproxy", svc, "127.0.0.1", &port_s]);
-            } else {
+                // Empty bypass list — capture absolutely everything, including
+                // localhost / 127.0.0.1 (PJe Office, dev servers, etc.).
+                run(&["-setproxybypassdomains", svc, ""]);
+            }
+        } else {
+            let snap = load_snapshot();
+            for svc in &svcs {
                 run(&["-setwebproxystate", svc, "off"]);
                 run(&["-setsecurewebproxystate", svc, "off"]);
+
+                // Restore prior bypass list, falling back to the macOS default.
+                let prior = snap.get(svc).cloned().unwrap_or_else(|| {
+                    vec!["*.local".to_string(), "169.254/16".to_string()]
+                });
+                let mut args: Vec<&str> = vec!["-setproxybypassdomains", svc];
+                if prior.is_empty() {
+                    args.push("");
+                } else {
+                    for d in &prior { args.push(d.as_str()); }
+                }
+                run(&args);
             }
         }
         Ok(())
@@ -69,8 +136,12 @@ mod windows {
         if on {
             let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "1", "/f"]).status();
             let _ = Command::new("reg").args(["add", key, "/v", "ProxyServer", "/t", "REG_SZ", "/d", &format!("127.0.0.1:{}", port), "/f"]).status();
+            // Force everything through the proxy, including localhost — Windows
+            // by default bypasses <local>, which would hide dev/local traffic.
+            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "", "/f"]).status();
         } else {
             let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f"]).status();
+            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "<local>", "/f"]).status();
         }
         Ok(())
     }

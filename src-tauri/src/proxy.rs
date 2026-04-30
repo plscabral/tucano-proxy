@@ -5,6 +5,7 @@ use http_body_util::{BodyExt, Full};
 use hudsucker::{
     certificate_authority::RcgenAuthority,
     hyper::{Request, Response, body::Bytes},
+    rustls,
     Body, HttpContext, HttpHandler, Proxy, RequestOrResponse,
 };
 use parking_lot::Mutex;
@@ -14,6 +15,54 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tauri::Emitter;
+
+/// rustls verifier that accepts every upstream certificate. Required so
+/// Tucano can MITM dev servers / localhost / internal hosts presenting
+/// self-signed or untrusted certs (PJe Office's local server, etc.) —
+/// the same default Proxyman/Charles use ("Disable SSL verification").
+#[derive(Debug)]
+struct AcceptAllVerifier;
+
+impl rustls::client::danger::ServerCertVerifier for AcceptAllVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+        _server_name: &rustls::pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rustls::pki_types::UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        use rustls::SignatureScheme::*;
+        vec![
+            RSA_PKCS1_SHA256, RSA_PKCS1_SHA384, RSA_PKCS1_SHA512,
+            RSA_PSS_SHA256, RSA_PSS_SHA384, RSA_PSS_SHA512,
+            ECDSA_NISTP256_SHA256, ECDSA_NISTP384_SHA384, ECDSA_NISTP521_SHA512,
+            ED25519, ED448,
+        ]
+    }
+}
 
 #[derive(Clone)]
 pub struct TucanoHandler {
@@ -86,6 +135,27 @@ fn body_from_bytes(b: Bytes) -> Body {
 }
 
 impl HttpHandler for TucanoHandler {
+    /// Decide per-CONNECT whether to MITM-intercept. For hosts in the SSL
+    /// blocklist (or outside an allowlist) we tunnel raw bytes — so client
+    /// certificate handshakes (PJe Office, banks, jus.br) survive intact.
+    fn should_intercept(
+        &mut self,
+        _ctx: &HttpContext,
+        req: &Request<Body>,
+    ) -> impl Future<Output = bool> + Send {
+        let should = if req.method() == http::Method::CONNECT {
+            // CONNECT URI is `host:port`.
+            let authority = req.uri().authority().map(|a| a.host().to_string());
+            match authority {
+                Some(host) => self.state.ssl.lock().should_intercept(&host),
+                None => true,
+            }
+        } else {
+            true
+        };
+        async move { should }
+    }
+
     fn handle_request(
         &mut self,
         ctx: &HttpContext,
@@ -248,9 +318,35 @@ pub async fn run(state: Arc<AppState>, port: u16, stop_rx: tokio::sync::oneshot:
     let addr: SocketAddr = ([127, 0, 0, 1], port).into();
     let handler = TucanoHandler { state: state.clone(), pending: Arc::new(Mutex::new(HashMap::new())) };
 
+    // Build a hyper client that accepts every upstream cert. This lets us
+    // MITM hosts with self-signed / untrusted certs (PJe Office on
+    // localhost, internal staging servers, dev environments) — without it,
+    // those connections fail before we ever see a request.
+    let tls_config = rustls::ClientConfig::builder_with_provider(
+            Arc::new(rustls::crypto::ring::default_provider()),
+        )
+        .with_safe_default_protocol_versions()?
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(AcceptAllVerifier))
+        .with_no_client_auth();
+
+    let mut http_connector = hyper_util::client::legacy::connect::HttpConnector::new();
+    http_connector.enforce_http(false);
+
+    let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_tls_config(tls_config)
+        .https_or_http()
+        .enable_http1()
+        .wrap_connector(http_connector);
+
+    let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+        .http1_title_case_headers(true)
+        .http1_preserve_header_case(true)
+        .build(https_connector);
+
     let proxy = Proxy::builder()
         .with_addr(addr)
-        .with_rustls_client()
+        .with_client(client)
         .with_ca(ca)
         .with_http_handler(handler)
         .with_graceful_shutdown(async move { let _ = stop_rx.await; })

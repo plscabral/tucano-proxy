@@ -15,6 +15,13 @@ export default function TopBar(props: { onOpenSettings: () => void }) {
     await ipc.stopProxy();
     await refresh();
   };
+  const toggle = async (e: MouseEvent) => {
+    // Drop focus so a follow-up Space key doesn't double-toggle (the
+    // browser would re-fire click on the focused button AND the global
+    // Space shortcut would also run).
+    (e.currentTarget as HTMLButtonElement)?.blur();
+    if (s().running) await stop(); else await start();
+  };
 
   const ThemeIcon = () => {
     const m = themeMode();
@@ -32,7 +39,7 @@ export default function TopBar(props: { onOpenSettings: () => void }) {
       <div class="flex-1" />
 
       <button
-        onClick={s().running ? stop : start}
+        onClick={toggle}
         title={s().running ? t("topbar.stopTitle") : t("topbar.startTitle")}
         class={`h-9 pl-2.5 pr-4 rounded-full flex items-center gap-2 text-xs font-medium transition border
           ${s().running
