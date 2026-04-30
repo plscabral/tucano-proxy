@@ -1,6 +1,6 @@
 import { createStore, produce } from "solid-js/store";
 
-export type ColId = "index" | "method" | "status" | "host" | "path" | "size" | "duration" | "client" | "scheme" | "mime";
+export type ColId = "index" | "method" | "status" | "host" | "path" | "size" | "duration" | "client" | "scheme" | "mime" | "note";
 
 export type Col = { id: ColId; label: string; width: number; visible: boolean };
 
@@ -15,6 +15,7 @@ export const ALL_COLUMNS: Record<ColId, { label: string; width: number }> = {
   client:   { label: "Client",   width: 140 },
   scheme:   { label: "Scheme",   width: 70 },
   mime:     { label: "MIME",     width: 140 },
+  note:     { label: "Note",     width: 240 },
 };
 
 const DEFAULT: Col[] = [
@@ -26,6 +27,7 @@ const DEFAULT: Col[] = [
   { id: "path",     label: "Path",   width: 320, visible: true },
   { id: "size",     label: "Size",   width: 80,  visible: true },
   { id: "duration", label: "Time",   width: 80,  visible: true },
+  { id: "note",     label: "Note",   width: 240, visible: true },
   { id: "scheme",   label: "Scheme", width: 70,  visible: false },
   { id: "mime",     label: "MIME",   width: 140, visible: false },
 ];

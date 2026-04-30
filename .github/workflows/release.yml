@@ -14,7 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-13
+          # Cross-compile Intel from the ARM runner — `macos-13` (Intel native)
+          # has been deprecated by GitHub and gets stuck queued. macos-latest
+          # has the Intel toolchain via rustup target add x86_64-apple-darwin.
+          - platform: macos-latest
             args: '--target x86_64-apple-darwin'
             rust-target: x86_64-apple-darwin
           - platform: macos-latest

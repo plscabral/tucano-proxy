@@ -19,7 +19,10 @@ export default function TopBar(props: { onOpenSettings: () => void }) {
     if (s().running) await stop(); else await start();
   };
 
-  const ThemeIcon = () => {
+  // Inline JSX expression so Solid re-evaluates the icon when `themeMode()`
+  // changes — wrapping the conditional in a regular function (`<ThemeIcon/>`)
+  // would cache the first result and never update the icon.
+  const themeIcon = () => {
     const m = themeMode();
     if (m === "dark") return <Moon size={15} />;
     if (m === "light") return <Sun size={15} />;
@@ -60,7 +63,7 @@ export default function TopBar(props: { onOpenSettings: () => void }) {
         onClick={toggleTheme}
         class="h-9 w-9 grid place-items-center rounded-xl opacity-70 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-ink-400/20 transition"
         title={t("topbar.toggleTheme")}
-      ><ThemeIcon /></button>
+      >{themeIcon()}</button>
     </header>
   );
 }

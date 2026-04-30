@@ -35,6 +35,11 @@ pub struct Flow {
     pub client_port: Option<u16>,
     #[serde(default)]
     pub client_icon: Option<String>,
+    /// Free-text note added by the user (Fiddler-style "comment" column).
+    /// Persisted as part of the flow JSON; old captures missing this field
+    /// deserialize fine via #[serde(default)].
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 pub struct Storage { conn: Connection }

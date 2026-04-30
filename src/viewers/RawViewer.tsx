@@ -6,12 +6,17 @@ import { html } from "@codemirror/lang-html";
 import { theme } from "../stores/theme";
 import { cmTheme } from "../lib/cmTheme";
 
-export default function RawViewer(props: { text: string; lang: "xml" | "html" | "raw" }) {
+export default function RawViewer(props: {
+  text: string;
+  lang: "xml" | "html" | "raw";
+  wrap?: boolean;
+}) {
   let host!: HTMLDivElement;
   let view: EditorView | undefined;
 
   createEffect(() => {
     const ext = props.lang === "xml" ? [xml()] : props.lang === "html" ? [html()] : [];
+    const wrapExt = props.wrap === false ? [] : [EditorView.lineWrapping];
     view?.destroy();
     view = new EditorView({
       parent: host,
@@ -22,7 +27,7 @@ export default function RawViewer(props: { text: string; lang: "xml" | "html" | 
           ...ext,
           ...cmTheme(theme()),
           EditorView.editable.of(false),
-          EditorView.lineWrapping,
+          ...wrapExt,
         ],
       }),
     });

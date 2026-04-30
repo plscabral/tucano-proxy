@@ -6,6 +6,7 @@ use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use tauri::Emitter;
 
 fn err<E: std::fmt::Display>(e: E) -> String { e.to_string() }
 
@@ -158,6 +159,30 @@ pub fn replay_flow(
     let _ = (state, id, headers, body);
     // v0.2 — TODO: send replay through internal client and create new flow.
     Err("replay not yet implemented".into())
+}
+
+#[tauri::command]
+pub fn update_flow_note(state: tauri::State<'_, Arc<AppState>>, id: String, note: Option<String>) -> Result<(), String> {
+    let mut storage = state.storage.lock();
+    let mut flow = storage.get(&id).map_err(err)?.ok_or_else(|| "flow not found".to_string())?;
+    flow.note = note.filter(|n| !n.is_empty());
+    storage.upsert(&flow).map_err(err)?;
+    let _ = state.app.emit("flow:update", &flow);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&path, contents).map_err(err)
+}
+
+#[tauri::command]
+pub fn write_binary_file(path: String, contents_base64: String) -> Result<(), String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(contents_base64.as_bytes())
+        .map_err(err)?;
+    std::fs::write(&path, bytes).map_err(err)
 }
 
 #[tauri::command]

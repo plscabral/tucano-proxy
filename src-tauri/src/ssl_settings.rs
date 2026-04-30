@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,7 +46,6 @@ impl SslSettings {
         self.should_capture(host)
     }
 
-    pub fn data_path(dir: &Path) -> PathBuf { dir.join("ssl-settings.json") }
 }
 
 /// Glob-ish host match: supports `*.foo.com`, `api.*`, exact match, case-insensitive.

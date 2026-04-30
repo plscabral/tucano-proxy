@@ -26,6 +26,7 @@ export type Flow = {
   clientApp: string | null;
   clientPort: number | null;
   clientIcon: string | null;
+  note?: string | null;
 };
 
 export type ProxyStatus = {

@@ -123,7 +123,14 @@ fn encode_body(bytes: &Bytes, ct: Option<&str>) -> (String, &'static str) {
     if is_text {
         match std::str::from_utf8(bytes) {
             Ok(s) => (s.to_string(), "utf8"),
-            Err(_) => (base64::engine::general_purpose::STANDARD.encode(bytes), "base64"),
+            Err(_) => {
+                // Many legacy / government / Java backends still serve text
+                // as ISO-8859-1 (Latin-1). Decode each byte to its Unicode
+                // code point — this always succeeds and produces a readable
+                // string. Charles/Proxyman do the same.
+                let decoded: String = bytes.iter().map(|&b| b as char).collect();
+                (decoded, "utf8")
+            }
         }
     } else {
         (base64::engine::general_purpose::STANDARD.encode(bytes), "base64")
@@ -196,6 +203,18 @@ impl HttpHandler for TucanoHandler {
             let id = uuid::Uuid::new_v4().to_string();
             let idx = self.state.storage.lock().next_index();
 
+            // Resolve client app SYNCHRONOUSLY before emitting the flow.
+            // The PORT_CACHE in client_proc makes this near-instant after
+            // the first hit per source port — and resolving while the TCP
+            // connection is still ESTABLISHED is the only way to be sure
+            // lsof/netstat can find it (otherwise short-lived connections
+            // close before async resolution runs, especially when Tucano
+            // is in the background and macOS App Nap throttles spawns).
+            let client_port = client.port();
+            let client_info = tokio::task::spawn_blocking(move || {
+                crate::client_proc::resolve(client_port)
+            }).await.unwrap_or_default();
+
             let flow = Flow {
                 id: id.clone(),
                 index: idx,
@@ -221,29 +240,14 @@ impl HttpHandler for TucanoHandler {
                 res_size: 0,
                 duration_ms: None,
                 error: None,
-                client_app: None,
-                client_port: Some(client.port()),
-                client_icon: None,
+                client_app: client_info.name,
+                client_port: Some(client_port),
+                client_icon: client_info.icon_data_url,
+                note: None,
             };
 
             let _ = self.state.app.emit("flow:new", &flow);
             let _ = self.state.storage.lock().upsert(&flow);
-
-            // Resolve client process name asynchronously (slow lsof call).
-            let st = self.state.clone();
-            let id = flow.id.clone();
-            let port = client.port();
-            tokio::task::spawn_blocking(move || {
-                let info = crate::client_proc::resolve(port);
-                if info.name.is_none() && info.icon_data_url.is_none() { return; }
-                let mut storage = st.storage.lock();
-                if let Ok(Some(mut f)) = storage.get(&id) {
-                    f.client_app = info.name;
-                    f.client_icon = info.icon_data_url;
-                    let _ = storage.upsert(&f);
-                    let _ = st.app.emit("flow:update", &f);
-                }
-            });
 
             self.pending.lock().entry(client).or_default().push_back(flow);
 

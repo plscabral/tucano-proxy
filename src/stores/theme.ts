@@ -1,4 +1,5 @@
 import { createSignal, createEffect } from "solid-js";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export type ThemeMode = "dark" | "light" | "system";
 
@@ -27,15 +28,21 @@ createEffect(() => {
 
 // Keep the macOS native title bar (Transparent style) in sync with the
 // active theme by repainting the window background. Without this, the
-// title bar would always show the static color from tauri.conf.json.
+// title bar would always show the static color from tauri.conf.json,
+// leaving a dark stripe at the top of the window in light mode.
 createEffect(() => {
   const dark = effectiveTheme() === "dark";
-  const color = dark
-    ? { red: 12, green: 20, blue: 46, alpha: 255 }   // #0C142E (ink-500)
-    : { red: 255, green: 255, blue: 255, alpha: 255 }; // white
-  import("@tauri-apps/api/window")
-    .then(({ getCurrentWindow }) => getCurrentWindow().setBackgroundColor(color))
-    .catch(() => { /* not running under Tauri */ });
+  // Match the CSS body backgrounds in styles.css so the title bar blends
+  // perfectly with the rest of the app (no seam between OS chrome and TopBar).
+  const color = dark ? "#0C142E" : "#FAFAF7";
+  try {
+    getCurrentWindow().setBackgroundColor(color).catch((e) => {
+      console.warn("[theme] setBackgroundColor failed", e);
+    });
+  } catch (e) {
+    // Not running inside Tauri (e.g. plain web preview) — ignore silently.
+    void e;
+  }
 });
 
 export function setTheme(t: ThemeMode) {

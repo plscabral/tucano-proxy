@@ -164,12 +164,17 @@ export default function App() {
   });
 
   const onDragRight = (cx: number, _cy: number, rect: DOMRect) => {
+    // rightPct = width % taken by the LEFT panel (FlowList). Drag right
+    // grows the list; drag left shrinks it. Clamp so neither side vanishes.
     const pct = ((cx - rect.left) / rect.width) * 100;
-    layoutStore.setRightPct(pct);
+    layoutStore.setRightPct(Math.max(15, Math.min(85, pct)));
   };
   const onDragBottom = (_cx: number, cy: number, rect: DOMRect) => {
-    const pct = ((cy - rect.top) / rect.height) * 100;
-    layoutStore.setBottomPct(pct);
+    // bottomPct = height % taken by the BOTTOM panel (Inspector). The
+    // FlowList renders with `100 - bottomPct`, so dragging UP must grow
+    // bottomPct. We measure distance from the bottom edge, not the top.
+    const pct = ((rect.bottom - cy) / rect.height) * 100;
+    layoutStore.setBottomPct(Math.max(15, Math.min(85, pct)));
   };
 
   return (

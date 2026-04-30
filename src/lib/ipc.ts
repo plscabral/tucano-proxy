@@ -16,10 +16,13 @@ export const ipc = {
   deleteFlows: (ids: string[]) => invoke<void>("delete_flows", { ids }),
   listFlows: () => invoke<Flow[]>("list_flows"),
   getFlow: (id: string) => invoke<Flow>("get_flow", { id }),
+  updateFlowNote: (id: string, note: string | null) => invoke<void>("update_flow_note", { id, note }),
   replay: (id: string, headers: [string, string][], body: string | null) =>
     invoke<string>("replay_flow", { id, headers, body }),
   saveSession: (path: string) => invoke<void>("save_session", { path }),
   openSession: (path: string) => invoke<void>("open_session", { path }),
+  writeTextFile: (path: string, contents: string) => invoke<void>("write_text_file", { path, contents }),
+  writeBinaryFile: (path: string, contentsBase64: string) => invoke<void>("write_binary_file", { path, contentsBase64 }),
   getSslSettings: () => invoke<{ mode: "all" | "allowlist" | "blocklist"; hosts: string[] }>("get_ssl_settings"),
   setSslSettings: (settings: { mode: "all" | "allowlist" | "blocklist"; hosts: string[] }) =>
     invoke<void>("set_ssl_settings", { settings }),

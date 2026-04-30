@@ -7,7 +7,9 @@ import { ipc } from "../lib/ipc";
 import { columnsStore, type ColId } from "../stores/columns";
 import { sortStore } from "../stores/sort";
 import { t } from "../lib/i18n";
-import { ArrowUp, ArrowDown, AppWindow, Radio } from "lucide-solid";
+import { ArrowUp, ArrowDown, AppWindow, Radio, ChevronRight, StickyNote, GripVertical } from "lucide-solid";
+import { EXPORT_FORMATS } from "../lib/exporters";
+import NoteDialog from "./NoteDialog";
 
 function statusColor(s: number | null) {
   if (s == null) return "text-ink-300";
@@ -42,6 +44,14 @@ function renderCell(f: Flow, id: ColId) {
               <AppWindow size={10} />
             </span>}
         <span class="truncate">{f.clientApp ?? "—"}</span>
+      </div>
+    );
+    case "note":     return (
+      <div class={`flex items-center gap-1.5 truncate pr-2 ${f.note ? "text-toucan-400" : "opacity-30"}`} title={f.note ?? ""}>
+        <Show when={f.note} fallback={<span class="opacity-50">—</span>}>
+          <StickyNote size={11} class="shrink-0" />
+          <span class="truncate">{f.note}</span>
+        </Show>
       </div>
     );
   }
@@ -87,6 +97,40 @@ export default function FlowList(props: { flows: Flow[] }) {
   };
   const markSelected = (color: string) => {
     flowsStore.selectedIds().forEach((id) => marksStore.set(id, color));
+    closeCtx();
+  };
+  const [noteFlowId, setNoteFlowId] = createSignal<string | null>(null);
+  const noteFlow = () => {
+    const id = noteFlowId();
+    return id ? rows().find((f) => f.id === id) ?? null : null;
+  };
+  const editNote = () => {
+    const c = ctx();
+    if (!c) return;
+    setNoteFlowId(c.id);
+    closeCtx();
+  };
+  const saveNote = async (value: string | null) => {
+    const flow = noteFlow();
+    setNoteFlowId(null);
+    if (!flow) return;
+    try {
+      await ipc.updateFlowNote(flow.id, value);
+      flowsStore.upsert({ ...flow, note: value });
+    } catch (e) { console.error(e); }
+  };
+  const [exportOpen, setExportOpen] = createSignal(false);
+  const copySelectedAs = async (build: (f: Flow) => string) => {
+    const c = ctx();
+    if (!c) return;
+    const ids = flowsStore.selectedIds();
+    const targets = (ids.size > 0 ? rows().filter((f) => ids.has(f.id)) : rows().filter((f) => f.id === c.id));
+    if (targets.length === 0) return;
+    try {
+      const text = targets.map(build).join("\n\n");
+      await navigator.clipboard.writeText(text);
+    } catch {}
+    setExportOpen(false);
     closeCtx();
   };
 
@@ -154,22 +198,25 @@ export default function FlowList(props: { flows: Flow[] }) {
     <div class="h-full flex flex-col" onClick={closeCtx}>
       {/* Header */}
       <div
-        class="grid h-9 items-center text-[10px] uppercase tracking-[0.12em] bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 mono opacity-80 px-3"
+        class="grid h-9 items-stretch text-[10px] uppercase tracking-[0.12em] bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 mono opacity-90 pl-3"
         style={{ "grid-template-columns": gridTemplate() }}
       >
-        <For each={visibleCols()}>{(c) => {
+        <For each={visibleCols()}>{(c, i) => {
           const sortState = sortStore.state;
           const isSorted = () => sortState().by === c.id;
+          const isLast = () => i() === visibleCols().length - 1;
           return (
             <div
               data-col-header={c.id}
               onMouseDown={(e) => startHeaderDrag(e, c.id)}
-              class={`relative h-full flex items-center gap-1 pr-2 select-none cursor-grab active:cursor-grabbing
-                ${dragOver() === c.id && dragId() !== c.id ? "bg-toucan-400/15 ring-2 ring-toucan-400/60 rounded" : ""}
+              class={`group relative h-full flex items-center gap-1.5 pl-2 pr-5 select-none cursor-grab active:cursor-grabbing
+                ${!isLast() ? "border-r border-ink-100 dark:border-ink-400/30" : ""}
+                ${dragOver() === c.id && dragId() !== c.id ? "bg-toucan-400/15 ring-2 ring-toucan-400/60" : ""}
                 ${dragId() === c.id ? "opacity-50" : ""}
-                ${isSorted() ? "text-toucan-400" : "hover:text-toucan-400"}`}
-              title={`Click to sort · Drag to reorder · ${t(`col.${c.id}`)}`}
+                ${isSorted() ? "text-toucan-400" : "hover:text-toucan-400 hover:bg-ink-100/40 dark:hover:bg-ink-400/15"}`}
+              title={`${t("col.dragHint")} · ${t(`col.${c.id}`)}`}
             >
+              <GripVertical size={11} class="opacity-0 group-hover:opacity-50 transition shrink-0" />
               <span class="truncate">{t(`col.${c.id}`)}</span>
               {isSorted() && (sortState().dir === "asc"
                 ? <ArrowUp size={11} />
@@ -177,8 +224,11 @@ export default function FlowList(props: { flows: Flow[] }) {
               <span
                 onMouseDown={(e) => startResize(e, c.id, c.width)}
                 onClick={(e) => e.stopPropagation()}
-                class="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-toucan-400/40"
-              />
+                title={t("col.resizeHint")}
+                class="absolute right-0 top-0 h-full w-3 cursor-col-resize flex items-center justify-center group/r"
+              >
+                <span class="block w-px h-4 bg-ink-200 dark:bg-ink-300 opacity-0 group-hover/r:opacity-100 group-hover/r:bg-toucan-400 transition" />
+              </span>
             </div>
           );
         }}</For>
@@ -246,6 +296,34 @@ export default function FlowList(props: { flows: Flow[] }) {
               class="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-red-500/10 hover:text-red-500">
               <span>{t("list.delete")}</span><span class="opacity-50 mono">⌫</span>
             </button>
+            <button onClick={editNote}
+              class="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-toucan-400/10 hover:text-toucan-400">
+              <span>{rows().find((f) => f.id === c().id)?.note ? t("list.editNote") : t("list.addNote")}</span>
+              <StickyNote size={11} class="opacity-60" />
+            </button>
+            <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
+            <div
+              class="relative"
+              onMouseEnter={() => setExportOpen(true)}
+              onMouseLeave={() => setExportOpen(false)}
+            >
+              <button class="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-toucan-400/10">
+                <span>{t("list.copyAs")}</span>
+                <ChevronRight size={12} class="opacity-50" />
+              </button>
+              <Show when={exportOpen()}>
+                <div
+                  class="absolute left-full top-0 -ml-px bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-2xl py-1.5 min-w-[200px] text-xs"
+                >
+                  <For each={EXPORT_FORMATS}>{(fmt) => (
+                    <button
+                      onClick={() => copySelectedAs(fmt.build)}
+                      class="w-full px-3 py-1.5 text-left hover:bg-toucan-400/10 hover:text-toucan-400"
+                    >{fmt.label}</button>
+                  )}</For>
+                </div>
+              </Show>
+            </div>
             <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
             <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-50">{t("list.markWithColor")}</div>
             <For each={MARK_COLORS}>{(col) => (
@@ -260,6 +338,13 @@ export default function FlowList(props: { flows: Flow[] }) {
           </div>
         )}
       </Show>
+
+      <NoteDialog
+        open={noteFlow() !== null}
+        initialValue={noteFlow()?.note ?? ""}
+        onSave={saveNote}
+        onClose={() => setNoteFlowId(null)}
+      />
     </div>
   );
 }

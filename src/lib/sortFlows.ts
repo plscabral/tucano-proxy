@@ -13,6 +13,7 @@ function key(f: Flow, by: ColId): string | number {
     case "client":   return f.clientApp ?? "";
     case "scheme":   return f.scheme;
     case "mime":     return (f.resContentType || f.reqContentType || "");
+    case "note":     return f.note ?? "";
   }
 }
 

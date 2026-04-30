@@ -25,7 +25,7 @@ export default function Inspector(props: { flow: Flow | null }) {
         {(f) => (
           <>
             <div class="px-5 py-3 border-b border-ink-100 dark:border-ink-400/30 space-y-1">
-              <div class="mono text-[11px] opacity-60">{f().scheme}://{f().host}{f().port !== 443 && f().port !== 80 ? ":" + f().port : ""}</div>
+              <div class="mono text-[11px] opacity-60 truncate">{f().scheme}://{f().host}{f().port !== 443 && f().port !== 80 ? ":" + f().port : ""}</div>
               <div class="mono text-sm flex gap-2.5 items-center">
                 <span class="font-semibold text-toucan-400">{f().method}</span>
                 <span class="truncate">{f().path}</span>

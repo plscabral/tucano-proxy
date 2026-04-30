@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::process::Command;
+use std::time::{Duration, Instant};
 
 #[derive(Default, Clone)]
 pub struct ClientInfo {
@@ -12,8 +13,38 @@ pub struct ClientInfo {
 
 static ICON_CACHE: Lazy<Mutex<HashMap<String, Option<String>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
+/// Cache resolved (port → ClientInfo) for 5 minutes. Source ports are
+/// reused but slowly enough that this is safe; without the cache we'd
+/// spawn `lsof`/`netstat` on every single captured request, and short-lived
+/// connections often close before resolution completes.
+static PORT_CACHE: Lazy<Mutex<HashMap<u16, (Instant, ClientInfo)>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+const PORT_TTL: Duration = Duration::from_secs(300);
+
+fn cached(port: u16) -> Option<ClientInfo> {
+    let mut g = PORT_CACHE.lock();
+    if let Some((at, info)) = g.get(&port) {
+        if at.elapsed() < PORT_TTL { return Some(info.clone()); }
+    }
+    g.remove(&port);
+    None
+}
+
+fn store(port: u16, info: &ClientInfo) {
+    PORT_CACHE.lock().insert(port, (Instant::now(), info.clone()));
+}
+
 /// Resolve the local client port → process info (best-effort, OS specific).
+/// Cached per-port for 5 min to survive connection close + macOS App Nap.
 pub fn resolve(port: u16) -> ClientInfo {
+    if let Some(hit) = cached(port) { return hit; }
+    let info = resolve_uncached(port);
+    if info.name.is_some() || info.icon_data_url.is_some() {
+        store(port, &info);
+    }
+    info
+}
+
+fn resolve_uncached(port: u16) -> ClientInfo {
     #[cfg(target_os = "macos")]
     { return macos::resolve(port); }
     #[cfg(target_os = "windows")]
@@ -94,13 +125,13 @@ mod macos {
         let plist = format!("{bundle}/Contents/Info");
         if let Ok(out) = Command::new("defaults").args(["read", &plist, "CFBundleDisplayName"]).output() {
             if out.status.success() {
-                let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                let s = clean_display_name(&String::from_utf8_lossy(&out.stdout));
                 if !s.is_empty() { return s; }
             }
         }
         if let Ok(out) = Command::new("defaults").args(["read", &plist, "CFBundleName"]).output() {
             if out.status.success() {
-                let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                let s = clean_display_name(&String::from_utf8_lossy(&out.stdout));
                 if !s.is_empty() { return s; }
             }
         }
@@ -108,6 +139,60 @@ mod macos {
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_else(|| bundle.to_string())
+    }
+
+    /// `defaults read` emits non-printable Unicode chars as literal
+    /// `\Uxxxx` escapes (e.g. WhatsApp's CFBundleDisplayName ships with a
+    /// leading U+200E LRM, which prints as `\U200e`). Decode those escapes
+    /// back to real chars and then strip directional/zero-width marks so
+    /// names render cleanly.
+    fn clean_display_name(raw: &str) -> String {
+        let trimmed = raw.trim();
+        let decoded = decode_unicode_escapes(trimmed);
+        decoded
+            .chars()
+            .filter(|c| {
+                let code = *c as u32;
+                // Strip BOM, LRM/RLM, LRE/RLE/PDF, LRO/RLO, ZWJ/ZWNJ, ZWSP, etc.
+                !matches!(code,
+                    0x200B..=0x200F | 0x202A..=0x202E | 0x2066..=0x2069 | 0xFEFF)
+            })
+            .collect::<String>()
+            .trim()
+            .to_string()
+    }
+
+    fn decode_unicode_escapes(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        let mut chars = s.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                if let Some(&next) = chars.peek() {
+                    if next == 'U' || next == 'u' {
+                        let mut hex = String::new();
+                        let mut tmp = chars.clone();
+                        tmp.next(); // consume U/u
+                        for _ in 0..4 {
+                            match tmp.next() {
+                                Some(h) if h.is_ascii_hexdigit() => hex.push(h),
+                                _ => { hex.clear(); break; }
+                            }
+                        }
+                        if hex.len() == 4 {
+                            if let Ok(code) = u32::from_str_radix(&hex, 16) {
+                                if let Some(decoded) = char::from_u32(code) {
+                                    out.push(decoded);
+                                    chars = tmp; // commit consumption
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            out.push(c);
+        }
+        out
     }
 
     fn icon_for_bundle(bundle: &str) -> Option<String> {

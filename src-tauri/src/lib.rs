@@ -70,9 +70,12 @@ pub fn run() {
             commands::delete_flows,
             commands::list_flows,
             commands::get_flow,
+            commands::update_flow_note,
             commands::replay_flow,
             commands::save_session,
             commands::open_session,
+            commands::write_text_file,
+            commands::write_binary_file,
             commands::get_ssl_settings,
             commands::set_ssl_settings,
         ])

@@ -47,7 +47,7 @@ export const flowsStore = {
     setSelectedIds(new Set(ids));
     setAnchorId(ids[0] ?? null);
   },
-  clearSelection() { setSelectedIds(new Set()); setAnchorId(null); },
+  clearSelection() { setSelectedIds(new Set<string>()); setAnchorId(null); },
 
   upsert(f: Flow) {
     setFlows((prev) => {
@@ -60,8 +60,8 @@ export const flowsStore = {
   },
   removeMany(ids: Set<string>) {
     setFlows((prev) => prev.filter((f) => !ids.has(f.id)));
-    setSelectedIds(new Set());
+    setSelectedIds(new Set<string>());
     setAnchorId(null);
   },
-  clear() { setFlows([]); setSelectedIds(new Set()); setAnchorId(null); },
+  clear() { setFlows([]); setSelectedIds(new Set<string>()); setAnchorId(null); },
 };
