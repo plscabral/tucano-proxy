@@ -26,7 +26,8 @@ impl AppState {
             .unwrap_or_else(|_| std::env::temp_dir().join("tucano"));
         std::fs::create_dir_all(&data_dir)?;
         let ca = CertAuthority::load_or_create(&data_dir)?;
-        let storage = Storage::open(&data_dir.join("flows.db"))?;
+        let mut storage = Storage::open(&data_dir.join("flows.db"))?;
+        let _ = storage.clear();
         let ssl = SslSettings::load(&data_dir);
         Ok(Self {
             data_dir,

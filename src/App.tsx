@@ -8,6 +8,7 @@ import CategoryTabs from "./components/CategoryTabs";
 import FlowToolbar from "./components/FlowToolbar";
 import Settings from "./components/Settings";
 import Splitter from "./components/Splitter";
+import Onboarding, { shouldShowOnboarding } from "./components/Onboarding";
 import { flowsStore } from "./stores/flows";
 import { marksStore, MARK_COLORS } from "./stores/marks";
 import { ipc, onFlowNew, onFlowUpdate } from "./lib/ipc";
@@ -20,6 +21,7 @@ import { sortFlows } from "./lib/sortFlows";
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [onboardingOpen, setOnboardingOpen] = createSignal(shouldShowOnboarding());
   let splitRef!: HTMLDivElement;
 
   onMount(async () => {
@@ -160,6 +162,9 @@ export default function App() {
 
       <StatusBar />
       <Settings open={settingsOpen()} onClose={() => setSettingsOpen(false)} />
+      <Show when={onboardingOpen()}>
+        <Onboarding onClose={() => setOnboardingOpen(false)} />
+      </Show>
     </div>
   );
 }

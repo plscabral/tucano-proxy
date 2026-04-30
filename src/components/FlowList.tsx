@@ -7,7 +7,7 @@ import { ipc } from "../lib/ipc";
 import { columnsStore, type ColId } from "../stores/columns";
 import { sortStore } from "../stores/sort";
 import { t } from "../lib/i18n";
-import { ArrowUp, ArrowDown, AppWindow } from "lucide-solid";
+import { ArrowUp, ArrowDown, AppWindow, Radio } from "lucide-solid";
 
 function statusColor(s: number | null) {
   if (s == null) return "text-ink-300";
@@ -185,7 +185,7 @@ export default function FlowList(props: { flows: Flow[] }) {
       </div>
 
       {/* Rows */}
-      <div ref={parentRef} class="flex-1 overflow-auto scroll-thin">
+      <div ref={parentRef} class="flex-1 overflow-auto scroll-thin relative">
         <div style={{ height: `${virt.getTotalSize()}px`, position: "relative", width: "100%" }}>
           {virt.getVirtualItems().map((vi) => {
             const f = rows()[vi.index];
@@ -210,12 +210,26 @@ export default function FlowList(props: { flows: Flow[] }) {
               </div>
             );
           })}
-          {rows().length === 0 && (
-            <div class="absolute inset-0 grid place-items-center opacity-50 text-sm px-4 text-center">
-              {t("list.empty", { port: flowsStore.status().port })}
-            </div>
-          )}
         </div>
+        {rows().length === 0 && (
+          <div class="absolute inset-0 flex items-center justify-center px-6 text-center pointer-events-none select-none">
+            <div class="flex flex-col items-center justify-center gap-5 max-w-sm">
+              <div class="relative w-24 h-24 flex items-center justify-center">
+                <span class="absolute w-20 h-20 rounded-full bg-toucan-400/10 animate-ping" />
+                <span class="absolute w-16 h-16 rounded-full bg-toucan-400/15" />
+                <Radio size={36} class="relative text-toucan-400" stroke-width={1.75} />
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <div class="text-base font-semibold text-ink-500 dark:text-ink-50">
+                  {t("list.emptyTitle")}
+                </div>
+                <div class="text-xs opacity-60 leading-relaxed">
+                  {t("list.empty", { port: flowsStore.status().port })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <Show when={ctx()}>
