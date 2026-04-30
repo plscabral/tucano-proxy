@@ -1,0 +1,250 @@
+import { createSignal, onMount, Show, For } from "solid-js";
+import { X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor, ChevronDown, Lock } from "lucide-solid";
+import { flowsStore } from "../stores/flows";
+import { ipc } from "../lib/ipc";
+import { t, LOCALES, currentLocale, setLocale, type Locale } from "../lib/i18n";
+import { themeMode, setTheme, type ThemeMode } from "../stores/theme";
+
+const SHORTCUTS: [string, string][] = [
+  ["⌘ / Ctrl + K", "sk.focusFilter"],
+  ["⌘ / Ctrl + L", "sk.clearAll"],
+  ["⌘ / Ctrl + S", "sk.saveSession"],
+  ["⌘ / Ctrl + O", "sk.openSession"],
+  ["⌘ / Ctrl + ,", "sk.openSettings"],
+  ["⌘ / Ctrl + A", "sk.selectAll"],
+  ["Space",        "sk.toggleProxy"],
+  ["1 – 9",        "sk.switchCat"],
+  ["⌘ / Ctrl + 0–6", "sk.markColor"],
+  ["Esc",          "sk.escape"],
+  ["Right click",  "sk.context"],
+  ["Delete",       "sk.delete"],
+];
+
+async function refresh() { flowsStore.setStatus(await ipc.status()); }
+
+type SslMode = "all" | "allowlist" | "blocklist";
+
+export default function Settings(props: { open: boolean; onClose: () => void }) {
+  const [port, setPort] = createSignal(flowsStore.status().port);
+  const [busy, setBusy] = createSignal(false);
+  const [sslMode, setSslMode] = createSignal<SslMode>("all");
+  const [sslHosts, setSslHosts] = createSignal("");
+  const [sslSaved, setSslSaved] = createSignal(false);
+
+  onMount(async () => {
+    try {
+      const s = await ipc.getSslSettings();
+      setSslMode((s.mode as SslMode) || "all");
+      setSslHosts((s.hosts || []).join("\n"));
+    } catch {}
+  });
+
+  const saveSsl = async () => {
+    const hosts = sslHosts().split("\n").map((s) => s.trim()).filter(Boolean);
+    await ipc.setSslSettings({ mode: sslMode(), hosts });
+    setSslSaved(true);
+    setTimeout(() => setSslSaved(false), 1500);
+  };
+
+  const installCa = async () => {
+    setBusy(true);
+    try { await ipc.installCa(); await refresh(); } finally { setBusy(false); }
+  };
+  const exportCa = async () => {
+    const pem = await ipc.exportCa();
+    const blob = new Blob([pem], { type: "application/x-pem-file" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "tucano-root.pem"; a.click();
+    URL.revokeObjectURL(url);
+  };
+  const toggleSys = async () => {
+    setBusy(true);
+    try { await ipc.toggleSystemProxy(!flowsStore.status().systemProxyOn); await refresh(); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Show when={props.open}>
+      <div class="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm" onClick={props.onClose}>
+        <div
+          class="w-[680px] max-w-[92vw] max-h-[86vh] overflow-auto scroll-thin rounded-2xl
+                 bg-white dark:bg-ink-600 text-ink-500 dark:text-ink-50
+                 border border-ink-100 dark:border-ink-400/40 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div class="flex items-center justify-between px-5 h-14 border-b border-ink-100 dark:border-ink-400/30">
+            <div class="font-semibold text-base">{t("set.title")}</div>
+            <button onClick={props.onClose} class="opacity-70 hover:opacity-100"><X size={18} /></button>
+          </div>
+
+          <Section icon={<Sun size={14} />} title={t("set.appearance")}>
+            <Row title={t("set.theme")}>
+              <div class="flex gap-1 p-1 rounded-xl bg-ink-50 dark:bg-ink-500 w-[320px]">
+                <ThemeOpt mode="light"  icon={<Sun size={13} />}     label={t("set.themeLight")} />
+                <ThemeOpt mode="dark"   icon={<Moon size={13} />}    label={t("set.themeDark")} />
+                <ThemeOpt mode="system" icon={<Monitor size={13} />} label={t("set.themeSystem")} />
+              </div>
+            </Row>
+            <Row title={t("set.language")}>
+              <div class="relative w-[320px]">
+                <select
+                  value={currentLocale()}
+                  onChange={(e) => setLocale(e.currentTarget.value as Locale)}
+                  class="appearance-none w-full h-10 pl-3.5 pr-9 text-xs rounded-xl bg-ink-50 dark:bg-ink-500
+                         border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60
+                         focus:border-toucan-400 outline-none cursor-pointer"
+                >
+                  <For each={LOCALES}>{(l) => (
+                    <option value={l.id}>{l.flag}  {l.label}</option>
+                  )}</For>
+                </select>
+                <ChevronDown size={13} class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+              </div>
+            </Row>
+          </Section>
+
+          <Section icon={<Network size={14} />} title={t("set.proxy")}>
+            <div class="flex items-center gap-3">
+              <label class="text-xs opacity-70 w-14">{t("set.port")}</label>
+              <input
+                type="number"
+                value={port()}
+                onInput={(e) => setPort(Number(e.currentTarget.value) || 8888)}
+                class="w-28 h-9 px-3 mono text-sm rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
+              />
+              <button
+                disabled={busy() || flowsStore.status().running}
+                onClick={async () => { await ipc.startProxy(port()); await refresh(); }}
+                class="h-9 px-4 text-xs rounded-xl bg-toucan-400 text-ink-500 font-medium disabled:opacity-40"
+              >{t("set.applyStart")}</button>
+              <span class={`mono text-xs ${flowsStore.status().running ? "text-toucan-400" : "opacity-50"}`}>
+                ● {flowsStore.status().running ? t("set.running", { port: flowsStore.status().port }) : t("set.stopped")}
+              </span>
+            </div>
+            <Row icon={<Globe size={14} />} title={t("set.systemProxy")} hint={t("set.systemProxyHint")}>
+              <button onClick={toggleSys} disabled={busy()}
+                class={`h-9 px-4 text-xs rounded-xl border transition
+                  ${flowsStore.status().systemProxyOn
+                    ? "bg-toucan-400/15 border-toucan-400/60 text-toucan-400"
+                    : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}>
+                {flowsStore.status().systemProxyOn ? t("set.enabled") : t("set.disabled")}
+              </button>
+            </Row>
+          </Section>
+
+          <Section icon={<ShieldCheck size={14} />} title={t("set.cert")}>
+            <p class="text-xs opacity-70 leading-relaxed">{t("set.certHint")}</p>
+            <div class="flex items-center gap-2">
+              <button onClick={installCa} disabled={busy()}
+                class={`h-9 px-4 text-xs rounded-xl flex items-center gap-1.5 border transition
+                  ${flowsStore.status().caInstalled
+                    ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-500"
+                    : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}>
+                <ShieldCheck size={13} />
+                {flowsStore.status().caInstalled ? t("set.caTrustedBtn") : t("set.installCa")}
+              </button>
+              <button onClick={exportCa}
+                class="h-9 px-4 text-xs rounded-xl border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 flex items-center gap-1.5">
+                <Download size={13} /> {t("set.exportCa")}
+              </button>
+            </div>
+          </Section>
+
+          <Section icon={<Lock size={14} />} title={t("set.ssl")}>
+            <p class="text-xs opacity-70 leading-relaxed">{t("set.sslHint")}</p>
+            <div class="flex gap-1 p-1 rounded-xl bg-ink-50 dark:bg-ink-500 w-full">
+              <SslOpt mode="all"        label={t("set.sslMode.all")}        current={sslMode} setCurrent={setSslMode} />
+              <SslOpt mode="allowlist"  label={t("set.sslMode.allowlist")}  current={sslMode} setCurrent={setSslMode} />
+              <SslOpt mode="blocklist"  label={t("set.sslMode.blocklist")}  current={sslMode} setCurrent={setSslMode} />
+            </div>
+            <Show when={sslMode() !== "all"}>
+              <div>
+                <div class="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">{t("set.sslHostsLabel")}</div>
+                <textarea
+                  value={sslHosts()}
+                  onInput={(e) => setSslHosts(e.currentTarget.value)}
+                  placeholder={"api.example.com\n*.foo.com\nbaz.*"}
+                  class="w-full h-28 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
+                />
+              </div>
+            </Show>
+            <button
+              onClick={saveSsl}
+              class={`h-9 px-4 text-xs rounded-xl font-medium transition
+                ${sslSaved()
+                  ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40"
+                  : "bg-toucan-400 text-ink-500 hover:bg-toucan-300"}`}
+            >{sslSaved() ? t("set.sslSaved") : t("set.sslSave")}</button>
+          </Section>
+
+          <Section icon={<Info size={14} />} title={t("set.whyTitle")}>
+            <ul class="text-xs opacity-80 space-y-1.5 list-disc pl-5 leading-relaxed">
+              <li>{t("set.why1")}</li>
+              <li>{t("set.why2")}</li>
+              <li>{t("set.why3")}</li>
+              <li>{t("set.why4")}</li>
+            </ul>
+          </Section>
+
+          <Section icon={<Keyboard size={14} />} title={t("set.shortcuts")}>
+            <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+              {SHORTCUTS.map(([k, v]) => (
+                <div class="flex items-center justify-between gap-3">
+                  <span class="opacity-70">{t(v)}</span>
+                  <kbd class="mono text-[11px] px-1.5 py-0.5 rounded bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40">{k}</kbd>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </div>
+      </div>
+    </Show>
+  );
+}
+
+function SslOpt(props: { mode: SslMode; label: string; current: () => SslMode; setCurrent: (m: SslMode) => void }) {
+  const active = () => props.current() === props.mode;
+  return (
+    <button
+      onClick={() => props.setCurrent(props.mode)}
+      class={`flex-1 h-8 rounded-lg flex items-center justify-center text-xs transition truncate px-2
+        ${active() ? "bg-white dark:bg-ink-600 text-toucan-400 shadow-sm font-medium" : "opacity-70 hover:opacity-100"}`}
+    >{props.label}</button>
+  );
+}
+
+function ThemeOpt(props: { mode: ThemeMode; icon: any; label: string }) {
+  const active = () => themeMode() === props.mode;
+  return (
+    <button
+      onClick={() => setTheme(props.mode)}
+      class={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-xs transition
+        ${active() ? "bg-white dark:bg-ink-600 text-toucan-400 shadow-sm" : "opacity-70 hover:opacity-100"}`}
+    >{props.icon} {props.label}</button>
+  );
+}
+
+function Section(props: { icon: any; title: string; children: any }) {
+  return (
+    <div class="px-5 py-4 border-b border-ink-100 dark:border-ink-400/20 last:border-0 space-y-3">
+      <div class="flex items-center gap-2 text-toucan-400">
+        {props.icon}<span class="text-xs uppercase tracking-wider font-semibold">{props.title}</span>
+      </div>
+      {props.children}
+    </div>
+  );
+}
+
+function Row(props: { icon?: any; title: string; hint?: string; children: any }) {
+  return (
+    <div class="flex items-start gap-3">
+      <Show when={props.icon}><div class="mt-1 opacity-70">{props.icon}</div></Show>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm">{props.title}</div>
+        {props.hint && <div class="text-xs opacity-60 mt-0.5 leading-relaxed">{props.hint}</div>}
+      </div>
+      <div class="shrink-0">{props.children}</div>
+    </div>
+  );
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Tucano Proxy",
+  "version": "0.1.0",
+  "identifier": "dev.tucano.app",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": false,
+    "windows": [
+      {
+        "title": "Tucano Proxy",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "decorations": true,
+        "transparent": false,
+        "backgroundColor": "#0C142E",
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "Open source HTTP/HTTPS debugging proxy",
+    "longDescription": "Tucano is an open source desktop debugger for HTTP/HTTPS traffic — capture, inspect, filter and replay requests on Windows and macOS (Intel & Apple Silicon)."
+  },
+  "plugins": {}
+}

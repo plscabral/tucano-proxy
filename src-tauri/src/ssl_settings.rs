@@ -1,0 +1,64 @@
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SslSettings {
+    /// "all" — decrypt every HTTPS host (default)
+    /// "allowlist" — only decrypt hosts matching `hosts`
+    /// "blocklist" — decrypt every host except those matching `hosts`
+    pub mode: String,
+    pub hosts: Vec<String>,
+}
+
+impl Default for SslSettings {
+    fn default() -> Self { Self { mode: "all".into(), hosts: vec![] } }
+}
+
+impl SslSettings {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("ssl-settings.json");
+        std::fs::read_to_string(path).ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn save(&self, dir: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let path = dir.join("ssl-settings.json");
+        std::fs::write(path, serde_json::to_string_pretty(self)?)?;
+        Ok(())
+    }
+
+    /// Return true when the host's body should be captured.
+    pub fn should_capture(&self, host: &str) -> bool {
+        match self.mode.as_str() {
+            "allowlist" => self.hosts.iter().any(|p| matches_host(p, host)),
+            "blocklist" => !self.hosts.iter().any(|p| matches_host(p, host)),
+            _ => true,
+        }
+    }
+
+    pub fn data_path(dir: &Path) -> PathBuf { dir.join("ssl-settings.json") }
+}
+
+/// Glob-ish host match: supports `*.foo.com`, `api.*`, exact match, case-insensitive.
+fn matches_host(pattern: &str, host: &str) -> bool {
+    let p = pattern.trim().to_lowercase();
+    let h = host.to_lowercase();
+    if p.is_empty() { return false; }
+    if p == h { return true; }
+    if let Some(suffix) = p.strip_prefix("*.") {
+        return h == suffix || h.ends_with(&format!(".{suffix}"));
+    }
+    if let Some(prefix) = p.strip_suffix(".*") {
+        return h == prefix || h.starts_with(&format!("{prefix}."));
+    }
+    if p.contains('*') {
+        // simple "a*b" pattern
+        let parts: Vec<&str> = p.split('*').collect();
+        if parts.len() == 2 {
+            return h.starts_with(parts[0]) && h.ends_with(parts[1]);
+        }
+    }
+    false
+}

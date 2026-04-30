@@ -1,0 +1,121 @@
+use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Flow {
+    pub id: String,
+    pub index: i64,
+    pub started_at: i64,
+    pub ended_at: Option<i64>,
+    pub method: String,
+    pub scheme: String,
+    pub host: String,
+    pub port: u16,
+    pub path: String,
+    pub http_version: String,
+    pub status: Option<i64>,
+    pub status_text: Option<String>,
+    pub req_headers: Vec<(String, String)>,
+    pub req_body: Option<String>,
+    pub req_body_encoding: String,
+    pub req_content_type: Option<String>,
+    pub req_size: i64,
+    pub res_headers: Vec<(String, String)>,
+    pub res_body: Option<String>,
+    pub res_body_encoding: String,
+    pub res_content_type: Option<String>,
+    pub res_size: i64,
+    pub duration_ms: Option<i64>,
+    pub error: Option<String>,
+    #[serde(default)]
+    pub client_app: Option<String>,
+    #[serde(default)]
+    pub client_port: Option<u16>,
+    #[serde(default)]
+    pub client_icon: Option<String>,
+}
+
+pub struct Storage { conn: Connection }
+
+impl Storage {
+    pub fn open(path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = Connection::open(path)?;
+        conn.execute_batch(r#"
+            CREATE TABLE IF NOT EXISTS flows (
+              id TEXT PRIMARY KEY,
+              idx INTEGER NOT NULL,
+              data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS flows_idx ON flows(idx);
+        "#)?;
+        Ok(Self { conn })
+    }
+
+    pub fn upsert(&mut self, f: &Flow) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let json = serde_json::to_string(f)?;
+        self.conn.execute(
+            "INSERT INTO flows(id, idx, data) VALUES(?1, ?2, ?3)
+             ON CONFLICT(id) DO UPDATE SET data=excluded.data",
+            params![f.id, f.index, json],
+        )?;
+        Ok(())
+    }
+
+    pub fn list(&self) -> Result<Vec<Flow>, Box<dyn std::error::Error + Send + Sync>> {
+        let mut s = self.conn.prepare("SELECT data FROM flows ORDER BY idx ASC")?;
+        let rows = s.query_map([], |r| r.get::<_, String>(0))?;
+        let mut out = Vec::new();
+        for r in rows { out.push(serde_json::from_str(&r?)?); }
+        Ok(out)
+    }
+
+    pub fn get(&self, id: &str) -> Result<Option<Flow>, Box<dyn std::error::Error + Send + Sync>> {
+        let mut s = self.conn.prepare("SELECT data FROM flows WHERE id = ?1")?;
+        let mut rows = s.query(params![id])?;
+        if let Some(r) = rows.next()? {
+            let s: String = r.get(0)?;
+            Ok(Some(serde_json::from_str(&s)?))
+        } else { Ok(None) }
+    }
+
+    pub fn clear(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.conn.execute("DELETE FROM flows", [])?;
+        Ok(())
+    }
+
+    pub fn delete_many(&mut self, ids: &[String]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let tx = self.conn.transaction()?;
+        for id in ids {
+            tx.execute("DELETE FROM flows WHERE id = ?1", params![id])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn next_index(&self) -> i64 {
+        self.conn
+            .query_row("SELECT COALESCE(MAX(idx), 0) + 1 FROM flows", [], |r| r.get(0))
+            .unwrap_or(1)
+    }
+
+    pub fn save_to(&self, dest: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut dst = Connection::open(dest)?;
+        let bk = rusqlite::backup::Backup::new(&self.conn, &mut dst)?;
+        bk.run_to_completion(64, std::time::Duration::from_millis(0), None)?;
+        Ok(())
+    }
+
+    pub fn replace_from(&mut self, src: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.clear()?;
+        let other = Connection::open(src)?;
+        let mut s = other.prepare("SELECT id, idx, data FROM flows")?;
+        let rows = s.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?)))?;
+        for row in rows {
+            let (id, idx, data) = row?;
+            self.conn.execute("INSERT INTO flows(id, idx, data) VALUES(?1, ?2, ?3)", params![id, idx, data])?;
+        }
+        Ok(())
+    }
+}

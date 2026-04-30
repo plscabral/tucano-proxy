@@ -1,0 +1,64 @@
+# --- Node / Vite -----------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# --- Rust / Cargo / Tauri --------------------------------------------------
+src-tauri/target/
+src-tauri/Cargo.lock
+src-tauri/gen/
+src-tauri/.tauri/
+src-tauri/WixTools/
+
+# --- Editor / IDE ----------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.iml
+*.swp
+*.swo
+.history/
+
+# --- OS --------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# --- Logs / temp -----------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+.yarn-integrity
+*.tmp
+*.bak
+
+# --- TypeScript ------------------------------------------------------------
+*.tsbuildinfo
+
+# --- Env / secrets ---------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Tucano user data (CA, captured sessions, settings) -------------------
+*.tucano
+ssl-settings.json
+flows.db
+flows.db-journal
+ca/
+
+# --- Misc ------------------------------------------------------------------
+coverage/
+*.tsbuildinfo
+.turbo/
