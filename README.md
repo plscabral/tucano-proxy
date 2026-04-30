@@ -18,6 +18,29 @@ Free alternative to Fiddler Classic / Proxyman, running natively on macOS (Apple
 
 Roadmap: Composer/replay, breakpoints, AutoResponder, WebSocket frames, HAR/cURL export, gRPC, scripting.
 
+## Downloads
+
+Get the latest installer from **[Releases](https://github.com/plscabral/tucano-proxy/releases/latest)**:
+
+- **macOS (Apple Silicon)** — `Tucano.Proxy_*_aarch64.dmg`
+- **macOS (Intel)** — `Tucano.Proxy_*_x64.dmg`
+- **Windows** — `Tucano.Proxy_*_x64-setup.exe` or `.msi`
+
+### First-launch warnings
+
+The app is currently **not code-signed**, so the OS will warn you the first time you open it.
+
+**macOS** — after dragging to `/Applications`, either:
+
+- Right-click the app → **Open** → **Open** in the dialog, or
+- *System Settings → Privacy & Security → "Open Anyway"*, or
+- From Terminal:
+  ```bash
+  xattr -cr "/Applications/Tucano Proxy.app"
+  ```
+
+**Windows** — SmartScreen will say "Windows protected your PC". Click **More info → Run anyway**.
+
 ## Stack
 
 | Layer    | Tech |
