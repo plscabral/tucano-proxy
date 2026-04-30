@@ -20,7 +20,10 @@ import { sortStore } from "./stores/sort";
 import { sortFlows } from "./lib/sortFlows";
 import { updaterStore } from "./stores/updater";
 import { prefsStore } from "./stores/prefs";
+import { sessionStore } from "./stores/session";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { confirm } from "@tauri-apps/plugin-dialog";
+import { t } from "./lib/i18n";
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
@@ -53,21 +56,56 @@ export default function App() {
       })
       .catch((e) => console.warn("[updater] boot check failed", e));
 
-    // Auto-install on quit: if the user closes the app while an update
-    // is downloaded and waiting, apply it before the process exits so
-    // the next launch is already on the new version.
+    // Hook the window close (Cmd+Q, red traffic light, app quit). We:
+    //   1. Confirm before quitting if there's unsaved work — captures sitting
+    //      in memory that aren't bound to a session file, the proxy still
+    //      capturing, or any user-applied marks. Cmd+Q is one keystroke
+    //      away from any other shortcut, easy to hit by accident.
+    //   2. If there's an update downloaded and waiting, apply it before
+    //      exiting so the next launch is already on the new version.
     try {
       const win = getCurrentWindow();
+      // Guard against re-entry: macOS fires CloseRequested every time the
+      // user re-hits Cmd+Q, even while we're awaiting confirm(). We hold
+      // this flag for the ENTIRE decision flow (including the "user clicked
+      // Cancel" return) so a second event can't slip through and open a
+      // duplicate dialog while the first is still being dismissed.
+      let busy = false;
       await win.onCloseRequested(async (e) => {
-        if (updaterStore.hasReadyUpdate()) {
-          e.preventDefault();
-          await updaterStore.installOnQuit();
-          // installOnQuit triggers a relaunch on success; if it returned
-          // (failure), force-close so the user isn't trapped.
-          await win.destroy();
+        e.preventDefault();
+        if (busy) return;
+        busy = true;
+        try {
+          const flowsCount = flowsStore.flows().length;
+          const running = flowsStore.status().running;
+          const hasMarks = Object.keys(marksStore.marks()).length > 0;
+          const unsaved = flowsCount > 0 && !sessionStore.path();
+
+          if (running || unsaved || hasMarks) {
+            const ok = await confirm(
+              running
+                ? t("dlg.quitRunning", { n: flowsCount })
+                : t("dlg.quitUnsaved", { n: flowsCount }),
+              {
+                title: t("dlg.quitTitle"),
+                kind: "warning",
+                okLabel: t("dlg.quitOk"),
+                cancelLabel: t("dlg.cancel"),
+              },
+            );
+            if (!ok) return; // user cancelled — `busy` clears in `finally`
+          }
+
+          if (updaterStore.hasReadyUpdate()) {
+            try { await updaterStore.installOnQuit(); } catch (err) { console.warn(err); }
+          }
+
+          await ipc.quitApp();
+        } finally {
+          busy = false;
         }
       });
-    } catch (e) { console.warn("[updater] could not hook close", e); }
+    } catch (e) { console.warn("could not hook close", e); }
   });
 
   const unNew = onFlowNew((f) => flowsStore.upsert(f));
@@ -104,7 +142,12 @@ export default function App() {
       e.preventDefault(); setSettingsOpen(true);
     } else if (meta && e.key.toLowerCase() === "l") {
       e.preventDefault();
-      if (confirm("Clear all flows?")) { await ipc.clearFlows(); flowsStore.clear(); marksStore.clear(); }
+      const yes = await confirm(t("dlg.clearMessage"), {
+        title: t("dlg.clearTitle"),
+        okLabel: t("dlg.clearOk"),
+        cancelLabel: t("dlg.cancel"),
+      });
+      if (yes) { await ipc.clearFlows(); flowsStore.clear(); marksStore.clear(); }
     } else if (meta && e.key.toLowerCase() === "s") {
       e.preventDefault();
       const { save } = await import("@tauri-apps/plugin-dialog");

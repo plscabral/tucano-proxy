@@ -51,9 +51,9 @@ pub fn run() {
                 if let Some(state) = app.try_state::<Arc<AppState>>() {
                     cleanup_state(&state);
                 }
-                // Force the whole app to quit (on macOS, closing the window
-                // alone leaves the process alive in the background).
-                app.exit(0);
+                // NOTE: we don't `app.exit(0)` here — that would race the JS
+                // close handler and bypass the user's "are you sure?" prompt.
+                // The frontend calls the `quit_app` command after confirming.
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -76,6 +76,7 @@ pub fn run() {
             commands::open_session,
             commands::write_text_file,
             commands::write_binary_file,
+            commands::quit_app,
             commands::get_ssl_settings,
             commands::set_ssl_settings,
         ])
@@ -83,15 +84,29 @@ pub fn run() {
         .expect("error building Tucano");
 
     app.run(|app_handle, event| {
-        if matches!(event, tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }) {
-            if let Some(state) = app_handle.try_state::<Arc<AppState>>() {
-                cleanup_state(&state);
+        match event {
+            // Hard exit (process is shutting down). Run final cleanup.
+            tauri::RunEvent::Exit => {
+                if let Some(state) = app_handle.try_state::<Arc<AppState>>() {
+                    cleanup_state(&state);
+                }
             }
+            // Soft exit request (Cmd+Q, dock quit, etc). The frontend is the
+            // source of truth: it shows the "Quit Tucano?" confirm dialog and
+            // explicitly calls the `quit_app` command (which uses
+            // `app_handle.exit(0)` and bypasses this event). Anything reaching
+            // here is a system termination we should hold so the user has a
+            // chance to cancel — otherwise hitting Cancel still ends up
+            // closing because the app-level exit kept rolling.
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                api.prevent_exit();
+            }
+            _ => {}
         }
     });
 }
 
-fn cleanup_state(state: &Arc<AppState>) {
+pub fn cleanup_state(state: &Arc<AppState>) {
     eprintln!(
         "[tucano] cleanup: running={} system_proxy_on={}",
         state.running.load(Ordering::SeqCst),

@@ -61,6 +61,10 @@ export default function FilterBar() {
                 value={r.value}
                 onInput={(e) => rulesStore.update(r.id, { value: e.currentTarget.value })}
                 placeholder={r.field === "header" ? t("filter.headerPlaceholder") : t("filter.placeholder")}
+                autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck={false}
                 class="flex-1 h-8 px-3.5 text-sm mono rounded-xl bg-ink-50 dark:bg-ink-600 border border-transparent focus:border-toucan-400 outline-none placeholder:opacity-40"
               />
 

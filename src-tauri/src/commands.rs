@@ -171,6 +171,18 @@ pub fn update_flow_note(state: tauri::State<'_, Arc<AppState>>, id: String, note
     Ok(())
 }
 
+/// Quit the entire process — called by the frontend AFTER the user
+/// confirmed the "Quit Tucano?" dialog. Runs cleanup (revert system proxy,
+/// stop the proxy task) and then hard-exits via `process::exit`. We avoid
+/// `AppHandle::exit` here because in Tauri 2 that fires `RunEvent::ExitRequested`,
+/// which we deliberately prevent in the run loop (so Cmd+Q doesn't bypass
+/// the confirm dialog) — using it would loop forever.
+#[tauri::command]
+pub fn quit_app(state: tauri::State<'_, Arc<AppState>>) {
+    crate::cleanup_state(&state);
+    std::process::exit(0);
+}
+
 #[tauri::command]
 pub fn write_text_file(path: String, contents: String) -> Result<(), String> {
     std::fs::write(&path, contents).map_err(err)

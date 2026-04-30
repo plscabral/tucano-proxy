@@ -23,6 +23,7 @@ export const ipc = {
   openSession: (path: string) => invoke<void>("open_session", { path }),
   writeTextFile: (path: string, contents: string) => invoke<void>("write_text_file", { path, contents }),
   writeBinaryFile: (path: string, contentsBase64: string) => invoke<void>("write_binary_file", { path, contentsBase64 }),
+  quitApp: () => invoke<void>("quit_app"),
   getSslSettings: () => invoke<{ mode: "all" | "allowlist" | "blocklist"; hosts: string[] }>("get_ssl_settings"),
   setSslSettings: (settings: { mode: "all" | "allowlist" | "blocklist"; hosts: string[] }) =>
     invoke<void>("set_ssl_settings", { settings }),

@@ -110,6 +110,22 @@ export default function FlowList(props: { flows: Flow[] }) {
     setNoteFlowId(c.id);
     closeCtx();
   };
+  const copyText = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); } catch {}
+    closeCtx();
+  };
+  const ctxFlow = () => {
+    const c = ctx();
+    return c ? rows().find((f) => f.id === c.id) ?? null : null;
+  };
+  const fullUrlOf = (f: Flow) => {
+    const def = (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80);
+    return `${f.scheme}://${f.host}${def ? "" : ":" + f.port}${f.path}`;
+  };
+  const baseUrlOf = (f: Flow) => {
+    const def = (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80);
+    return `${f.scheme}://${f.host}${def ? "" : ":" + f.port}`;
+  };
   const saveNote = async (value: string | null) => {
     const flow = noteFlow();
     setNoteFlowId(null);
@@ -241,10 +257,16 @@ export default function FlowList(props: { flows: Flow[] }) {
             const f = rows()[vi.index];
             const sel = flowsStore.isSelected(f.id);
             const markColor = colorOf(marksStore.marks()[f.id]);
+            const fullUrl = `${f.scheme}://${f.host}${
+              (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80)
+                ? ""
+                : `:${f.port}`
+            }${f.path}`;
             return (
               <div
                 onClick={(e) => onRowClick(e, f.id)}
                 onContextMenu={(e) => onContext(e, f.id)}
+                title={fullUrl}
                 style={{
                   position: "absolute", top: 0, left: 0, right: 0,
                   height: `${vi.size}px`, transform: `translateY(${vi.start}px)`,
@@ -301,6 +323,21 @@ export default function FlowList(props: { flows: Flow[] }) {
               <span>{rows().find((f) => f.id === c().id)?.note ? t("list.editNote") : t("list.addNote")}</span>
               <StickyNote size={11} class="opacity-60" />
             </button>
+            <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
+            <button
+              onClick={() => { const f = ctxFlow(); if (f) copyText(fullUrlOf(f)); }}
+              class="w-full px-3 py-1.5 text-left hover:bg-toucan-400/10 hover:text-toucan-400 truncate"
+              title={ctxFlow() ? fullUrlOf(ctxFlow()!) : ""}
+            >{t("list.copyUrl")}</button>
+            <button
+              onClick={() => { const f = ctxFlow(); if (f) copyText(baseUrlOf(f)); }}
+              class="w-full px-3 py-1.5 text-left hover:bg-toucan-400/10 hover:text-toucan-400 truncate"
+              title={ctxFlow() ? baseUrlOf(ctxFlow()!) : ""}
+            >{t("list.copyBaseUrl")}</button>
+            <button
+              onClick={() => { const f = ctxFlow(); if (f) copyText(f.path); }}
+              class="w-full px-3 py-1.5 text-left hover:bg-toucan-400/10 hover:text-toucan-400 truncate"
+            >{t("list.copyPath")}</button>
             <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
             <div
               class="relative"
