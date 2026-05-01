@@ -68,6 +68,7 @@ export default function FlowList(props: { flows: Flow[] }) {
 
   const visibleCols = () => columnsStore.visible();
   const gridTemplate = () => visibleCols().map((c) => `${c.width}px`).join(" ");
+  const totalWidth = () => visibleCols().reduce((s, c) => s + c.width, 0) + 24;
 
   const virt = createVirtualizer({
     get count() { return rows().length; },
@@ -211,10 +212,12 @@ export default function FlowList(props: { flows: Flow[] }) {
   };
 
   return (
-    <div class="h-full flex flex-col" onClick={closeCtx}>
+    <div class="h-full flex flex-col relative" onClick={closeCtx}>
+      <div class="flex-1 min-h-0 overflow-x-auto overflow-y-hidden scroll-thin flex flex-col">
+      <div class="flex-1 min-h-0 flex flex-col" style={{ "min-width": `${totalWidth()}px` }}>
       {/* Header */}
       <div
-        class="grid h-9 items-stretch text-[10px] uppercase tracking-[0.12em] bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 mono opacity-90 pl-3"
+        class="grid h-9 items-stretch text-[10px] uppercase tracking-[0.12em] bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 mono opacity-90 pl-3 shrink-0"
         style={{ "grid-template-columns": gridTemplate() }}
       >
         <For each={visibleCols()}>{(c, i) => {
@@ -251,7 +254,7 @@ export default function FlowList(props: { flows: Flow[] }) {
       </div>
 
       {/* Rows */}
-      <div ref={parentRef} class="flex-1 overflow-auto scroll-thin relative">
+      <div ref={parentRef} class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-thin relative">
         <div style={{ height: `${virt.getTotalSize()}px`, position: "relative", width: "100%" }}>
           {virt.getVirtualItems().map((vi) => {
             const f = rows()[vi.index];
@@ -283,8 +286,11 @@ export default function FlowList(props: { flows: Flow[] }) {
             );
           })}
         </div>
-        {rows().length === 0 && (
-          <div class="absolute inset-0 flex items-center justify-center px-6 text-center pointer-events-none select-none">
+      </div>
+      </div>
+      </div>
+      {rows().length === 0 && (
+          <div class="absolute inset-0 top-9 flex items-center justify-center px-6 text-center pointer-events-none select-none">
             <div class="flex flex-col items-center justify-center gap-5 max-w-sm">
               <div class="relative w-24 h-24 flex items-center justify-center">
                 <span class="absolute w-20 h-20 rounded-full bg-toucan-400/10 animate-ping" />
@@ -302,7 +308,6 @@ export default function FlowList(props: { flows: Flow[] }) {
             </div>
           </div>
         )}
-      </div>
 
       <Show when={ctx()}>
         {(c) => (
