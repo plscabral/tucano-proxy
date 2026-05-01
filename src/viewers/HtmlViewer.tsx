@@ -3,7 +3,7 @@ import RawViewer from "./RawViewer";
 import { t } from "../lib/i18n";
 
 export default function HtmlViewer(props: { text: string; wrap?: boolean }) {
-  const [tab, setTab] = createSignal<"preview" | "source">("preview");
+  const [tab, setTab] = createSignal<"preview" | "source">("source");
   const btn = (active: boolean) =>
     `px-2.5 h-7 rounded-lg text-[11px] mono uppercase tracking-wider transition ${
       active

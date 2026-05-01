@@ -16,6 +16,7 @@ const MOD = IS_MAC ? "⌘" : "Ctrl";
 
 const SHORTCUTS: [string, string][] = [
   [`${MOD} + K`,    "sk.focusFilter"],
+  [`${MOD} + F`,    "sk.addFilter"],
   [`${MOD} + L`,    "sk.clearAll"],
   [`${MOD} + S`,    "sk.saveSession"],
   [`${MOD} + O`,    "sk.openSession"],
@@ -24,7 +25,6 @@ const SHORTCUTS: [string, string][] = [
   ["Space",         "sk.toggleProxy"],
   ["1 – 9",         "sk.switchCat"],
   [`${MOD} + 0–6`,  "sk.markColor"],
-  ["Esc",           "sk.escape"],
   ["Right click",   "sk.context"],
   ["Delete",        "sk.delete"],
 ];
@@ -76,20 +76,44 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
     a.href = url; a.download = "tucano-root.pem"; a.click();
     URL.revokeObjectURL(url);
   };
+  type Tab = "general" | "proxy" | "cert" | "about" | "shortcuts";
+  const [tab, setTab] = createSignal<Tab>("general");
+  const TABS: { id: Tab; icon: any; label: string }[] = [
+    { id: "general",   icon: <Sun size={14} />,         label: t("set.appearance") },
+    { id: "proxy",     icon: <Network size={14} />,     label: t("set.proxy") },
+    { id: "cert",      icon: <ShieldCheck size={14} />, label: t("set.cert") },
+    { id: "about",     icon: <RefreshCw size={14} />,   label: t("set.aboutTitle") },
+    { id: "shortcuts", icon: <Keyboard size={14} />,    label: t("set.shortcuts") },
+  ];
   return (
     <Show when={props.open}>
       <div class="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm" onClick={props.onClose}>
         <div
-          class="w-[880px] max-w-[92vw] max-h-[86vh] overflow-auto scroll-thin rounded-2xl
+          class="w-[880px] max-w-[92vw] h-[640px] max-h-[86vh] flex flex-col rounded-2xl
                  bg-white dark:bg-ink-600 text-ink-500 dark:text-ink-50
-                 border border-ink-100 dark:border-ink-400/40 shadow-2xl"
+                 border border-ink-100 dark:border-ink-400/40 shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <div class="flex items-center justify-between px-5 h-14 border-b border-ink-100 dark:border-ink-400/30">
+          <div class="flex items-center justify-between px-5 h-14 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
             <div class="font-semibold text-base">{t("set.title")}</div>
             <button onClick={props.onClose} class="opacity-70 hover:opacity-100"><X size={18} /></button>
           </div>
 
+          <div class="flex flex-1 min-h-0">
+            <nav class="w-52 shrink-0 border-r border-ink-100 dark:border-ink-400/30 py-3 px-2 space-y-0.5 overflow-auto scroll-thin">
+              <For each={TABS}>{(tb) => (
+                <button
+                  onClick={() => setTab(tb.id)}
+                  class={`w-full flex items-center gap-2 px-3 h-9 rounded-xl text-xs transition text-left
+                    ${tab() === tb.id
+                      ? "bg-toucan-400/15 text-toucan-400 font-medium"
+                      : "opacity-75 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-ink-500"}`}
+                >{tb.icon}<span class="truncate">{tb.label}</span></button>
+              )}</For>
+            </nav>
+            <div class="flex-1 min-w-0 overflow-auto scroll-thin">
+
+          <Show when={tab() === "general"}>
           <Section icon={<Sun size={14} />} title={t("set.appearance")}>
             <Row title={t("set.theme")}>
               <div class="flex gap-1 p-1 rounded-xl bg-ink-50 dark:bg-ink-500 w-[320px]">
@@ -115,7 +139,9 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               </div>
             </Row>
           </Section>
+          </Show>
 
+          <Show when={tab() === "proxy"}>
           <Section icon={<Network size={14} />} title={t("set.proxy")}>
             <div class="flex items-center gap-3">
               <label class="text-xs opacity-70 w-14">{t("set.port")}</label>
@@ -140,7 +166,9 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               </button>
             </Row>
           </Section>
+          </Show>
 
+          <Show when={tab() === "cert"}>
           <Section icon={<ShieldCheck size={14} />} title={t("set.cert")}>
             <p class="text-xs opacity-70 leading-relaxed">{t("set.certHint")}</p>
             <div class="flex items-center gap-2">
@@ -192,7 +220,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
             >{sslSaved() ? t("set.sslSaved") : t("set.sslSave")}</button>
           </Section>
 
-          <Section icon={<Info size={14} />} title={t("set.whyTitle")}>
+          <Section icon={<Info size={14} />} title={t("set.whyTitle")} >
             <ul class="text-xs opacity-80 space-y-1.5 list-disc pl-5 leading-relaxed">
               <li>{t("set.why1")}</li>
               <li>{t("set.why2")}</li>
@@ -200,7 +228,9 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               <li>{t("set.why4")}</li>
             </ul>
           </Section>
+          </Show>
 
+          <Show when={tab() === "about"}>
           <Section icon={<RefreshCw size={14} />} title={t("set.aboutTitle")}>
             <div class="text-xs space-y-2">
               <div class="flex items-center justify-between gap-3">
@@ -252,7 +282,9 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               </Show>
             </div>
           </Section>
+          </Show>
 
+          <Show when={tab() === "shortcuts"}>
           <Section icon={<Keyboard size={14} />} title={t("set.shortcuts")}>
             <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
               {SHORTCUTS.map(([k, v]) => (
@@ -263,6 +295,10 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               ))}
             </div>
           </Section>
+          </Show>
+
+            </div>
+          </div>
         </div>
       </div>
     </Show>

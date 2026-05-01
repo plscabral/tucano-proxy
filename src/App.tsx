@@ -138,7 +138,18 @@ export default function App() {
         const { newRule } = await import("./lib/rules");
         rulesStore.add(newRule());
       }
-      setTimeout(() => (document.querySelector('input[placeholder]') as HTMLInputElement)?.focus(), 0);
+      setTimeout(() => {
+        const inputs = document.querySelectorAll<HTMLInputElement>("[data-filter-input]");
+        inputs[inputs.length - 1]?.focus();
+      }, 0);
+    } else if (meta && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      const { newRule } = await import("./lib/rules");
+      rulesStore.add(newRule());
+      setTimeout(() => {
+        const inputs = document.querySelectorAll<HTMLInputElement>("[data-filter-input]");
+        inputs[inputs.length - 1]?.focus();
+      }, 0);
     } else if (meta && e.key === ",") {
       e.preventDefault(); setSettingsOpen(true);
     } else if (meta && e.key.toLowerCase() === "l") {

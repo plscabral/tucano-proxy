@@ -58,6 +58,7 @@ export default function FilterBar() {
               />
 
               <input
+                data-filter-input
                 value={r.value}
                 onInput={(e) => rulesStore.update(r.id, { value: e.currentTarget.value })}
                 placeholder={r.field === "header" ? t("filter.headerPlaceholder") : t("filter.placeholder")}

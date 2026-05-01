@@ -4,31 +4,48 @@ export type ColId = "index" | "method" | "status" | "host" | "path" | "size" | "
 
 export type Col = { id: ColId; label: string; width: number; visible: boolean };
 
+// Minimum widths chosen so the longest translated header label
+// (uppercase + tracking) fits without truncation, accounting for the
+// header's grip icon, padding and resize handle (~45px overhead).
+export const MIN_COL_WIDTH: Record<ColId, number> = {
+  index:    56,
+  method:   100,
+  status:   96,
+  host:     140,
+  path:     160,
+  size:     108,
+  duration: 100,
+  client:   120,
+  scheme:   116,
+  mime:     108,
+  note:     160,
+};
+
 export const ALL_COLUMNS: Record<ColId, { label: string; width: number }> = {
-  index:    { label: "#",        width: 50 },
-  method:   { label: "Method",   width: 76 },
-  status:   { label: "Status",   width: 68 },
+  index:    { label: "#",        width: 56 },
+  method:   { label: "Method",   width: 100 },
+  status:   { label: "Status",   width: 96 },
   host:     { label: "Host",     width: 220 },
   path:     { label: "Path",     width: 320 },
-  size:     { label: "Size",     width: 80 },
-  duration: { label: "Time",     width: 80 },
+  size:     { label: "Size",     width: 108 },
+  duration: { label: "Time",     width: 100 },
   client:   { label: "Client",   width: 140 },
-  scheme:   { label: "Scheme",   width: 70 },
+  scheme:   { label: "Scheme",   width: 116 },
   mime:     { label: "MIME",     width: 140 },
   note:     { label: "Note",     width: 240 },
 };
 
 const DEFAULT: Col[] = [
-  { id: "index",    label: "#",      width: 50,  visible: true },
-  { id: "method",   label: "Method", width: 76,  visible: true },
-  { id: "status",   label: "Status", width: 68,  visible: true },
+  { id: "index",    label: "#",      width: 56,  visible: true },
+  { id: "method",   label: "Method", width: 100, visible: true },
+  { id: "status",   label: "Status", width: 96,  visible: true },
   { id: "client",   label: "Client", width: 140, visible: true },
   { id: "host",     label: "Host",   width: 220, visible: true },
   { id: "path",     label: "Path",   width: 320, visible: true },
-  { id: "size",     label: "Size",   width: 80,  visible: true },
-  { id: "duration", label: "Time",   width: 80,  visible: true },
+  { id: "size",     label: "Size",   width: 108, visible: true },
+  { id: "duration", label: "Time",   width: 100, visible: true },
   { id: "note",     label: "Note",   width: 240, visible: true },
-  { id: "scheme",   label: "Scheme", width: 70,  visible: false },
+  { id: "scheme",   label: "Scheme", width: 116, visible: false },
   { id: "mime",     label: "MIME",   width: 140, visible: false },
 ];
 
@@ -42,6 +59,10 @@ function load(): Col[] {
     const seen = new Set(saved.map((c: Col) => c.id));
     const merged = [...saved];
     for (const d of DEFAULT) if (!seen.has(d.id)) merged.push({ ...d, visible: false });
+    for (const c of merged) {
+      const min = MIN_COL_WIDTH[c.id as ColId];
+      if (min && c.width < min) c.width = min;
+    }
     return merged;
   } catch { return DEFAULT; }
 }
@@ -63,7 +84,10 @@ export const columnsStore = {
   setWidth(id: ColId, w: number) {
     setState(produce((s) => {
       const c = s.list.find((x) => x.id === id);
-      if (c) c.width = Math.max(40, Math.min(800, Math.round(w)));
+      if (c) {
+        const min = MIN_COL_WIDTH[id] ?? 40;
+        c.width = Math.max(min, Math.min(800, Math.round(w)));
+      }
     }));
     persist();
   },

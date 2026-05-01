@@ -1,5 +1,5 @@
 import { createMemo, createSignal, Show } from "solid-js";
-import { Copy, Check, Download, WrapText, Sparkles } from "lucide-solid";
+import { Copy, Check, Download, WrapText, Sparkles, ChevronDown } from "lucide-solid";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../lib/ipc";
 import JsonViewer from "../viewers/JsonViewer";
@@ -128,51 +128,40 @@ export default function BodyView(props: {
     } catch (e) { console.error("save body failed", e); alert(String(e)); }
   };
 
-  const modeBtn = (m: Mode) =>
-    `px-2 h-7 rounded-lg transition mono text-[11px] uppercase tracking-wider ${
-      mode() === m
-        ? "bg-toucan-400 text-ink-500 font-medium"
+  const iconBtn = (active: boolean, enabled = true) =>
+    `h-7 w-7 grid place-items-center rounded-lg transition shrink-0 ${
+      !enabled ? "opacity-25 pointer-events-none" :
+      active
+        ? "bg-toucan-400/15 text-toucan-400"
         : "opacity-60 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20"
     }`;
-  const toggleBtn = (active: boolean, enabled: boolean) =>
-    `h-7 px-2 rounded-lg flex items-center gap-1 text-[11px] mono transition ${
-      !enabled ? "opacity-30 pointer-events-none" :
-      active
-        ? "bg-toucan-400/15 border border-toucan-400/60 text-toucan-400"
-        : "border border-transparent hover:bg-ink-100 dark:hover:bg-ink-400/20 opacity-70 hover:opacity-100"
-    }`;
-  const actionBtn = "h-7 px-2 rounded-lg flex items-center gap-1 text-[11px] hover:bg-ink-100 dark:hover:bg-ink-400/20 opacity-70 hover:opacity-100";
-  const sep = <div class="w-px h-4 bg-ink-100 dark:bg-ink-400/30 mx-0.5 shrink-0" />;
 
   return (
     <div class="h-full flex flex-col">
-      <div class="flex items-center gap-1 px-3 py-2 text-xs border-b border-ink-100 dark:border-ink-400/20">
-        {/* View mode picker */}
-        <div class="flex items-center gap-0.5">
-          {MODES.map((m) => (
-            <button onClick={() => setMode(m)} class={modeBtn(m)} title={m}>{m}</button>
-          ))}
+      <div class="flex items-center gap-1.5 px-3 py-2 text-xs border-b border-ink-100 dark:border-ink-400/20">
+        {/* Mode dropdown — replaces 8-button row */}
+        <div class="relative shrink-0">
+          <select
+            value={mode()}
+            onChange={(e) => setMode(e.currentTarget.value as Mode)}
+            class="appearance-none h-7 pl-2.5 pr-7 text-[11px] mono uppercase tracking-wider rounded-lg
+                   bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40
+                   hover:border-toucan-400/60 focus:border-toucan-400 outline-none cursor-pointer"
+          >
+            {MODES.map((m) => (
+              <option value={m}>{m === effective() && m !== mode() ? `${m} (auto)` : m}</option>
+            ))}
+          </select>
+          <ChevronDown size={11} class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
         </div>
 
-        {sep}
-
-        {/* Display tools (beautify / wrap) */}
-        <button
-          onClick={() => setPretty((v) => !v)}
-          class={toggleBtn(pretty(), canBeautify())}
-          title={t("body.beautify")}
-        >
-          <Sparkles size={12} /> {t("body.beautify")}
+        <button onClick={() => setPretty((v) => !v)} class={iconBtn(pretty(), canBeautify())} title={t("body.beautify")}>
+          <Sparkles size={13} />
         </button>
-        <button
-          onClick={() => setWrap((v) => !v)}
-          class={toggleBtn(wrap(), canWrap())}
-          title={t("body.wrap")}
-        >
-          <WrapText size={12} /> {t("body.wrap")}
+        <button onClick={() => setWrap((v) => !v)} class={iconBtn(wrap(), canWrap())} title={t("body.wrap")}>
+          <WrapText size={13} />
         </button>
 
-        {/* Spacer + content metadata */}
         <span class="ml-auto opacity-50 mono text-[11px] truncate pl-2">
           {props.contentType ?? t("body.noCt")}
           <Show when={props.body}>
@@ -182,13 +171,11 @@ export default function BodyView(props: {
         </span>
 
         <Show when={props.body}>
-          {sep}
-          <button onClick={copyBody} class={actionBtn} title={t("body.copy")}>
-            {copied() ? <Check size={12} /> : <Copy size={12} />}
-            {copied() ? t("body.copied") : t("body.copy")}
+          <button onClick={copyBody} class={iconBtn(false)} title={copied() ? t("body.copied") : t("body.copy")}>
+            {copied() ? <Check size={13} /> : <Copy size={13} />}
           </button>
-          <button onClick={downloadBody} class={actionBtn} title={t("body.save")}>
-            <Download size={12} /> {t("body.save")}
+          <button onClick={downloadBody} class={iconBtn(false)} title={t("body.save")}>
+            <Download size={13} />
           </button>
         </Show>
       </div>

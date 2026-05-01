@@ -7,7 +7,7 @@ import { marksStore, MARK_COLORS } from "../stores/marks";
 import { sessionStore } from "../stores/session";
 import { ipc } from "../lib/ipc";
 import { COLLECTION_FORMATS } from "../lib/exporters";
-import { createSignal, Show, For } from "solid-js";
+import { createSignal, Show, For, createEffect, onCleanup } from "solid-js";
 import { t } from "../lib/i18n";
 import LlmExportDialog from "./LlmExportDialog";
 import { undoStore } from "../stores/undo";
@@ -16,6 +16,15 @@ import type { Flow } from "../lib/types";
 export default function FlowToolbar(props: { count: number; flows: () => Flow[] }) {
   const [openMark, setOpenMark] = createSignal(false);
   const [openExport, setOpenExport] = createSignal(false);
+  let exportRef: HTMLDivElement | undefined;
+  createEffect(() => {
+    if (!openExport()) return;
+    const onDown = (e: MouseEvent) => {
+      if (exportRef && !exportRef.contains(e.target as Node)) setOpenExport(false);
+    };
+    document.addEventListener("mousedown", onDown, true);
+    onCleanup(() => document.removeEventListener("mousedown", onDown, true));
+  });
   const [openLlm, setOpenLlm] = createSignal(false);
 
   // Export always operates on what's visible in the list (filters/category/sort
@@ -156,15 +165,13 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[] 
         <FileDown size={13} /> {t("tb.saveAs")}
       </button>
 
-      <div class="relative">
+      <div class="relative" ref={exportRef}>
         <button onClick={() => setOpenExport(!openExport())} title={t("tb.exportTitle")}
-          onBlur={() => setTimeout(() => setOpenExport(false), 150)}
           class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-ink-100 dark:hover:bg-ink-400/20 transition">
           <Share2 size={13} /> {t("tb.export")}
         </button>
         <Show when={openExport()}>
           <div
-            onMouseDown={(e) => e.preventDefault()}
             class="absolute z-30 top-10 left-0 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl py-1 min-w-[240px] text-xs"
           >
             <div class="px-3 py-1.5 text-[10px] uppercase tracking-wider opacity-50">
