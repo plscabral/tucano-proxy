@@ -207,8 +207,17 @@ pub fn write_binary_file(path: String, contents_base64: String) -> Result<(), St
 }
 
 #[tauri::command]
-pub fn save_session(state: tauri::State<'_, Arc<AppState>>, path: String) -> Result<(), String> {
-    state.storage.lock().save_to(&PathBuf::from(path)).map_err(err)
+pub fn save_session(
+    state: tauri::State<'_, Arc<AppState>>,
+    path: String,
+    ids: Option<Vec<String>>,
+) -> Result<(), String> {
+    let storage = state.storage.lock();
+    let dest = PathBuf::from(path);
+    match ids {
+        Some(ids) => storage.save_subset_to(&dest, &ids).map_err(err),
+        None => storage.save_to(&dest).map_err(err),
+    }
 }
 
 #[tauri::command]

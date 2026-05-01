@@ -287,30 +287,9 @@ export type LlmExportOptions = {
   prompt: string;
   targetLanguage: string;
   redactSecrets: boolean;
-  /** Replace bodies of non-API content types (html/css/js/images/etc) with a placeholder. */
-  skipNonApiBodies: boolean;
-  /** Max chars kept per body before truncation. <=0 disables truncation. */
-  maxBodyChars: number;
+  /** Emit a "Steps (estruturado)" section that pre-parses bodies and detects cross-step placeholders. */
+  includeStructuredSteps: boolean;
 };
-
-const NON_API_CT = [
-  /^text\/html\b/i,
-  /^text\/css\b/i,
-  /^application\/javascript\b/i,
-  /^application\/x-javascript\b/i,
-  /^text\/javascript\b/i,
-  /^application\/wasm\b/i,
-  /^image\//i,
-  /^video\//i,
-  /^audio\//i,
-  /^font\//i,
-  /^application\/font/i,
-];
-
-function isNonApiContentType(ct: string | null): boolean {
-  if (!ct) return false;
-  return NON_API_CT.some((re) => re.test(ct));
-}
 
 export const LLM_TARGET_LANGUAGES: { id: string; label: string }[] = [
   { id: "csharp",     label: "C# / .NET (HttpClient)" },
@@ -322,7 +301,14 @@ export const LLM_TARGET_LANGUAGES: { id: string; label: string }[] = [
 ];
 
 export const DEFAULT_LLM_PROMPT = (lang: string) =>
-  `Você é um engenheiro de software experiente em ${lang}. Reconstrua o fluxo HTTP abaixo como um programa idiomático que executa as chamadas na ordem dada, preservando headers relevantes, corpos de requisição e tratando dependências entre chamadas (por exemplo, um token retornado por uma chamada anterior usado em uma posterior). Comente o código em pontos não óbvios e, ao final, explique brevemente o fluxo.`;
+  `Você é um engenheiro de software experiente em ${lang}.
+
+Antes de gerar código:
+1. Inspecione o repositório atual e identifique o padrão usado para representar chamadas HTTP (classes, helpers, naming, montagem de body/headers, parsing de resposta). Reproduza ESSE padrão — não invente uma estrutura nova.
+2. Em seguida, traduza o fluxo abaixo respeitando o padrão do repositório: cada item da seção "Steps (estruturado)" vira uma unidade do framework existente, mantendo método, URL, headers, encoding/charset, content-type e os placeholders \`{varN}\` exatamente como marcados.
+3. Quando um placeholder tiver \`from: stepN + locator\`, gere o código que extrai esse valor da resposta do step indicado usando os helpers de parsing já existentes no repositório (XPath/regex/JSON path conforme o estilo da casa).
+
+Preserve a ordem das chamadas, headers relevantes e bodies. Comente apenas pontos não óbvios e, ao final, descreva em uma frase o que o fluxo faz.`;
 
 const SENSITIVE_HEADERS = new Set([
   "authorization",
@@ -342,46 +328,6 @@ function maskHeaders(headers: [string, string][], redact: boolean): [string, str
   );
 }
 
-function isJsonContentType(ct: string | null): boolean {
-  return !!ct && /\bjson\b/i.test(ct);
-}
-
-function escapeFenceContent(s: string): string {
-  // Avoid breaking fences if body itself contains ``` — neutralize.
-  return s.replace(/```/g, "`​``");
-}
-
-function formatBodyBlock(
-  body: string | null,
-  encoding: "utf8" | "base64",
-  contentType: string | null,
-  size: number,
-  opts: { skipNonApi: boolean; maxChars: number },
-): string {
-  if (!body) return "_(empty)_\n";
-  if (encoding === "base64") {
-    return `_[binary, ${size} bytes${contentType ? `, ${contentType}` : ""}]_\n`;
-  }
-  if (opts.skipNonApi && isNonApiContentType(contentType)) {
-    return `_[skipped ${contentType}, ${size} bytes — not relevant for API flow]_\n`;
-  }
-  let content = body;
-  let lang = "";
-  if (isJsonContentType(contentType)) {
-    lang = "json";
-    try { content = JSON.stringify(JSON.parse(body), null, 2); } catch { /* keep raw */ }
-  } else if (contentType) {
-    if (/xml/i.test(contentType)) lang = "xml";
-    else if (/html/i.test(contentType)) lang = "html";
-  }
-  let truncatedNote = "";
-  if (opts.maxChars > 0 && content.length > opts.maxChars) {
-    truncatedNote = `\n…[truncated, showing ${opts.maxChars} of ${content.length} chars]`;
-    content = content.slice(0, opts.maxChars);
-  }
-  return "```" + lang + "\n" + escapeFenceContent(content) + truncatedNote + "\n```\n";
-}
-
 function headersTable(headers: [string, string][]): string {
   if (headers.length === 0) return "_(none)_\n";
   const lines = ["| name | value |", "| ---- | ----- |"];
@@ -396,6 +342,376 @@ function uniqueHosts(flows: Flow[]): string[] {
   const set = new Set<string>();
   for (const f of flows) set.add(f.host);
   return [...set];
+}
+
+// ---- Structured steps -----------------------------------------------------
+
+type Placeholder = {
+  token: string;          // e.g. "{var1}"
+  value: string;          // the literal it stands for (kept for the locator hint)
+  fromStep: number;       // 1-based index of the prior step whose response carries this value
+  locator: string;        // hint on how to extract from that step's response
+};
+
+type LlmStep = {
+  index: number;
+  name: string;
+  method: string;
+  url: string;
+  charset: string | null;
+  contentType: string | null;
+  headers: [string, string][];
+  bodyKind: "form" | "json" | "raw" | "empty" | "binary";
+  bodyForm?: [string, string][];      // values may already contain {varN}
+  bodyJson?: string;                  // pretty JSON string (with placeholders substituted)
+  bodyRaw?: string;                   // raw body (with placeholders substituted)
+  bodyNote?: string;                  // e.g. "binary, 1234 bytes"
+  responseStatus: number | null;
+  responseStatusText: string | null;
+  responseContentType: string | null;
+  responseHeaders: [string, string][];
+  durationMs: number | null;
+  note?: string | null;
+  error?: string | null;
+  placeholders: Placeholder[];
+};
+
+function parseCharset(ct: string | null): string | null {
+  if (!ct) return null;
+  const m = /charset\s*=\s*([^;\s]+)/i.exec(ct);
+  return m ? m[1] : null;
+}
+
+function stepNameFromUrl(method: string, path: string, index: number): string {
+  const [base, query = ""] = path.split("?", 2);
+  const lastSeg = base.split("/").filter(Boolean).pop() ?? "";
+  const qparams = new URLSearchParams(query);
+  const hint = qparams.get("f") ?? qparams.get("a") ?? qparams.get("action") ?? lastSeg;
+  const cleaned = (hint || `${method.toLowerCase()}_${index}`).replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  return cleaned || `step${index}`;
+}
+
+function parseFormBody(body: string): [string, string][] {
+  const out: [string, string][] = [];
+  for (const pair of body.split("&")) {
+    if (!pair) continue;
+    const eq = pair.indexOf("=");
+    const k = eq >= 0 ? pair.slice(0, eq) : pair;
+    const v = eq >= 0 ? pair.slice(eq + 1) : "";
+    try {
+      out.push([decodeURIComponent(k.replace(/\+/g, " ")), decodeURIComponent(v.replace(/\+/g, " "))]);
+    } catch {
+      out.push([k, v]);
+    }
+  }
+  return out;
+}
+
+const PLACEHOLDER_STOPLIST = new Set([
+  "application/json", "application/x-www-form-urlencoded", "text/html", "text/plain",
+  "gzip, deflate, br", "keep-alive", "no-cache", "max-age=0",
+]);
+
+function isPlaceholderCandidate(v: string): boolean {
+  if (!v) return false;
+  if (v.length < 8) return false;
+  if (PLACEHOLDER_STOPLIST.has(v.toLowerCase())) return false;
+  // Skip pure numbers and common short ids — but accept long opaque tokens.
+  if (/^\d+$/.test(v) && v.length < 10) return false;
+  return true;
+}
+
+function locatorHint(value: string, prevResponse: string, prevContentType: string | null): string {
+  // JSON path hint
+  if (prevContentType && /json/i.test(prevContentType)) {
+    try {
+      const obj = JSON.parse(prevResponse);
+      const path = findJsonPath(obj, value);
+      if (path) return `json:${path}`;
+    } catch { /* fall through */ }
+  }
+  // HTML attribute hint: look for name="..." value="<value>" or value="<value>" name="..."
+  const attrMatch = new RegExp(`name=["']([^"']+)["'][^>]*value=["']${escapeRegex(value)}["']`).exec(prevResponse)
+                 ?? new RegExp(`value=["']${escapeRegex(value)}["'][^>]*name=["']([^"']+)["']`).exec(prevResponse);
+  if (attrMatch) return `html:input[name="${attrMatch[1]}"]@value`;
+  // Generic regex fallback — capture by quoting whatever surrounds the value
+  const idx = prevResponse.indexOf(value);
+  if (idx >= 0) {
+    const before = prevResponse.slice(Math.max(0, idx - 12), idx).replace(/\s+/g, " ");
+    return `regex:${escapeRegex(before).slice(-10)}([^"'<>&\\s]+)`;
+  }
+  return "regex:(unknown)";
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findJsonPath(obj: unknown, target: string, path = "$"): string | null {
+  if (obj == null) return null;
+  if (typeof obj === "string") return obj === target ? path : null;
+  if (typeof obj === "number" || typeof obj === "boolean") {
+    return String(obj) === target ? path : null;
+  }
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      const r = findJsonPath(obj[i], target, `${path}[${i}]`);
+      if (r) return r;
+    }
+    return null;
+  }
+  if (typeof obj === "object") {
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      const r = findJsonPath(v, target, `${path}.${k}`);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
+function buildLlmSteps(flows: Flow[], opts: LlmExportOptions): LlmStep[] {
+  const steps: LlmStep[] = [];
+  // Cache of decoded prior responses for placeholder lookups.
+  const priorResponses: { idx: number; body: string; contentType: string | null }[] = [];
+  // Map from value → token, persistent across steps so the same value reuses {varN}.
+  const tokenByValue = new Map<string, Placeholder>();
+  let nextVar = 1;
+
+  flows.forEach((f, i) => {
+    const index = i + 1;
+    const url = fullUrl(f);
+    const charset = parseCharset(f.reqContentType);
+    const headers = maskHeaders(f.reqHeaders, opts.redactSecrets);
+    const decodedReq = decodeBody(f.reqBody, f.reqBodyEncoding);
+    const decodedRes = decodeBody(f.resBody, f.resBodyEncoding);
+
+    // Detect placeholders by scanning candidate values against prior responses.
+    const stepPlaceholders: Placeholder[] = [];
+    const substitute = (s: string): string => {
+      if (!s) return s;
+      let out = s;
+      // Look at form values, query params, header values, raw body fragments — but here
+      // we handle generically by scanning a list of candidate substrings extracted below.
+      return out;
+    };
+
+    const collectCandidates = (): string[] => {
+      const set = new Set<string>();
+      const pushAll = (v: string) => { if (isPlaceholderCandidate(v)) set.add(v); };
+      // From form body
+      if (f.reqContentType && /x-www-form-urlencoded/i.test(f.reqContentType) && decodedReq) {
+        for (const [, v] of parseFormBody(decodedReq)) pushAll(v);
+      }
+      // From query string
+      const q = f.path.includes("?") ? f.path.slice(f.path.indexOf("?") + 1) : "";
+      if (q) for (const [, v] of parseFormBody(q)) pushAll(v);
+      // From headers
+      for (const [, v] of headers) pushAll(v);
+      // From JSON body leaves
+      if (f.reqContentType && /json/i.test(f.reqContentType) && decodedReq) {
+        try {
+          const obj = JSON.parse(decodedReq);
+          const walk = (o: unknown) => {
+            if (o == null) return;
+            if (typeof o === "string") { pushAll(o); return; }
+            if (Array.isArray(o)) { o.forEach(walk); return; }
+            if (typeof o === "object") Object.values(o as Record<string, unknown>).forEach(walk);
+          };
+          walk(obj);
+        } catch { /* not JSON */ }
+      }
+      return [...set];
+    };
+
+    for (const value of collectCandidates()) {
+      const existing = tokenByValue.get(value);
+      if (existing) {
+        if (!stepPlaceholders.find((p) => p.token === existing.token)) {
+          stepPlaceholders.push(existing);
+        }
+        continue;
+      }
+      // Search prior responses for the value.
+      for (const pr of priorResponses) {
+        if (pr.body && pr.body.includes(value)) {
+          const token = `{var${nextVar++}}`;
+          const ph: Placeholder = {
+            token,
+            value,
+            fromStep: pr.idx,
+            locator: locatorHint(value, pr.body, pr.contentType),
+          };
+          tokenByValue.set(value, ph);
+          stepPlaceholders.push(ph);
+          break;
+        }
+      }
+    }
+
+    const applyTokens = (s: string | null): string => {
+      if (!s) return s ?? "";
+      let out = s;
+      for (const ph of tokenByValue.values()) {
+        if (out.includes(ph.value)) {
+          out = out.split(ph.value).join(ph.token);
+        }
+      }
+      return out;
+    };
+
+    // Body parsing
+    let bodyKind: LlmStep["bodyKind"] = "empty";
+    let bodyForm: [string, string][] | undefined;
+    let bodyJson: string | undefined;
+    let bodyRaw: string | undefined;
+    let bodyNote: string | undefined;
+
+    if (!decodedReq) {
+      bodyKind = "empty";
+    } else if (f.reqBodyEncoding === "base64") {
+      bodyKind = "binary";
+      bodyNote = `binary, ${f.reqSize} bytes${f.reqContentType ? `, ${f.reqContentType}` : ""}`;
+    } else if (f.reqContentType && /x-www-form-urlencoded/i.test(f.reqContentType)) {
+      bodyKind = "form";
+      bodyForm = parseFormBody(decodedReq).map(([k, v]) => [k, applyTokens(v)] as [string, string]);
+    } else if (f.reqContentType && /json/i.test(f.reqContentType)) {
+      bodyKind = "json";
+      try {
+        bodyJson = JSON.stringify(JSON.parse(applyTokens(decodedReq)), null, 2);
+      } catch {
+        bodyKind = "raw";
+        bodyRaw = applyTokens(decodedReq);
+      }
+    } else {
+      bodyKind = "raw";
+      bodyRaw = applyTokens(decodedReq);
+    }
+
+    // URL with token substitution (query string may carry a forwarded token)
+    const urlSub = applyTokens(url);
+
+    const step: LlmStep = {
+      index,
+      name: stepNameFromUrl(f.method, f.path, index),
+      method: f.method,
+      url: urlSub,
+      charset,
+      contentType: f.reqContentType,
+      headers: headers.map(([k, v]) => [k, applyTokens(v)] as [string, string]),
+      bodyKind,
+      bodyForm,
+      bodyJson,
+      bodyRaw,
+      bodyNote,
+      responseStatus: f.status,
+      responseStatusText: f.statusText,
+      responseContentType: f.resContentType,
+      responseHeaders: maskHeaders(f.resHeaders, opts.redactSecrets),
+      durationMs: f.durationMs,
+      note: f.note ?? null,
+      error: f.error,
+      placeholders: stepPlaceholders,
+    };
+    steps.push(step);
+
+    // Register this step's response so later steps can detect dependencies.
+    if (decodedRes && f.resBodyEncoding === "utf8") {
+      priorResponses.push({ idx: index, body: decodedRes, contentType: f.resContentType });
+    }
+    void substitute; // (unused helper kept inline for clarity; tree-shaken)
+  });
+
+  return steps;
+}
+
+/** Headers (k,v) present identically in every step — hoisted once to cut tokens. */
+function commonRequestHeaders(steps: LlmStep[]): Map<string, string> {
+  if (steps.length === 0) return new Map();
+  const first = new Map<string, string>(steps[0].headers.map(([k, v]) => [k.toLowerCase(), v]));
+  // Track display casing from the first occurrence.
+  const display = new Map<string, string>(steps[0].headers.map(([k]) => [k.toLowerCase(), k]));
+  for (let i = 1; i < steps.length; i++) {
+    const cur = new Map<string, string>(steps[i].headers.map(([k, v]) => [k.toLowerCase(), v]));
+    for (const k of [...first.keys()]) {
+      if (cur.get(k) !== first.get(k)) first.delete(k);
+    }
+    if (first.size === 0) break;
+  }
+  // Only worth hoisting if there are at least 2 steps and at least 2 shared headers.
+  if (steps.length < 2 || first.size < 2) return new Map();
+  return new Map([...first.entries()].map(([k, v]) => [display.get(k) ?? k, v]));
+}
+
+function renderStructuredSteps(steps: LlmStep[]): string {
+  const out: string[] = [];
+  const shared = commonRequestHeaders(steps);
+  const sharedKeysLower = new Set([...shared.keys()].map((k) => k.toLowerCase()));
+
+  out.push(
+    "## Steps",
+    "",
+    "_Cada item é uma chamada normalizada. Valores marcados como `{varN}` vêm de respostas de steps anteriores — extraia conforme `placeholders[].locator`. Headers comuns a todas as chamadas estão em `commonRequestHeaders` (anexe a cada chamada)._",
+    "",
+  );
+
+  if (shared.size > 0) {
+    out.push("```yaml");
+    out.push("commonRequestHeaders:");
+    for (const [k, v] of shared) out.push(`  - ${JSON.stringify([k, v])}`);
+    out.push("```");
+    out.push("");
+  }
+
+  for (const s of steps) {
+    out.push(`### Step ${s.index}: ${s.name}`);
+    if (s.note) out.push("", `_${s.note}_`);
+    out.push("");
+    out.push("```yaml");
+    out.push(`method: ${s.method}`);
+    out.push(`url: ${s.url}`);
+    if (s.contentType) out.push(`contentType: ${s.contentType}`);
+    if (s.charset) out.push(`charset: ${s.charset}`);
+    const localHeaders = s.headers.filter(([k]) => !sharedKeysLower.has(k.toLowerCase()));
+    if (localHeaders.length) {
+      out.push("headers:");
+      for (const [k, v] of localHeaders) out.push(`  - ${JSON.stringify([k, v])}`);
+    }
+    if (s.bodyForm) {
+      out.push("body:");
+      for (const [k, v] of s.bodyForm) out.push(`  - ${JSON.stringify([k, v])}`);
+    } else if (s.bodyJson) {
+      out.push("body: |");
+      for (const line of s.bodyJson.split("\n")) out.push(`  ${line}`);
+    } else if (s.bodyRaw) {
+      out.push("body: |");
+      for (const line of s.bodyRaw.split("\n")) out.push(`  ${line}`);
+    } else if (s.bodyNote) {
+      out.push(`body: ${JSON.stringify(s.bodyNote)}`);
+    }
+    out.push("response:");
+    const statusLine = s.responseStatusText
+      ? `${s.responseStatus ?? "null"} ${s.responseStatusText}`
+      : `${s.responseStatus ?? "null"}`;
+    out.push(`  status: ${statusLine}`);
+    if (s.responseContentType) out.push(`  contentType: ${s.responseContentType}`);
+    if (s.durationMs != null) out.push(`  durationMs: ${s.durationMs}`);
+    if (s.responseHeaders.length) {
+      out.push("  headers:");
+      for (const [k, v] of s.responseHeaders) out.push(`    - ${JSON.stringify([k, v])}`);
+    }
+    if (s.placeholders.length) {
+      out.push("placeholders:");
+      for (const ph of s.placeholders) {
+        out.push(`  - token: ${ph.token}`);
+        out.push(`    fromStep: ${ph.fromStep}`);
+        out.push(`    locator: ${JSON.stringify(ph.locator)}`);
+      }
+    }
+    if (s.error) out.push(`error: ${JSON.stringify(s.error)}`);
+    out.push("```");
+    out.push("");
+  }
+  return out.join("\n");
 }
 
 /** LLM-friendly Markdown — designed to be pasted into an LLM so it reconstructs the flow as code. */
@@ -423,36 +739,26 @@ export function toLlmMarkdown(flows: Flow[], opts: LlmExportOptions): string {
     `- Hosts: ${uniqueHosts(flows).join(", ") || "—"}`,
     `- Linguagem-alvo: ${langLabel}`,
     `- Headers sensíveis mascarados: ${opts.redactSecrets ? "sim" : "não"}`,
-    `- Bodies não-API ignorados: ${opts.skipNonApiBodies ? "sim" : "não"}`,
-    `- Limite por body: ${opts.maxBodyChars > 0 ? `${opts.maxBodyChars} chars` : "sem limite"}`,
-    "",
-    "## Fluxo",
     "",
   );
 
-  const bodyOpts = { skipNonApi: opts.skipNonApiBodies, maxChars: opts.maxBodyChars };
-
-  flows.forEach((f, i) => {
-    const url = fullUrl(f);
-    const status = f.status != null ? `${f.status}${f.statusText ? " " + f.statusText : ""}` : "(no response)";
-    const dur = f.durationMs != null ? `${f.durationMs} ms` : "—";
-    out.push(`### ${i + 1}. ${f.method} ${url}  →  ${status}  (${dur})`);
-    if (f.note) out.push("", `**Note:** ${f.note}`);
-    out.push("", "**Request headers**", headersTable(maskHeaders(f.reqHeaders, opts.redactSecrets)));
-    out.push(
-      `**Request body** (${f.reqContentType ?? "no content-type"}, ${f.reqSize} bytes)`,
-      "",
-      formatBodyBlock(f.reqBody, f.reqBodyEncoding, f.reqContentType, f.reqSize, bodyOpts),
-    );
-    out.push("**Response headers**", headersTable(maskHeaders(f.resHeaders, opts.redactSecrets)));
-    out.push(
-      `**Response body** (${f.resContentType ?? "no content-type"}, ${f.resSize} bytes)`,
-      "",
-      formatBodyBlock(f.resBody, f.resBodyEncoding, f.resContentType, f.resSize, bodyOpts),
-    );
-    if (f.error) out.push(`**Error:** ${f.error}`, "");
-    if (i < flows.length - 1) out.push("---", "");
-  });
+  if (opts.includeStructuredSteps) {
+    const steps = buildLlmSteps(flows, opts);
+    out.push(renderStructuredSteps(steps));
+  } else {
+    out.push("## Fluxo", "");
+    flows.forEach((f, i) => {
+      const url = fullUrl(f);
+      const status = f.status != null ? `${f.status}${f.statusText ? " " + f.statusText : ""}` : "(no response)";
+      const dur = f.durationMs != null ? `${f.durationMs} ms` : "—";
+      out.push(`### ${i + 1}. ${f.method} ${url}  →  ${status}  (${dur})`);
+      if (f.note) out.push("", `**Note:** ${f.note}`);
+      out.push("", "**Request headers**", headersTable(maskHeaders(f.reqHeaders, opts.redactSecrets)));
+      out.push("**Response headers**", headersTable(maskHeaders(f.resHeaders, opts.redactSecrets)));
+      if (f.error) out.push(`**Error:** ${f.error}`, "");
+      if (i < flows.length - 1) out.push("---", "");
+    });
+  }
 
   return out.join("\n");
 }

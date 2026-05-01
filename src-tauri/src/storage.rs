@@ -112,6 +112,39 @@ impl Storage {
         Ok(())
     }
 
+    /// Like `save_to` but writes only the flows whose ids appear in `ids`.
+    /// We don't use the SQLite backup API here because backup copies the
+    /// entire table; instead we create a fresh schema and copy the matching
+    /// rows row-by-row.
+    pub fn save_subset_to(
+        &self,
+        dest: &Path,
+        ids: &[String],
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if dest.exists() {
+            std::fs::remove_file(dest)?;
+        }
+        let mut dst = Connection::open(dest)?;
+        dst.execute_batch(
+            "CREATE TABLE IF NOT EXISTS flows (id TEXT PRIMARY KEY, idx INTEGER NOT NULL, data TEXT NOT NULL);",
+        )?;
+        let tx = dst.transaction()?;
+        {
+            let mut sel = self.conn.prepare("SELECT idx, data FROM flows WHERE id = ?1")?;
+            let mut ins = tx.prepare("INSERT INTO flows(id, idx, data) VALUES(?1, ?2, ?3)")?;
+            for id in ids {
+                let row = sel.query_row(params![id], |r| {
+                    Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+                });
+                if let Ok((idx, data)) = row {
+                    ins.execute(params![id, idx, data])?;
+                }
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn replace_from(&mut self, src: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.clear()?;
         let other = Connection::open(src)?;

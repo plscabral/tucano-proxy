@@ -20,7 +20,8 @@ export const ipc = {
   updateFlowNote: (id: string, note: string | null) => invoke<void>("update_flow_note", { id, note }),
   replay: (id: string, headers: [string, string][], body: string | null) =>
     invoke<string>("replay_flow", { id, headers, body }),
-  saveSession: (path: string) => invoke<void>("save_session", { path }),
+  saveSession: (path: string, ids?: string[]) =>
+    invoke<void>("save_session", { path, ids: ids ?? null }),
   openSession: (path: string) => invoke<void>("open_session", { path }),
   writeTextFile: (path: string, contents: string) => invoke<void>("write_text_file", { path, contents }),
   writeBinaryFile: (path: string, contentsBase64: string) => invoke<void>("write_binary_file", { path, contentsBase64 }),

@@ -159,7 +159,12 @@ export default function App() {
       e.preventDefault();
       const { save } = await import("@tauri-apps/plugin-dialog");
       const p = await save({ defaultPath: "session.tucano", filters: [{ name: "Tucano", extensions: ["tucano"] }] });
-      if (p) await ipc.saveSession(p);
+      if (p) {
+        const sel = flowsStore.selectedIds();
+        const visible = filtered().map((f) => f.id);
+        const ids = sel.size > 0 ? visible.filter((id) => sel.has(id)) : visible;
+        await ipc.saveSession(p, ids);
+      }
     } else if (meta && e.key.toLowerCase() === "o") {
       e.preventDefault();
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -167,7 +172,6 @@ export default function App() {
       if (p && typeof p === "string") { await ipc.openSession(p); flowsStore.setFlows(await ipc.listFlows()); }
     } else if (e.key === "Escape") {
       if (settingsOpen()) setSettingsOpen(false);
-      else rulesStore.clear();
     } else if (!inField && e.key === " ") {
       e.preventDefault();
       const s = flowsStore.status();
@@ -239,7 +243,7 @@ export default function App() {
       <TopBar onOpenSettings={() => setSettingsOpen(true)} />
       <CategoryTabs />
       <FilterBar />
-      <FlowToolbar count={filtered().length} />
+      <FlowToolbar count={filtered().length} flows={filtered} />
 
       <Show when={layoutStore.pos() === "right"}>
         <div ref={splitRef} class="flex-1 flex overflow-hidden">

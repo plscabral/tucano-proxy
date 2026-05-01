@@ -1,4 +1,4 @@
-import { Trash2, Save, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2 } from "lucide-solid";
+import { Trash2, Save, FileDown, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2 } from "lucide-solid";
 import { layoutStore, type InspectorPos } from "../stores/layout";
 import ColumnsMenu from "./ColumnsMenu";
 import { save, open } from "@tauri-apps/plugin-dialog";
@@ -11,17 +11,20 @@ import { createSignal, Show, For } from "solid-js";
 import { t } from "../lib/i18n";
 import LlmExportDialog from "./LlmExportDialog";
 import { undoStore } from "../stores/undo";
+import type { Flow } from "../lib/types";
 
-export default function FlowToolbar(props: { count: number }) {
+export default function FlowToolbar(props: { count: number; flows: () => Flow[] }) {
   const [openMark, setOpenMark] = createSignal(false);
   const [openExport, setOpenExport] = createSignal(false);
   const [openLlm, setOpenLlm] = createSignal(false);
 
+  // Export always operates on what's visible in the list (filters/category/sort
+  // already applied). When the user has an active selection, narrow further to
+  // selected items intersected with what's visible.
   const flowsForExport = () => {
+    const visible = props.flows();
     const ids = flowsStore.selectedIds();
-    return ids.size > 0
-      ? flowsStore.flows().filter((f) => ids.has(f.id))
-      : flowsStore.flows();
+    return ids.size > 0 ? visible.filter((f) => ids.has(f.id)) : visible;
   };
   const openLlmDialog = () => {
     setOpenExport(false);
@@ -33,10 +36,7 @@ export default function FlowToolbar(props: { count: number }) {
     const fmt = COLLECTION_FORMATS.find((f) => f.id === id);
     if (!fmt) return;
     setOpenExport(false);
-    const ids = flowsStore.selectedIds();
-    const flows = ids.size > 0
-      ? flowsStore.flows().filter((f) => ids.has(f.id))
-      : flowsStore.flows();
+    const flows = flowsForExport();
     if (flows.length === 0) return;
     const path = await save({
       defaultPath: `tucano.${fmt.extension}`,
@@ -52,8 +52,15 @@ export default function FlowToolbar(props: { count: number }) {
     defaultPath: sessionStore.path() ?? "session.tucano",
     filters: [{ name: "Tucano Session", extensions: ["tucano"] }],
   });
-  // Save: if we have a bound path, overwrite it silently (like ⌘S in any
-  // editor); otherwise prompt for a location ("Save As" semantics).
+  // Save respects what's visible: only flows currently shown (filters/category
+  // applied) are written. If a selection exists, it narrows further. This
+  // matches the export behavior — "what you see is what you save."
+  const visibleIds = () => props.flows().map((f) => f.id);
+  const idsToPersist = () => {
+    const ids = flowsStore.selectedIds();
+    return ids.size > 0 ? visibleIds().filter((id) => ids.has(id)) : visibleIds();
+  };
+  // Save: silent overwrite if we already have a bound path; otherwise prompt.
   const onSave = async () => {
     let path = sessionStore.path();
     if (!path) {
@@ -62,7 +69,14 @@ export default function FlowToolbar(props: { count: number }) {
       path = picked;
       sessionStore.setPath(path);
     }
-    await ipc.saveSession(path);
+    await ipc.saveSession(path, idsToPersist());
+  };
+  // Save As: always prompt; updates the bound path on success.
+  const onSaveAs = async () => {
+    const picked = await promptSavePath();
+    if (!picked) return;
+    await ipc.saveSession(picked, idsToPersist());
+    sessionStore.setPath(picked);
   };
   const onOpen = async () => {
     const path = await open({ multiple: false, filters: [{ name: "Tucano Session", extensions: ["tucano"] }] });
@@ -137,6 +151,10 @@ export default function FlowToolbar(props: { count: number }) {
         class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-ink-100 dark:hover:bg-ink-400/20 transition">
         <Save size={13} /> {t("tb.save")}
       </button>
+      <button onClick={onSaveAs} title={t("tb.saveAsTitle")}
+        class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-ink-100 dark:hover:bg-ink-400/20 transition">
+        <FileDown size={13} /> {t("tb.saveAs")}
+      </button>
 
       <div class="relative">
         <button onClick={() => setOpenExport(!openExport())} title={t("tb.exportTitle")}
@@ -151,8 +169,8 @@ export default function FlowToolbar(props: { count: number }) {
           >
             <div class="px-3 py-1.5 text-[10px] uppercase tracking-wider opacity-50">
               {flowsStore.selectedIds().size > 0
-                ? t("tb.exportSelected", { n: flowsStore.selectedIds().size })
-                : t("tb.exportAll", { n: flowsStore.flows().length })}
+                ? t("tb.exportSelected", { n: flowsForExport().length })
+                : t("tb.exportAll", { n: props.flows().length })}
             </div>
             <For each={COLLECTION_FORMATS}>{(fmt) => (
               <button
