@@ -61,6 +61,10 @@ const en: Dict = {
   "filter.op.starts_with": "Starts with",
   "filter.op.ends_with": "Ends with",
   "filter.op.matches": "Matches regex",
+  "filter.op.gt": "Greater than",
+  "filter.op.gte": "Greater or equal",
+  "filter.op.lt": "Less than",
+  "filter.op.lte": "Less or equal",
 
   // Toolbar
   "tb.clear": "Clear",
@@ -361,6 +365,10 @@ const ptBR: Dict = {
   "filter.op.starts_with": "Começa com",
   "filter.op.ends_with": "Termina com",
   "filter.op.matches": "Corresponde regex",
+  "filter.op.gt": "Maior que",
+  "filter.op.gte": "Maior ou igual",
+  "filter.op.lt": "Menor que",
+  "filter.op.lte": "Menor ou igual",
 
   "tb.clear": "Limpar",
   "tb.clearTitle": "Limpar tudo (⌘L)",
@@ -811,6 +819,10 @@ const es: Dict = {
   "filter.op.starts_with": "Empieza por",
   "filter.op.ends_with": "Termina en",
   "filter.op.matches": "Coincide regex",
+  "filter.op.gt": "Mayor que",
+  "filter.op.gte": "Mayor o igual",
+  "filter.op.lt": "Menor que",
+  "filter.op.lte": "Menor o igual",
 
   "tb.clear": "Limpiar",
   "tb.clearTitle": "Limpiar todo (⌘L)",
