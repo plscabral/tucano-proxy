@@ -9,10 +9,25 @@ import { ipc } from "../lib/ipc";
 import { COLLECTION_FORMATS } from "../lib/exporters";
 import { createSignal, Show, For } from "solid-js";
 import { t } from "../lib/i18n";
+import LlmExportDialog from "./LlmExportDialog";
+import { undoStore } from "../stores/undo";
 
 export default function FlowToolbar(props: { count: number }) {
   const [openMark, setOpenMark] = createSignal(false);
   const [openExport, setOpenExport] = createSignal(false);
+  const [openLlm, setOpenLlm] = createSignal(false);
+
+  const flowsForExport = () => {
+    const ids = flowsStore.selectedIds();
+    return ids.size > 0
+      ? flowsStore.flows().filter((f) => ids.has(f.id))
+      : flowsStore.flows();
+  };
+  const openLlmDialog = () => {
+    setOpenExport(false);
+    if (flowsForExport().length === 0) return;
+    setOpenLlm(true);
+  };
 
   const exportCollection = async (id: string) => {
     const fmt = COLLECTION_FORMATS.find((f) => f.id === id);
@@ -59,9 +74,11 @@ export default function FlowToolbar(props: { count: number }) {
   };
   const clear = async () => {
     if (!confirm(t("tb.clearTitle"))) return;
+    const snapshot = flowsStore.flows().slice();
     await ipc.clearFlows();
     flowsStore.clear();
     marksStore.clear();
+    undoStore.push(snapshot);
   };
   const setMark = (colorId: string) => {
     flowsStore.selectedIds().forEach((id) => marksStore.set(id, colorId));
@@ -143,9 +160,18 @@ export default function FlowToolbar(props: { count: number }) {
                 class="w-full px-3 py-1.5 text-left hover:bg-toucan-400/10 hover:text-toucan-400 transition"
               >{fmt.label}</button>
             )}</For>
+            <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
+            <button
+              onClick={openLlmDialog}
+              class="w-full px-3 py-1.5 text-left hover:bg-toucan-400/10 hover:text-toucan-400 transition"
+            >{t("tb.export.llm.menu")}</button>
           </div>
         </Show>
       </div>
+
+      <Show when={openLlm()}>
+        <LlmExportDialog flows={flowsForExport} onClose={() => setOpenLlm(false)} />
+      </Show>
 
       <div class="w-px h-5 bg-ink-100 dark:bg-ink-400/30 mx-1.5" />
       <ColumnsMenu />

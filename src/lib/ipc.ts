@@ -14,6 +14,7 @@ export const ipc = {
   toggleSystemProxy: (on: boolean) => invoke<void>("toggle_system_proxy", { on }),
   clearFlows: () => invoke<void>("clear_flows"),
   deleteFlows: (ids: string[]) => invoke<void>("delete_flows", { ids }),
+  restoreFlows: (flows: Flow[]) => invoke<void>("restore_flows", { flows }),
   listFlows: () => invoke<Flow[]>("list_flows"),
   getFlow: (id: string) => invoke<Flow>("get_flow", { id }),
   updateFlowNote: (id: string, note: string | null) => invoke<void>("update_flow_note", { id, note }),

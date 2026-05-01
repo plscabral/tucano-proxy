@@ -68,6 +68,7 @@ pub fn run() {
             commands::toggle_system_proxy,
             commands::clear_flows,
             commands::delete_flows,
+            commands::restore_flows,
             commands::list_flows,
             commands::get_flow,
             commands::update_flow_note,

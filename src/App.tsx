@@ -21,6 +21,7 @@ import { sortFlows } from "./lib/sortFlows";
 import { updaterStore } from "./stores/updater";
 import { prefsStore } from "./stores/prefs";
 import { sessionStore } from "./stores/session";
+import { undoStore } from "./stores/undo";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { t } from "./lib/i18n";
@@ -147,7 +148,13 @@ export default function App() {
         okLabel: t("dlg.clearOk"),
         cancelLabel: t("dlg.cancel"),
       });
-      if (yes) { await ipc.clearFlows(); flowsStore.clear(); marksStore.clear(); }
+      if (yes) {
+        const snapshot = flowsStore.flows().slice();
+        await ipc.clearFlows();
+        flowsStore.clear();
+        marksStore.clear();
+        undoStore.push(snapshot);
+      }
     } else if (meta && e.key.toLowerCase() === "s") {
       e.preventDefault();
       const { save } = await import("@tauri-apps/plugin-dialog");
@@ -171,8 +178,15 @@ export default function App() {
       if (ids.size > 0) {
         e.preventDefault();
         const arr = Array.from(ids);
+        const snapshot = flowsStore.flows().filter((f) => ids.has(f.id));
         await ipc.deleteFlows(arr);
         flowsStore.removeMany(ids);
+        undoStore.push(snapshot);
+      }
+    } else if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      if (undoStore.canUndo()) {
+        e.preventDefault();
+        await undoStore.undo();
       }
     } else if (meta && /^[0-6]$/.test(e.key)) {
       // Cmd/Ctrl + 0..6 → mark selected flows with the matching color

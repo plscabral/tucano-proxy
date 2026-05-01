@@ -4,6 +4,7 @@ import type { Flow } from "../lib/types";
 import { flowsStore } from "../stores/flows";
 import { marksStore, MARK_COLORS, colorOf } from "../stores/marks";
 import { ipc } from "../lib/ipc";
+import { undoStore } from "../stores/undo";
 import { columnsStore, type ColId } from "../stores/columns";
 import { sortStore } from "../stores/sort";
 import { t } from "../lib/i18n";
@@ -92,8 +93,10 @@ export default function FlowList(props: { flows: Flow[] }) {
   const deleteSelected = async () => {
     const ids = flowsStore.selectedIds();
     if (ids.size === 0) return;
+    const snapshot = flowsStore.flows().filter((f) => ids.has(f.id));
     await ipc.deleteFlows(Array.from(ids));
     flowsStore.removeMany(ids);
+    undoStore.push(snapshot);
     closeCtx();
   };
   const markSelected = (color: string) => {

@@ -279,6 +279,184 @@ export const COLLECTION_FORMATS: CollectionFormat[] = [
   { id: "har",     label: "HAR (HTTP Archive)",        extension: "har",                      build: toHar },
 ];
 
+// ---------------------------------------------------------------------------
+// LLM-friendly markdown export
+// ---------------------------------------------------------------------------
+
+export type LlmExportOptions = {
+  prompt: string;
+  targetLanguage: string;
+  redactSecrets: boolean;
+  /** Replace bodies of non-API content types (html/css/js/images/etc) with a placeholder. */
+  skipNonApiBodies: boolean;
+  /** Max chars kept per body before truncation. <=0 disables truncation. */
+  maxBodyChars: number;
+};
+
+const NON_API_CT = [
+  /^text\/html\b/i,
+  /^text\/css\b/i,
+  /^application\/javascript\b/i,
+  /^application\/x-javascript\b/i,
+  /^text\/javascript\b/i,
+  /^application\/wasm\b/i,
+  /^image\//i,
+  /^video\//i,
+  /^audio\//i,
+  /^font\//i,
+  /^application\/font/i,
+];
+
+function isNonApiContentType(ct: string | null): boolean {
+  if (!ct) return false;
+  return NON_API_CT.some((re) => re.test(ct));
+}
+
+export const LLM_TARGET_LANGUAGES: { id: string; label: string }[] = [
+  { id: "csharp",     label: "C# / .NET (HttpClient)" },
+  { id: "typescript", label: "TypeScript (fetch)" },
+  { id: "python",     label: "Python (requests)" },
+  { id: "go",         label: "Go (net/http)" },
+  { id: "java",       label: "Java (HttpClient)" },
+  { id: "other",      label: "Outro / livre" },
+];
+
+export const DEFAULT_LLM_PROMPT = (lang: string) =>
+  `Você é um engenheiro de software experiente em ${lang}. Reconstrua o fluxo HTTP abaixo como um programa idiomático que executa as chamadas na ordem dada, preservando headers relevantes, corpos de requisição e tratando dependências entre chamadas (por exemplo, um token retornado por uma chamada anterior usado em uma posterior). Comente o código em pontos não óbvios e, ao final, explique brevemente o fluxo.`;
+
+const SENSITIVE_HEADERS = new Set([
+  "authorization",
+  "proxy-authorization",
+  "cookie",
+  "set-cookie",
+  "x-api-key",
+  "x-auth-token",
+  "x-csrf-token",
+]);
+
+function maskHeaders(headers: [string, string][], redact: boolean): [string, string][] {
+  const filtered = relevantHeaders(headers);
+  if (!redact) return filtered;
+  return filtered.map(([k, v]) =>
+    SENSITIVE_HEADERS.has(k.toLowerCase()) ? [k, "***REDACTED***"] : [k, v],
+  );
+}
+
+function isJsonContentType(ct: string | null): boolean {
+  return !!ct && /\bjson\b/i.test(ct);
+}
+
+function escapeFenceContent(s: string): string {
+  // Avoid breaking fences if body itself contains ``` — neutralize.
+  return s.replace(/```/g, "`​``");
+}
+
+function formatBodyBlock(
+  body: string | null,
+  encoding: "utf8" | "base64",
+  contentType: string | null,
+  size: number,
+  opts: { skipNonApi: boolean; maxChars: number },
+): string {
+  if (!body) return "_(empty)_\n";
+  if (encoding === "base64") {
+    return `_[binary, ${size} bytes${contentType ? `, ${contentType}` : ""}]_\n`;
+  }
+  if (opts.skipNonApi && isNonApiContentType(contentType)) {
+    return `_[skipped ${contentType}, ${size} bytes — not relevant for API flow]_\n`;
+  }
+  let content = body;
+  let lang = "";
+  if (isJsonContentType(contentType)) {
+    lang = "json";
+    try { content = JSON.stringify(JSON.parse(body), null, 2); } catch { /* keep raw */ }
+  } else if (contentType) {
+    if (/xml/i.test(contentType)) lang = "xml";
+    else if (/html/i.test(contentType)) lang = "html";
+  }
+  let truncatedNote = "";
+  if (opts.maxChars > 0 && content.length > opts.maxChars) {
+    truncatedNote = `\n…[truncated, showing ${opts.maxChars} of ${content.length} chars]`;
+    content = content.slice(0, opts.maxChars);
+  }
+  return "```" + lang + "\n" + escapeFenceContent(content) + truncatedNote + "\n```\n";
+}
+
+function headersTable(headers: [string, string][]): string {
+  if (headers.length === 0) return "_(none)_\n";
+  const lines = ["| name | value |", "| ---- | ----- |"];
+  for (const [k, v] of headers) {
+    const safeV = String(v).replace(/\|/g, "\\|").replace(/\n/g, " ");
+    lines.push(`| ${k} | ${safeV} |`);
+  }
+  return lines.join("\n") + "\n";
+}
+
+function uniqueHosts(flows: Flow[]): string[] {
+  const set = new Set<string>();
+  for (const f of flows) set.add(f.host);
+  return [...set];
+}
+
+/** LLM-friendly Markdown — designed to be pasted into an LLM so it reconstructs the flow as code. */
+export function toLlmMarkdown(flows: Flow[], opts: LlmExportOptions): string {
+  const langLabel =
+    LLM_TARGET_LANGUAGES.find((l) => l.id === opts.targetLanguage)?.label ?? opts.targetLanguage;
+  const out: string[] = [];
+
+  out.push(
+    "<!--",
+    "COMO USAR ESTE ARQUIVO:",
+    "1. Abra um chat de LLM (Claude, ChatGPT, etc).",
+    "2. Cole TODO o conteúdo deste arquivo na conversa.",
+    "3. A LLM vai reconstruir o fluxo HTTP no idioma indicado abaixo.",
+    "Dica: se a resposta vier truncada, peça \"continue\" ou divida o fluxo em partes.",
+    "-->",
+    "",
+    "# Tucano — Fluxo HTTP capturado",
+    "",
+    "> " + opts.prompt.replace(/\n/g, "\n> "),
+    "",
+    "## Contexto",
+    `- Exportado em: ${new Date().toISOString()}`,
+    `- Total de chamadas: ${flows.length}`,
+    `- Hosts: ${uniqueHosts(flows).join(", ") || "—"}`,
+    `- Linguagem-alvo: ${langLabel}`,
+    `- Headers sensíveis mascarados: ${opts.redactSecrets ? "sim" : "não"}`,
+    `- Bodies não-API ignorados: ${opts.skipNonApiBodies ? "sim" : "não"}`,
+    `- Limite por body: ${opts.maxBodyChars > 0 ? `${opts.maxBodyChars} chars` : "sem limite"}`,
+    "",
+    "## Fluxo",
+    "",
+  );
+
+  const bodyOpts = { skipNonApi: opts.skipNonApiBodies, maxChars: opts.maxBodyChars };
+
+  flows.forEach((f, i) => {
+    const url = fullUrl(f);
+    const status = f.status != null ? `${f.status}${f.statusText ? " " + f.statusText : ""}` : "(no response)";
+    const dur = f.durationMs != null ? `${f.durationMs} ms` : "—";
+    out.push(`### ${i + 1}. ${f.method} ${url}  →  ${status}  (${dur})`);
+    if (f.note) out.push("", `**Note:** ${f.note}`);
+    out.push("", "**Request headers**", headersTable(maskHeaders(f.reqHeaders, opts.redactSecrets)));
+    out.push(
+      `**Request body** (${f.reqContentType ?? "no content-type"}, ${f.reqSize} bytes)`,
+      "",
+      formatBodyBlock(f.reqBody, f.reqBodyEncoding, f.reqContentType, f.reqSize, bodyOpts),
+    );
+    out.push("**Response headers**", headersTable(maskHeaders(f.resHeaders, opts.redactSecrets)));
+    out.push(
+      `**Response body** (${f.resContentType ?? "no content-type"}, ${f.resSize} bytes)`,
+      "",
+      formatBodyBlock(f.resBody, f.resBodyEncoding, f.resContentType, f.resSize, bodyOpts),
+    );
+    if (f.error) out.push(`**Error:** ${f.error}`, "");
+    if (i < flows.length - 1) out.push("---", "");
+  });
+
+  return out.join("\n");
+}
+
 export const EXPORT_FORMATS: ExportFormat[] = [
   { id: "curl-bash",  label: "cURL (bash / zsh)",      build: toCurlBash },
   { id: "curl-cmd",   label: "cURL (Windows cmd)",     build: toCurlCmd },

@@ -140,6 +140,15 @@ pub fn delete_flows(state: tauri::State<'_, Arc<AppState>>, ids: Vec<String>) ->
 }
 
 #[tauri::command]
+pub fn restore_flows(state: tauri::State<'_, Arc<AppState>>, flows: Vec<crate::storage::Flow>) -> Result<(), String> {
+    let mut storage = state.storage.lock();
+    for f in &flows {
+        storage.upsert(f).map_err(err)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn list_flows(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec<Flow>, String> {
     state.storage.lock().list().map_err(err)
 }
