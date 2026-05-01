@@ -8,7 +8,18 @@ import { undoStore } from "../stores/undo";
 import { columnsStore, type ColId } from "../stores/columns";
 import { sortStore } from "../stores/sort";
 import { t } from "../lib/i18n";
-import { ArrowUp, ArrowDown, AppWindow, Radio, ChevronRight, StickyNote, GripVertical } from "lucide-solid";
+import {
+  ArrowUp, ArrowDown, AppWindow, Radio, ChevronRight, StickyNote, GripVertical,
+  FileText, Film, Music, Database, Plug, FileType, Network, Braces, Type,
+} from "lucide-solid";
+import {
+  SiJavascript, SiCss, SiHtml5, SiGraphql, SiXml,
+} from "solid-icons/si";
+import {
+  FaSolidFileImage,
+  FaSolidCode, FaSolidFileImport, FaSolidPencil, FaSolidPenToSquare, FaSolidTrash,
+  FaSolidEye, FaSolidGear, FaSolidWrench,
+} from "solid-icons/fa";
 import { EXPORT_FORMATS } from "../lib/exporters";
 import NoteDialog from "./NoteDialog";
 
@@ -32,6 +43,75 @@ function methodColor(m: string) {
     default:        return "text-ink-200";
   }
 }
+// Maps a flow to a Fiddler-style icon. Primary distinction is the HTTP method
+// (GET ≠ POST regardless of response). Status colors the icon. Special cases:
+// WebSocket and CONNECT keep their own glyphs since they aren't really "requests".
+function typeIcon(f: Flow) {
+  const ct = (f.resContentType || f.reqContentType || "").toLowerCase();
+  const path = f.path.toLowerCase();
+  const isWs = f.reqHeaders.some(([k, v]) => k.toLowerCase() === "upgrade" && v.toLowerCase() === "websocket");
+  const status = f.status;
+  const sz = 14;
+
+  if (f.method === "CONNECT")                                        return <Network size={sz} class="text-slate-300" />;
+  if (isWs)                                                          return <Plug size={sz} class="text-fuchsia-300" />;
+
+  // Brand-style icons for known formats take priority over the method glyph
+  // (CSS, JS, HTML, JSON, etc. are immediately recognizable). For anything
+  // generic, fall through to the method-based icon below.
+  const brand = (color: string) => ({ size: sz + "px", color });
+  if (ct.includes("graphql") || path.includes("/graphql"))           return <SiGraphql {...brand("#E10098")} />;
+  if (ct.includes("json") || /\.json(\?|$)/.test(path))              return <Braces size={sz} class="text-amber-300" />;
+  if (ct.includes("xml") || /\.xml(\?|$)/.test(path))                return <SiXml {...brand("#FB923C")} />;
+  if (ct.includes("javascript") || ct.includes("ecmascript") || /\.m?js(\?|$)/.test(path))
+                                                                     return <SiJavascript {...brand("#F7DF1E")} />;
+  if (ct.includes("css") || /\.css(\?|$)/.test(path))                return <SiCss {...brand("#1572B6")} />;
+  if (ct.includes("html") || ct.includes("text/html"))               return <SiHtml5 {...brand("#E34F26")} />;
+  if (ct.includes("pdf") || /\.pdf(\?|$)/.test(path))                return <FileType size={sz} class="text-red-300" />;
+  if (ct.includes("form-urlencoded") || ct.includes("multipart/form")) return <FileText size={sz} class="text-teal-300" />;
+  if (ct.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|avif|ico|bmp)(\?|$)/.test(path))
+                                                                     return <FaSolidFileImage {...brand("#A78BFA")} />;
+  if (ct.startsWith("video/") || /\.(mp4|webm|mov|mkv)(\?|$)/.test(path))
+                                                                     return <Film size={sz} class="text-violet-300" />;
+  if (ct.startsWith("audio/") || /\.(mp3|wav|ogg|flac|m4a)(\?|$)/.test(path))
+                                                                     return <Music size={sz} class="text-violet-300" />;
+  if (ct.startsWith("font/") || ct.includes("font") || /\.(woff2?|ttf|otf|eot)(\?|$)/.test(path))
+                                                                     return <Type size={sz} class="text-cyan-300" />;
+  if (ct.includes("octet-stream") || ct.includes("zip") || ct.includes("tar") || ct.includes("gzip"))
+                                                                     return <Database size={sz} class="text-slate-300" />;
+  if (ct.startsWith("text/"))                                        return <FileText size={sz} class="text-slate-200" />;
+
+  // Method-based fallback — Fiddler-style. Color tracks the response status so
+  // a 4xx GET still looks different from a 4xx POST while signalling the error.
+  const errorTone =
+    status != null && status >= 500 ? "#FCA5A5" :
+    status != null && status >= 400 ? "#FCD34D" :
+    null;
+  const methodTone = (() => {
+    switch (f.method.toUpperCase()) {
+      case "GET":     return "#34D399";
+      case "POST":    return "#67E8F9";
+      case "PUT":     return "#FBBF24";
+      case "PATCH":   return "#E879F9";
+      case "DELETE":  return "#F87171";
+      case "HEAD":    return "#A78BFA";
+      case "OPTIONS": return "#2DD4BF";
+      default:        return "#CBD5E1";
+    }
+  })();
+  const tone = errorTone ?? methodTone;
+  switch (f.method.toUpperCase()) {
+    case "GET":     return <FaSolidCode         {...brand(tone)} />;
+    case "POST":    return <FaSolidFileImport   {...brand(tone)} />;
+    case "PUT":     return <FaSolidPenToSquare  {...brand(tone)} />;
+    case "PATCH":   return <FaSolidPencil       {...brand(tone)} />;
+    case "DELETE":  return <FaSolidTrash        {...brand(tone)} />;
+    case "HEAD":    return <FaSolidEye          {...brand(tone)} />;
+    case "OPTIONS": return <FaSolidGear         {...brand(tone)} />;
+    default:        return <FaSolidWrench       {...brand(tone)} />;
+  }
+}
+
 function fmtSize(n: number) {
   if (n < 1024) return `${n}B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}KB`;
@@ -40,7 +120,12 @@ function fmtSize(n: number) {
 
 function renderCell(f: Flow, id: ColId) {
   switch (id) {
-    case "index":    return <div class="truncate pr-2 opacity-50">{f.index}</div>;
+    case "index":    return (
+      <div class="flex items-center gap-1.5 truncate pr-2">
+        <span class="shrink-0">{typeIcon(f)}</span>
+        <span class="opacity-50 truncate">{f.index}</span>
+      </div>
+    );
     case "method":   return <div class={`truncate pr-2 font-semibold ${methodColor(f.method)}`}>{f.method}</div>;
     case "status":   return <div class={`truncate pr-2 font-semibold ${statusColor(f.status)}`}>{f.status ?? "—"}</div>;
     case "host":     return <div class="truncate pr-2">{f.host}</div>;

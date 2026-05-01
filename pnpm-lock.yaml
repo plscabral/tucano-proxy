@@ -56,6 +56,9 @@ importers:
       lucide-solid:
         specifier: ^0.460.0
         version: 0.460.0(solid-js@1.9.12)
+      solid-icons:
+        specifier: ^1.2.0
+        version: 1.2.0(solid-js@1.9.12)
       solid-js:
         specifier: ^1.9.3
         version: 1.9.12
@@ -1007,6 +1010,11 @@ packages:
   seroval@1.5.2:
     resolution: {integrity: sha512-xcRN39BdsnO9Tf+VzsE7b3JyTJASItIV1FVFewJKCFcW4s4haIKS3e6vj8PGB9qBwC7tnuOywQMdv5N4qkzi7Q==}
     engines: {node: '>=10'}
+
+  solid-icons@1.2.0:
+    resolution: {integrity: sha512-yjQxWQMi9l19P5Af9vjsvalTMDFPDL4XD6etrUdNxNVhFp1bMYF0SFwUa5VYDfJ7u0SF3Qkz/F7BZxqcLUwklw==}
+    peerDependencies:
+      solid-js: '*'
 
   solid-js@1.9.12:
     resolution: {integrity: sha512-QzKaSJq2/iDrWR1As6MHZQ8fQkdOBf8GReYb7L5iKwMGceg7HxDcaOHk0at66tNgn9U2U7dXo8ZZpLIAmGMzgw==}
@@ -2000,6 +2008,10 @@ snapshots:
       seroval: 1.5.2
 
   seroval@1.5.2: {}
+
+  solid-icons@1.2.0(solid-js@1.9.12):
+    dependencies:
+      solid-js: 1.9.12
 
   solid-js@1.9.12:
     dependencies:

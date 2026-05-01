@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { Copy, Check } from "lucide-solid";
+import { Copy, Check, MoreHorizontal } from "lucide-solid";
 
 type Part = {
   name: string;
@@ -173,14 +173,16 @@ export default function FormViewer(props: {
   });
 
   const [copied, setCopied] = createSignal<string | null>(null);
+  const [openRow, setOpenRow] = createSignal<number | null>(null);
   const copy = async (id: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(id);
+      setOpenRow(null);
       setTimeout(() => setCopied((c) => (c === id ? null : c)), 1200);
     } catch {}
   };
-  const btn = "h-6 px-2 rounded-md text-[10px] flex items-center gap-1 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 hover:border-toucan-400 hover:text-toucan-400";
+  const item = "w-full text-left px-2.5 py-1.5 text-[11px] flex items-center gap-1.5 hover:bg-toucan-400/10 hover:text-toucan-400";
 
   return (
     <div class="text-xs">
@@ -213,9 +215,9 @@ export default function FormViewer(props: {
                       </Show>
                       <div class="opacity-50 text-[10px] mt-1">{fmtSize(p.size)}</div>
                     </td>
-                    <td class="py-2 px-4 mono break-all whitespace-pre-wrap relative">
+                    <td class="py-2 px-4 mono [overflow-wrap:anywhere] whitespace-pre-wrap relative">
                       <div class="flex gap-2">
-                        <span class="flex-1 min-w-0 break-all">
+                        <span class="flex-1 min-w-0 [overflow-wrap:anywhere]">
                           <Show
                             when={p.isText}
                             fallback={<span class="opacity-50 italic">(binary, {fmtSize(p.size)})</span>}
@@ -224,17 +226,27 @@ export default function FormViewer(props: {
                           </Show>
                         </span>
                         <Show when={p.isText}>
-                          <span class="flex gap-1 opacity-0 group-hover:opacity-100 transition shrink-0 self-start">
-                            <button onClick={() => copy(kId, p.name)} title="Copy key" class={btn}>
-                              {copied() === kId ? <Check size={11} /> : <Copy size={11} />} key
-                            </button>
-                            <button onClick={() => copy(vId, p.value)} title="Copy value" class={btn}>
-                              {copied() === vId ? <Check size={11} /> : <Copy size={11} />} value
-                            </button>
-                            <button onClick={() => copy(lId, `${p.name}=${p.value}`)} title="Copy key=value" class={btn}>
-                              {copied() === lId ? <Check size={11} /> : <Copy size={11} />} both
-                            </button>
-                          </span>
+                          <div class="relative shrink-0 self-start">
+                            <button
+                              onClick={() => setOpenRow(openRow() === i() ? null : i())}
+                              title="Copy"
+                              class="h-6 w-6 grid place-items-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20 hover:text-toucan-400 transition"
+                            ><MoreHorizontal size={13} /></button>
+                            <Show when={openRow() === i()}>
+                              <div class="fixed inset-0 z-30" onClick={() => setOpenRow(null)} />
+                              <div class="absolute z-40 right-0 top-7 min-w-[160px] bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-xl shadow-xl py-1">
+                                <button onClick={() => copy(kId, p.name)} class={item}>
+                                  {copied() === kId ? <Check size={11} /> : <Copy size={11} />} Copy key
+                                </button>
+                                <button onClick={() => copy(vId, p.value)} class={item}>
+                                  {copied() === vId ? <Check size={11} /> : <Copy size={11} />} Copy value
+                                </button>
+                                <button onClick={() => copy(lId, `${p.name}=${p.value}`)} class={item}>
+                                  {copied() === lId ? <Check size={11} /> : <Copy size={11} />} Copy key=value
+                                </button>
+                              </div>
+                            </Show>
+                          </div>
                         </Show>
                       </div>
                     </td>

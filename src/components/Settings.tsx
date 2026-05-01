@@ -1,5 +1,14 @@
 import { createSignal, onMount, Show, For } from "solid-js";
-import { X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor, ChevronDown, Lock, RefreshCw } from "lucide-solid";
+import {
+  X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor,
+  ChevronDown, Lock, RefreshCw, FileText, Film, Music, Database, Plug, FileType,
+  Braces, Type,
+} from "lucide-solid";
+import { SiJavascript, SiCss, SiHtml5, SiGraphql, SiXml } from "solid-icons/si";
+import {
+  FaSolidFileImage, FaSolidCode, FaSolidFileImport, FaSolidPencil,
+  FaSolidPenToSquare, FaSolidTrash, FaSolidEye, FaSolidGear, FaSolidWrench,
+} from "solid-icons/fa";
 import { getVersion } from "@tauri-apps/api/app";
 import { flowsStore } from "../stores/flows";
 import { updaterStore } from "../stores/updater";
@@ -77,12 +86,13 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
     a.href = url; a.download = "tucano-root.pem"; a.click();
     URL.revokeObjectURL(url);
   };
-  type Tab = "general" | "proxy" | "cert" | "about" | "shortcuts";
+  type Tab = "general" | "proxy" | "cert" | "about" | "shortcuts" | "icons";
   const [tab, setTab] = createSignal<Tab>("general");
   const TABS: { id: Tab; icon: any; label: string }[] = [
     { id: "general",   icon: <Sun size={14} />,         label: t("set.appearance") },
     { id: "proxy",     icon: <Network size={14} />,     label: t("set.proxy") },
     { id: "cert",      icon: <ShieldCheck size={14} />, label: t("set.cert") },
+    { id: "icons",     icon: <Info size={14} />,        label: t("set.iconsTitle") },
     { id: "about",     icon: <RefreshCw size={14} />,   label: t("set.aboutTitle") },
     { id: "shortcuts", icon: <Keyboard size={14} />,    label: t("set.shortcuts") },
   ];
@@ -231,6 +241,54 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
           </Section>
           </Show>
 
+          <Show when={tab() === "icons"}>
+          <Section icon={<Info size={14} />} title={t("set.iconsTitle")}>
+            <p class="text-xs opacity-70 leading-relaxed">{t("set.iconsHint")}</p>
+            <div class="space-y-4 text-xs">
+              <IconGroup title={t("set.iconsMethod")}>
+                <IconRow icon={<FaSolidCode color="#34D399" size="14px" />} label="GET" hint={t("set.icon.get")} />
+                <IconRow icon={<FaSolidFileImport color="#67E8F9" size="14px" />} label="POST" hint={t("set.icon.post")} />
+                <IconRow icon={<FaSolidPenToSquare color="#FBBF24" size="14px" />} label="PUT" hint={t("set.icon.put")} />
+                <IconRow icon={<FaSolidPencil color="#E879F9" size="14px" />} label="PATCH" hint={t("set.icon.patch")} />
+                <IconRow icon={<FaSolidTrash color="#F87171" size="14px" />} label="DELETE" hint={t("set.icon.delete")} />
+                <IconRow icon={<FaSolidEye color="#A78BFA" size="14px" />} label="HEAD" hint={t("set.icon.head")} />
+                <IconRow icon={<FaSolidGear color="#2DD4BF" size="14px" />} label="OPTIONS" hint={t("set.icon.options")} />
+                <IconRow icon={<FaSolidWrench color="#CBD5E1" size="14px" />} label={t("set.icon.otherMethod")} hint={t("set.icon.otherMethodHint")} />
+              </IconGroup>
+
+              <IconGroup title={t("set.iconsType")}>
+                <IconRow icon={<SiHtml5 color="#E34F26" size="14px" />} label="HTML" hint={t("set.icon.html")} />
+                <IconRow icon={<SiCss color="#1572B6" size="14px" />} label="CSS" hint={t("set.icon.css")} />
+                <IconRow icon={<SiJavascript color="#F7DF1E" size="14px" />} label="JavaScript" hint={t("set.icon.js")} />
+                <IconRow icon={<Braces size={14} class="text-amber-300" />} label="JSON" hint={t("set.icon.json")} />
+                <IconRow icon={<SiXml color="#FB923C" size="14px" />} label="XML" hint={t("set.icon.xml")} />
+                <IconRow icon={<SiGraphql color="#E10098" size="14px" />} label="GraphQL" hint={t("set.icon.graphql")} />
+                <IconRow icon={<FileType size={14} class="text-red-300" />} label="PDF" hint={t("set.icon.pdf")} />
+                <IconRow icon={<FileText size={14} class="text-teal-300" />} label="Form" hint={t("set.icon.form")} />
+                <IconRow icon={<FaSolidFileImage color="#A78BFA" size="14px" />} label={t("set.icon.image")} hint={t("set.icon.imageHint")} />
+                <IconRow icon={<Film size={14} class="text-violet-300" />} label="Video" hint={t("set.icon.video")} />
+                <IconRow icon={<Music size={14} class="text-violet-300" />} label="Audio" hint={t("set.icon.audio")} />
+                <IconRow icon={<Type size={14} class="text-cyan-300" />} label={t("set.icon.font")} hint={t("set.icon.fontHint")} />
+                <IconRow icon={<Database size={14} class="text-slate-300" />} label="Binary" hint={t("set.icon.binary")} />
+                <IconRow icon={<FileText size={14} class="text-slate-200" />} label="Text" hint={t("set.icon.text")} />
+              </IconGroup>
+
+              <IconGroup title={t("set.iconsSpecial")}>
+                <IconRow icon={<Plug size={14} class="text-fuchsia-300" />} label="WebSocket" hint={t("set.icon.ws")} />
+                <IconRow icon={<Network size={14} class="text-slate-300" />} label="CONNECT" hint={t("set.icon.connect")} />
+              </IconGroup>
+
+              <IconGroup title={t("set.iconsStatus")}>
+                <IconRow icon={<span class="h-3 w-3 rounded-full bg-slate-300 inline-block" />} label="2xx / —" hint={t("set.icon.s2xx")} />
+                <IconRow icon={<span class="h-3 w-3 rounded-full bg-cyan-300 inline-block" />} label="3xx" hint={t("set.icon.s3xx")} />
+                <IconRow icon={<span class="h-3 w-3 rounded-full bg-slate-400 inline-block" />} label="304" hint={t("set.icon.s304")} />
+                <IconRow icon={<span class="h-3 w-3 rounded-full bg-amber-300 inline-block" />} label="4xx" hint={t("set.icon.s4xx")} />
+                <IconRow icon={<span class="h-3 w-3 rounded-full bg-red-300 inline-block" />} label="5xx" hint={t("set.icon.s5xx")} />
+              </IconGroup>
+            </div>
+          </Section>
+          </Show>
+
           <Show when={tab() === "about"}>
           <Section icon={<RefreshCw size={14} />} title={t("set.aboutTitle")}>
             <div class="text-xs space-y-2">
@@ -303,6 +361,27 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
         </div>
       </div>
     </Show>
+  );
+}
+
+function IconGroup(props: { title: string; children: any }) {
+  return (
+    <div>
+      <div class="text-[10px] uppercase tracking-wider opacity-60 mono mb-1.5">{props.title}</div>
+      <div class="rounded-xl border border-ink-100 dark:border-ink-400/30 divide-y divide-ink-100 dark:divide-ink-400/20">
+        {props.children}
+      </div>
+    </div>
+  );
+}
+
+function IconRow(props: { icon: any; label: string; hint: string }) {
+  return (
+    <div class="flex items-center gap-3 px-3 py-2">
+      <div class="w-5 grid place-items-center shrink-0">{props.icon}</div>
+      <div class="font-medium mono text-[11px] w-24 shrink-0">{props.label}</div>
+      <div class="opacity-70 leading-relaxed">{props.hint}</div>
+    </div>
   );
 }
 

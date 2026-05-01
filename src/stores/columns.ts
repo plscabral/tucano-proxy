@@ -8,7 +8,7 @@ export type Col = { id: ColId; label: string; width: number; visible: boolean };
 // (uppercase + tracking) fits without truncation, accounting for the
 // header's grip icon, padding and resize handle (~45px overhead).
 export const MIN_COL_WIDTH: Record<ColId, number> = {
-  index:    56,
+  index:    78,
   method:   100,
   status:   96,
   host:     140,
@@ -22,7 +22,7 @@ export const MIN_COL_WIDTH: Record<ColId, number> = {
 };
 
 export const ALL_COLUMNS: Record<ColId, { label: string; width: number }> = {
-  index:    { label: "#",        width: 56 },
+  index:    { label: "#",        width: 78 },
   method:   { label: "Method",   width: 100 },
   status:   { label: "Status",   width: 96 },
   host:     { label: "Host",     width: 220 },
@@ -36,7 +36,7 @@ export const ALL_COLUMNS: Record<ColId, { label: string; width: number }> = {
 };
 
 const DEFAULT: Col[] = [
-  { id: "index",    label: "#",      width: 56,  visible: true },
+  { id: "index",    label: "#",      width: 78,  visible: true },
   { id: "method",   label: "Method", width: 100, visible: true },
   { id: "status",   label: "Status", width: 96,  visible: true },
   { id: "client",   label: "Client", width: 140, visible: true },
