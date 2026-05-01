@@ -16,7 +16,8 @@ const MOD = IS_MAC ? "⌘" : "Ctrl";
 
 const SHORTCUTS: [string, string][] = [
   [`${MOD} + K`,    "sk.focusFilter"],
-  [`${MOD} + F`,    "sk.addFilter"],
+  [`${MOD} + F`,         "sk.addFilter"],
+  [`${MOD} + ⇧ + F`,     "sk.removeLastFilter"],
   [`${MOD} + L`,    "sk.clearAll"],
   [`${MOD} + S`,    "sk.saveSession"],
   [`${MOD} + O`,    "sk.openSession"],

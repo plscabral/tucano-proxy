@@ -300,6 +300,7 @@ const en: Dict = {
 
   "sk.focusFilter": "Focus filter",
   "sk.addFilter": "Add filter rule",
+  "sk.removeLastFilter": "Remove last filter",
   "sk.clearAll": "Clear all flows",
   "sk.saveSession": "Save session",
   "sk.openSession": "Open session",
@@ -589,6 +590,7 @@ const ptBR: Dict = {
 
   "sk.focusFilter": "Focar filtro",
   "sk.addFilter": "Adicionar filtro",
+  "sk.removeLastFilter": "Remover último filtro",
   "sk.clearAll": "Limpar todas as capturas",
   "sk.saveSession": "Salvar sessão",
   "sk.openSession": "Abrir sessão",
@@ -1010,6 +1012,7 @@ const es: Dict = {
 
   "sk.focusFilter": "Enfocar filtro",
   "sk.addFilter": "Añadir filtro",
+  "sk.removeLastFilter": "Quitar último filtro",
   "sk.clearAll": "Limpiar capturas",
   "sk.saveSession": "Guardar sesión",
   "sk.openSession": "Abrir sesión",

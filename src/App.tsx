@@ -142,6 +142,10 @@ export default function App() {
         const inputs = document.querySelectorAll<HTMLInputElement>("[data-filter-input]");
         inputs[inputs.length - 1]?.focus();
       }, 0);
+    } else if (meta && e.shiftKey && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      const list = rulesStore.rules();
+      if (list.length > 0) rulesStore.remove(list[list.length - 1].id);
     } else if (meta && e.key.toLowerCase() === "f") {
       e.preventDefault();
       const { newRule } = await import("./lib/rules");

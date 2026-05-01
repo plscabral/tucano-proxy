@@ -9,6 +9,27 @@ import { t } from "../lib/i18n";
 type SubTab = "headers" | "body";
 type Focus = "both" | "req" | "res";
 
+function methodColor(m: string) {
+  switch (m.toUpperCase()) {
+    case "GET":     return "text-emerald-400";
+    case "POST":    return "text-sky-400";
+    case "PUT":     return "text-amber-400";
+    case "PATCH":   return "text-fuchsia-400";
+    case "DELETE":  return "text-red-400";
+    case "HEAD":    return "text-violet-400";
+    case "OPTIONS": return "text-teal-400";
+    default:        return "text-toucan-400";
+  }
+}
+function statusColor(s: number | null | undefined) {
+  if (s == null) return "opacity-70";
+  if (s >= 500) return "text-red-400";
+  if (s >= 400) return "text-amber-400";
+  if (s >= 300) return "text-sky-400";
+  if (s >= 200) return "text-emerald-400";
+  return "opacity-70";
+}
+
 function buildFullUrl(f: Flow): string {
   const def = (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80);
   return `${f.scheme}://${f.host}${def ? "" : ":" + f.port}${f.path}`;
@@ -42,12 +63,12 @@ export default function Inspector(props: { flow: Flow | null }) {
           <>
             <div class="px-5 py-3 border-b border-ink-100 dark:border-ink-400/30 space-y-1.5">
               <div class="mono text-sm flex gap-2.5 items-center">
-                <span class="font-semibold text-toucan-400">{f().method}</span>
+                <span class={`font-semibold ${methodColor(f().method)}`}>{f().method}</span>
                 <Show when={!urlExpanded()} fallback={null}>
                   <span class="truncate flex-1 min-w-0" title={fullUrl()}>{f().path}</span>
                 </Show>
-                <span class={`opacity-70 shrink-0 ${!urlExpanded() ? "ml-auto" : ""}`}>
-                  {f().status ?? "…"} {f().statusText ?? ""}
+                <span class={`shrink-0 font-semibold ${!urlExpanded() ? "ml-auto" : ""} ${statusColor(f().status)}`}>
+                  {f().status ?? "…"} <span class="opacity-70 font-normal">{f().statusText ?? ""}</span>
                 </span>
                 <button
                   onClick={() => setShowTiming((v) => !v)}
@@ -110,6 +131,7 @@ export default function Inspector(props: { flow: Flow | null }) {
                 <Show when={focus() !== "res"}>
                   <Pane
                     label="Request"
+                    accent="text-sky-400"
                     tab={reqTab()}
                     onTab={setReqTab}
                     focused={focus() === "req"}
@@ -124,6 +146,7 @@ export default function Inspector(props: { flow: Flow | null }) {
                 <Show when={focus() !== "req"}>
                   <Pane
                     label="Response"
+                    accent="text-emerald-400"
                     tab={resTab()}
                     onTab={setResTab}
                     focused={focus() === "res"}
@@ -146,6 +169,7 @@ export default function Inspector(props: { flow: Flow | null }) {
 
 function Pane(props: {
   label: string;
+  accent: string;
   tab: SubTab;
   onTab: (t: SubTab) => void;
   focused: boolean;
@@ -157,7 +181,7 @@ function Pane(props: {
   return (
     <div class="flex-1 flex flex-col min-w-0 min-h-0">
       <div class="flex items-center gap-1 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-white dark:bg-ink-500 shrink-0">
-        <span class="text-[10px] uppercase tracking-wider font-semibold text-toucan-400 mr-2">{props.label}</span>
+        <span class={`text-[10px] uppercase tracking-wider font-semibold mr-2 ${props.accent}`}>{props.label}</span>
         <SubTabBtn active={props.tab === "headers"} onClick={() => props.onTab("headers")}>Headers</SubTabBtn>
         <SubTabBtn active={props.tab === "body"} onClick={() => props.onTab("body")}>Body</SubTabBtn>
         <div class="ml-auto flex items-center gap-0.5">

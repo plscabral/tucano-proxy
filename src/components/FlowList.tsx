@@ -15,10 +15,22 @@ import NoteDialog from "./NoteDialog";
 function statusColor(s: number | null) {
   if (s == null) return "text-ink-300";
   if (s >= 500) return "text-red-400";
-  if (s >= 400) return "text-toucan-400";
-  if (s >= 300) return "text-blue-400";
+  if (s >= 400) return "text-amber-400";
+  if (s >= 300) return "text-sky-400";
   if (s >= 200) return "text-emerald-400";
   return "text-ink-200";
+}
+function methodColor(m: string) {
+  switch (m.toUpperCase()) {
+    case "GET":     return "text-emerald-400";
+    case "POST":    return "text-sky-400";
+    case "PUT":     return "text-amber-400";
+    case "PATCH":   return "text-fuchsia-400";
+    case "DELETE":  return "text-red-400";
+    case "HEAD":    return "text-violet-400";
+    case "OPTIONS": return "text-teal-400";
+    default:        return "text-ink-200";
+  }
 }
 function fmtSize(n: number) {
   if (n < 1024) return `${n}B`;
@@ -29,7 +41,7 @@ function fmtSize(n: number) {
 function renderCell(f: Flow, id: ColId) {
   switch (id) {
     case "index":    return <div class="truncate pr-2 opacity-50">{f.index}</div>;
-    case "method":   return <div class="truncate pr-2 font-semibold">{f.method}</div>;
+    case "method":   return <div class={`truncate pr-2 font-semibold ${methodColor(f.method)}`}>{f.method}</div>;
     case "status":   return <div class={`truncate pr-2 font-semibold ${statusColor(f.status)}`}>{f.status ?? "—"}</div>;
     case "host":     return <div class="truncate pr-2">{f.host}</div>;
     case "path":     return <div class="truncate pr-2 opacity-80">{f.path}</div>;
