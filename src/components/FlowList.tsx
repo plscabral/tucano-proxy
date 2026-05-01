@@ -16,14 +16,14 @@ function statusColor(s: number | null) {
   if (s == null) return "text-ink-300";
   if (s >= 500) return "text-red-400";
   if (s >= 400) return "text-amber-400";
-  if (s >= 300) return "text-sky-400";
+  if (s >= 300) return "text-cyan-300/80";
   if (s >= 200) return "text-emerald-400";
   return "text-ink-200";
 }
 function methodColor(m: string) {
   switch (m.toUpperCase()) {
     case "GET":     return "text-emerald-400";
-    case "POST":    return "text-sky-400";
+    case "POST":    return "text-cyan-300/80";
     case "PUT":     return "text-amber-400";
     case "PATCH":   return "text-fuchsia-400";
     case "DELETE":  return "text-red-400";

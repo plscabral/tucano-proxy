@@ -15,13 +15,13 @@ html, body, #root {
 
 body {
   font-family: Manrope, system-ui, sans-serif;
-  background: #FAFAF7;
-  color: #0C142E;
+  background: #FFFFFF;
+  color: #0F182E;
 }
 
 html.dark body {
-  background: #0C142E;
-  color: #E6E8EE;
+  background: #0F182E;
+  color: #E6E8F0;
 }
 
 .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }

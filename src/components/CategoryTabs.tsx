@@ -5,7 +5,7 @@ import { t } from "../lib/i18n";
 
 const CAT_DOT: Record<Category, string> = {
   all:       "bg-toucan-400",
-  http:      "bg-sky-400",
+  http:      "bg-cyan-300",
   https:     "bg-emerald-400",
   websocket: "bg-fuchsia-400",
   json:      "bg-amber-400",
@@ -14,7 +14,7 @@ const CAT_DOT: Record<Category, string> = {
   js:        "bg-yellow-400",
   css:       "bg-pink-400",
   graphql:   "bg-fuchsia-500",
-  document:  "bg-blue-400",
+  document:  "bg-indigo-300",
   media:     "bg-violet-400",
   other:     "bg-ink-200",
 };
