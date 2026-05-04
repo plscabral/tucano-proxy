@@ -1,8 +1,11 @@
 import { createEffect, onCleanup } from "solid-js";
-import { EditorView, lineNumbers } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
+import { EditorView, lineNumbers, keymap } from "@codemirror/view";
+import { EditorState, Prec } from "@codemirror/state";
 import { json } from "@codemirror/lang-json";
 import { foldGutter } from "@codemirror/language";
+import { search, searchKeymap, openSearchPanel } from "@codemirror/search";
+import { defaultKeymap } from "@codemirror/commands";
+import { searchPanel } from "../lib/cmSearchPanel";
 import { theme } from "../stores/theme";
 import { cmTheme } from "../lib/cmTheme";
 
@@ -23,11 +26,20 @@ export default function JsonViewer(props: { text: string }) {
           foldGutter(),
           json(),
           ...cmTheme(theme()),
-          EditorView.editable.of(false),
+          EditorState.readOnly.of(true),
+          search({ top: true, createPanel: searchPanel }),
+          Prec.highest(keymap.of([...searchKeymap, ...defaultKeymap])),
         ],
       }),
     });
   });
   onCleanup(() => view?.destroy());
-  return <div ref={host} class="h-full" />;
+  const onTcnFind = () => { if (view) { view.focus(); openSearchPanel(view); } };
+  return (
+    <div
+      ref={(el) => { host = el; el.addEventListener("tcn-find", onTcnFind as EventListener); }}
+      data-cm-find-host
+      class="h-full"
+    />
+  );
 }

@@ -27,7 +27,7 @@ export default function NoteDialog(props: {
 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") { e.preventDefault(); props.onClose(); }
-    else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); commit(); }
+    else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit(); }
   };
 
   return (
@@ -60,7 +60,22 @@ export default function NoteDialog(props: {
               placeholder={t("note.placeholder")}
               class="w-full px-3 py-2 text-sm rounded-xl bg-ink-50 dark:bg-ink-600 border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
             />
-            <div class="text-[11px] opacity-50 mt-2 mono">{t("note.hint")}</div>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] opacity-70 mt-2.5">
+              <span class="flex items-center gap-1.5">
+                <kbd class="mono px-1.5 py-0.5 rounded-md bg-ink-100 dark:bg-ink-400/30 border border-ink-200 dark:border-ink-400/50 text-[10px]">Enter</kbd>
+                <span class="opacity-70">{t("note.kbd.save")}</span>
+              </span>
+              <span class="flex items-center gap-1.5">
+                <kbd class="mono px-1.5 py-0.5 rounded-md bg-ink-100 dark:bg-ink-400/30 border border-ink-200 dark:border-ink-400/50 text-[10px]">Shift</kbd>
+                <span class="opacity-50">+</span>
+                <kbd class="mono px-1.5 py-0.5 rounded-md bg-ink-100 dark:bg-ink-400/30 border border-ink-200 dark:border-ink-400/50 text-[10px]">Enter</kbd>
+                <span class="opacity-70">{t("note.kbd.newline")}</span>
+              </span>
+              <span class="flex items-center gap-1.5">
+                <kbd class="mono px-1.5 py-0.5 rounded-md bg-ink-100 dark:bg-ink-400/30 border border-ink-200 dark:border-ink-400/50 text-[10px]">Esc</kbd>
+                <span class="opacity-70">{t("note.kbd.cancel")}</span>
+              </span>
+            </div>
           </div>
           <div class="flex items-center gap-2 px-4 py-3 border-t border-ink-100 dark:border-ink-400/30">
             <Show when={props.initialValue}>

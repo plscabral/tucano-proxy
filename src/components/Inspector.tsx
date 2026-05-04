@@ -1,5 +1,5 @@
 import { createMemo, createSignal, Show } from "solid-js";
-import { Copy, Check, ChevronDown, ChevronUp, Clock, Maximize2, Minimize2, EyeOff } from "lucide-solid";
+import { Copy, Check, ChevronDown, ChevronUp, Clock, Maximize2, Minimize2, EyeOff, X } from "lucide-solid";
 import type { Flow } from "../lib/types";
 import HeadersView from "./HeadersView";
 import BodyView from "./BodyView";
@@ -35,7 +35,7 @@ function buildFullUrl(f: Flow): string {
   return `${f.scheme}://${f.host}${def ? "" : ":" + f.port}${f.path}`;
 }
 
-export default function Inspector(props: { flow: Flow | null }) {
+export default function Inspector(props: { flow: Flow | null; onClose?: () => void }) {
   const [reqTab, setReqTab] = createSignal<SubTab>("headers");
   const [resTab, setResTab] = createSignal<SubTab>("body");
   const [showTiming, setShowTiming] = createSignal(false);
@@ -55,7 +55,7 @@ export default function Inspector(props: { flow: Flow | null }) {
   };
 
   return (
-    <div class="h-full flex flex-col">
+    <div data-inspector="true" class="h-full flex flex-col">
       <Show when={props.flow} fallback={
         <div class="h-full grid place-items-center opacity-50 text-sm">{t("ins.placeholder")}</div>
       }>
@@ -80,6 +80,15 @@ export default function Inspector(props: { flow: Flow | null }) {
                 >
                   <Clock size={11} /> {t("ins.tab.timing")}
                 </button>
+                <Show when={props.onClose}>
+                  <button
+                    onClick={() => props.onClose?.()}
+                    title={t("ins.close")}
+                    class="h-7 w-7 grid place-items-center rounded-lg opacity-60 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20 transition shrink-0"
+                  >
+                    <X size={13} />
+                  </button>
+                </Show>
               </div>
 
               <div class="flex items-start gap-1.5 group">

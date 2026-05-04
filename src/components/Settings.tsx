@@ -2,9 +2,9 @@ import { createSignal, onMount, Show, For } from "solid-js";
 import {
   X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor,
   ChevronDown, Lock, RefreshCw, FileText, Film, Music, Database, Plug, FileType,
-  Braces, Type,
+  Braces, Type, FileCode2,
 } from "lucide-solid";
-import { SiJavascript, SiCss, SiHtml5, SiGraphql, SiXml } from "solid-icons/si";
+import { SiJavascript, SiCss, SiHtml5, SiGraphql } from "solid-icons/si";
 import {
   FaSolidFileImage, FaSolidCode, FaSolidFileImport, FaSolidPencil,
   FaSolidPenToSquare, FaSolidTrash, FaSolidEye, FaSolidGear, FaSolidWrench,
@@ -25,8 +25,8 @@ const MOD = IS_MAC ? "⌘" : "Ctrl";
 
 const SHORTCUTS: [string, string][] = [
   [`${MOD} + K`,    "sk.focusFilter"],
-  [`${MOD} + F`,         "sk.addFilter"],
-  [`${MOD} + ⇧ + F`,     "sk.removeLastFilter"],
+  [`${MOD} + ⇧ + K`,     "sk.removeLastFilter"],
+  [`${MOD} + F`,         "sk.bodySearch"],
   [`${MOD} + L`,    "sk.clearAll"],
   [`${MOD} + S`,    "sk.saveSession"],
   [`${MOD} + O`,    "sk.openSession"],
@@ -37,6 +37,7 @@ const SHORTCUTS: [string, string][] = [
   [`${MOD} + 0–6`,  "sk.markColor"],
   ["Right click",   "sk.context"],
   ["Delete",        "sk.delete"],
+  ["N",             "sk.note"],
 ];
 
 async function refresh() { flowsStore.setStatus(await ipc.status()); }
@@ -261,7 +262,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                 <IconRow icon={<SiCss color="#1572B6" size="14px" />} label="CSS" hint={t("set.icon.css")} />
                 <IconRow icon={<SiJavascript color="#F7DF1E" size="14px" />} label="JavaScript" hint={t("set.icon.js")} />
                 <IconRow icon={<Braces size={14} class="text-amber-300" />} label="JSON" hint={t("set.icon.json")} />
-                <IconRow icon={<SiXml color="#FB923C" size="14px" />} label="XML" hint={t("set.icon.xml")} />
+                <IconRow icon={<FileCode2 size={14} class="text-orange-400" />} label="XML" hint={t("set.icon.xml")} />
                 <IconRow icon={<SiGraphql color="#E10098" size="14px" />} label="GraphQL" hint={t("set.icon.graphql")} />
                 <IconRow icon={<FileType size={14} class="text-red-300" />} label="PDF" hint={t("set.icon.pdf")} />
                 <IconRow icon={<FileText size={14} class="text-teal-300" />} label="Form" hint={t("set.icon.form")} />

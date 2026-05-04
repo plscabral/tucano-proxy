@@ -29,3 +29,58 @@ html.dark body {
 .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
 .scroll-thin::-webkit-scrollbar-thumb { background: rgba(127,127,127,.3); border-radius: 4px; }
 .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(127,127,127,.5); }
+
+/* Find bar — shared by CodeMirror panel and the floating iframe overlay. */
+.tcn-find {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  font: 12px Manrope, system-ui, sans-serif;
+}
+html.dark .tcn-find {
+  background: rgba(15,24,46,0.85);
+  border-bottom-color: rgba(255,255,255,0.06);
+}
+.tcn-find-input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: rgba(0,0,0,0.03);
+  color: inherit;
+  font: 12px "JetBrains Mono", ui-monospace, monospace;
+  outline: none;
+  transition: border-color .12s, background .12s;
+}
+html.dark .tcn-find-input {
+  border-color: rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+}
+.tcn-find-input:focus { border-color: #FB923C; background: transparent; }
+.tcn-find-count {
+  font: 11px "JetBrains Mono", ui-monospace, monospace;
+  opacity: 0.55;
+  white-space: nowrap;
+  padding: 0 2px;
+}
+.tcn-find-btn {
+  height: 24px;
+  width: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity .12s, background .12s;
+}
+.tcn-find-btn:hover { opacity: 1; background: rgba(127,127,127,0.12); }
+

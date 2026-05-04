@@ -159,7 +159,10 @@ const en: Dict = {
   "list.markWithColor": "Mark with color",
   "note.title": "Capture note",
   "note.placeholder": "Why did you bookmark this request? (visible to anyone you export to)",
-  "note.hint": "⌘/Ctrl + Enter to save · Esc to cancel",
+  "note.hint": "Enter to save · Shift+Enter for newline · Esc to cancel",
+  "note.kbd.save": "to save",
+  "note.kbd.newline": "for newline",
+  "note.kbd.cancel": "to cancel",
   "note.save": "Save",
   "note.cancel": "Cancel",
   "note.remove": "Remove",
@@ -183,6 +186,7 @@ const en: Dict = {
 
   // Inspector
   "ins.placeholder": "Select a flow to inspect",
+  "ins.close": "Close inspector",
   "ins.copyAs": "Copy as…",
   "ins.note": "Note",
   "ins.notePlaceholder": "Add a note to this capture (visible to anyone you share the export with)…",
@@ -208,6 +212,8 @@ const en: Dict = {
   "body.copy": "copy",
   "body.copied": "copied",
   "body.save": "save",
+  "body.fullscreen": "fullscreen",
+  "body.exitFullscreen": "exit fullscreen",
 
   // Timing
   "tim.total": "total",
@@ -340,9 +346,9 @@ const en: Dict = {
   "set.sslSave": "Save",
   "set.sslSaved": "Saved",
 
-  "sk.focusFilter": "Focus filter",
-  "sk.addFilter": "Add filter rule",
+  "sk.focusFilter": "Focus filter (creates one if none)",
   "sk.removeLastFilter": "Remove last filter",
+  "sk.bodySearch": "Search inside body content",
   "sk.clearAll": "Clear all flows",
   "sk.saveSession": "Save session",
   "sk.openSession": "Open session",
@@ -354,6 +360,7 @@ const en: Dict = {
   "sk.delete": "Delete selected flows / remove mark",
   "sk.selectAll": "Select all visible flows",
   "sk.markColor": "Color selected flows (0 clears)",
+  "sk.note": "Add / edit note on selected flow",
 };
 
 const ptBR: Dict = {
@@ -497,7 +504,10 @@ const ptBR: Dict = {
   "list.markWithColor": "Marcar com cor",
   "note.title": "Comentário da captura",
   "note.placeholder": "Por que você marcou essa requisição? (fica visível pra quem receber o export)",
-  "note.hint": "⌘/Ctrl + Enter para salvar · Esc para cancelar",
+  "note.hint": "Enter para salvar · Shift+Enter para nova linha · Esc para cancelar",
+  "note.kbd.save": "para salvar",
+  "note.kbd.newline": "para nova linha",
+  "note.kbd.cancel": "para cancelar",
   "note.save": "Salvar",
   "note.cancel": "Cancelar",
   "note.remove": "Remover",
@@ -519,6 +529,7 @@ const ptBR: Dict = {
   "cols.reset": "Restaurar padrão",
 
   "ins.placeholder": "Selecione uma captura para inspecionar",
+  "ins.close": "Fechar inspetor",
   "ins.copyAs": "Copiar como…",
   "ins.note": "Nota",
   "ins.notePlaceholder": "Adicione uma nota a essa captura (fica visível pra quem receber o export)…",
@@ -540,6 +551,8 @@ const ptBR: Dict = {
   "body.copy": "copiar",
   "body.copied": "copiado",
   "body.save": "salvar",
+  "body.fullscreen": "tela cheia",
+  "body.exitFullscreen": "sair de tela cheia",
   "body.preview": "preview",
   "body.source": "fonte",
   "body.sandboxed": "iframe isolado",
@@ -672,9 +685,9 @@ const ptBR: Dict = {
   "set.sslSave": "Salvar",
   "set.sslSaved": "Salvo",
 
-  "sk.focusFilter": "Focar filtro",
-  "sk.addFilter": "Adicionar filtro",
+  "sk.focusFilter": "Focar filtro (cria um se não houver)",
   "sk.removeLastFilter": "Remover último filtro",
+  "sk.bodySearch": "Pesquisar dentro do corpo",
   "sk.clearAll": "Limpar todas as capturas",
   "sk.saveSession": "Salvar sessão",
   "sk.openSession": "Abrir sessão",
@@ -686,6 +699,7 @@ const ptBR: Dict = {
   "sk.markColor": "Colorir capturas (0 remove)",
   "sk.delete": "Excluir capturas / remover marca",
   "sk.selectAll": "Selecionar todas visíveis",
+  "sk.note": "Adicionar / editar nota na captura selecionada",
 };
 
 const ptPT: Dict = {
@@ -768,11 +782,15 @@ const ptPT: Dict = {
   "list.markWithColor": "Marcar com cor",
   "note.title": "Comentário da captura",
   "note.placeholder": "Porque marcou este pedido? (visível a quem receber o export)",
-  "note.hint": "⌘/Ctrl + Enter para guardar · Esc para cancelar",
+  "note.hint": "Enter para guardar · Shift+Enter para nova linha · Esc para cancelar",
+  "note.kbd.save": "para guardar",
+  "note.kbd.newline": "para nova linha",
+  "note.kbd.cancel": "para cancelar",
   "note.save": "Guardar",
   "note.cancel": "Cancelar",
   "note.remove": "Remover",
   "ins.placeholder": "Seleccione uma captura para inspeccionar",
+  "ins.close": "Fechar inspector",
   "ins.copyAs": "Copiar como…",
   "ins.note": "Nota",
   "ins.notePlaceholder": "Adicione uma nota a esta captura (visível a quem receber o export)…",
@@ -1005,7 +1023,10 @@ const es: Dict = {
   "list.markWithColor": "Marcar con color",
   "note.title": "Comentario de la captura",
   "note.placeholder": "¿Por qué marcaste esta petición? (visible para quien reciba el export)",
-  "note.hint": "⌘/Ctrl + Enter para guardar · Esc para cancelar",
+  "note.hint": "Enter para guardar · Shift+Enter para salto de línea · Esc para cancelar",
+  "note.kbd.save": "para guardar",
+  "note.kbd.newline": "salto de línea",
+  "note.kbd.cancel": "para cancelar",
   "note.save": "Guardar",
   "note.cancel": "Cancelar",
   "note.remove": "Quitar",
@@ -1027,6 +1048,7 @@ const es: Dict = {
   "cols.reset": "Restaurar predeterminado",
 
   "ins.placeholder": "Selecciona una captura para inspeccionar",
+  "ins.close": "Cerrar inspector",
   "ins.copyAs": "Copiar como…",
   "ins.note": "Nota",
   "ins.notePlaceholder": "Añade una nota a esta captura (visible para quien reciba el export)…",
@@ -1174,9 +1196,9 @@ const es: Dict = {
   "set.sslSave": "Guardar",
   "set.sslSaved": "Guardado",
 
-  "sk.focusFilter": "Enfocar filtro",
-  "sk.addFilter": "Añadir filtro",
+  "sk.focusFilter": "Enfocar filtro (crea uno si no hay)",
   "sk.removeLastFilter": "Quitar último filtro",
+  "sk.bodySearch": "Buscar dentro del cuerpo",
   "sk.clearAll": "Limpiar capturas",
   "sk.saveSession": "Guardar sesión",
   "sk.openSession": "Abrir sesión",
@@ -1188,6 +1210,7 @@ const es: Dict = {
   "sk.markColor": "Colorear capturas (0 quita)",
   "sk.delete": "Eliminar capturas / quitar marca",
   "sk.selectAll": "Seleccionar todas visibles",
+  "sk.note": "Añadir / editar nota en la captura seleccionada",
 };
 
 const dicts: Record<Locale, Dict> = { en, "pt-BR": ptBR, "pt-PT": ptPT, es };

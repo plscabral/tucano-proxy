@@ -48,11 +48,20 @@ impl CertAuthority {
     pub fn install_to_system(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(target_os = "macos")]
         {
+            let keychain = format!(
+                "{}/Library/Keychains/login.keychain-db",
+                std::env::var("HOME").unwrap_or_default()
+            );
+            // Add cert to login keychain and mark it as a trusted root. The
+            // -d flag explicitly targets the user trust-settings domain so
+            // that `security dump-trust-settings -d user` shows a non-zero
+            // trust policy — without it macOS ignores the cert for SSL.
+            // -p ssl sets the trust policy explicitly for SSL/TLS so that
+            // macOS registers a non-zero trust-settings entry; without it the
+            // cert lands in the keychain but has no active policy and apps
+            // still reject it with a network-configuration warning.
             let status = std::process::Command::new("security")
-                .args([
-                    "add-trusted-cert", "-r", "trustRoot",
-                    "-k", &format!("{}/Library/Keychains/login.keychain-db", std::env::var("HOME").unwrap_or_default()),
-                ])
+                .args(["add-trusted-cert", "-r", "trustRoot", "-p", "ssl", "-k", &keychain])
                 .arg(&self.cert_path)
                 .status()?;
             if !status.success() { return Err("security add-trusted-cert failed".into()); }
@@ -92,11 +101,49 @@ impl CertAuthority {
     pub fn is_installed(&self) -> bool {
         #[cfg(target_os = "macos")]
         {
-            std::process::Command::new("security")
-                .args(["find-certificate", "-c", "Tucano Root CA"])
+            // Checking that the cert exists in the keychain is not enough:
+            // add-trusted-cert without -p ssl leaves Number of trust settings=0
+            // and macOS still rejects the cert. We parse dump-trust-settings
+            // output to confirm the SSL policy is actually present.
+            let out = std::process::Command::new("security")
+                .args(["dump-trust-settings"])
                 .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
+                .unwrap_or_else(|_| std::process::Output {
+                    status: std::process::ExitStatus::default(),
+                    stdout: vec![],
+                    stderr: vec![],
+                });
+            let text = String::from_utf8_lossy(&out.stdout);
+            // Look for our cert block followed by an SSL policy entry.
+            // The output format is:
+            //   Cert N: Tucano Root CA
+            //      Number of trust settings : 1
+            //      Trust Setting 0:
+            //         Policy OID            : SSL
+            let mut in_tucano_block = false;
+            let mut trust_count = 0u32;
+            let mut ssl_found = false;
+            for line in text.lines() {
+                let trimmed = line.trim();
+                if trimmed.starts_with("Cert ") && trimmed.ends_with("Tucano Root CA") {
+                    in_tucano_block = true;
+                    trust_count = 0;
+                    ssl_found = false;
+                    continue;
+                }
+                if in_tucano_block {
+                    if trimmed.starts_with("Cert ") {
+                        break; // moved on to the next cert
+                    }
+                    if let Some(rest) = trimmed.strip_prefix("Number of trust settings :") {
+                        trust_count = rest.trim().parse().unwrap_or(0);
+                    }
+                    if trimmed.contains("Policy OID") && trimmed.contains("SSL") {
+                        ssl_found = true;
+                    }
+                }
+            }
+            in_tucano_block && trust_count > 0 && ssl_found
         }
         #[cfg(target_os = "windows")]
         {

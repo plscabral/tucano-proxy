@@ -7,13 +7,14 @@ import { ipc } from "../lib/ipc";
 import { undoStore } from "../stores/undo";
 import { columnsStore, type ColId } from "../stores/columns";
 import { sortStore } from "../stores/sort";
+import { noteStore } from "../stores/note";
 import { t } from "../lib/i18n";
 import {
   ArrowUp, ArrowDown, AppWindow, Radio, ChevronRight, StickyNote, GripVertical,
-  FileText, Film, Music, Database, Plug, FileType, Network, Braces, Type,
+  FileText, Film, Music, Database, Plug, FileType, Network, Braces, Type, FileCode2,
 } from "lucide-solid";
 import {
-  SiJavascript, SiCss, SiHtml5, SiGraphql, SiXml,
+  SiJavascript, SiCss, SiHtml5, SiGraphql,
 } from "solid-icons/si";
 import {
   FaSolidFileImage,
@@ -62,7 +63,7 @@ function typeIcon(f: Flow) {
   const brand = (color: string) => ({ size: sz + "px", color });
   if (ct.includes("graphql") || path.includes("/graphql"))           return <SiGraphql {...brand("#E10098")} />;
   if (ct.includes("json") || /\.json(\?|$)/.test(path))              return <Braces size={sz} class="text-amber-300" />;
-  if (ct.includes("xml") || /\.xml(\?|$)/.test(path))                return <SiXml {...brand("#FB923C")} />;
+  if (ct.includes("xml") || /\.xml(\?|$)/.test(path))                return <FileCode2 size={sz} class="text-orange-400" />;
   if (ct.includes("javascript") || ct.includes("ecmascript") || /\.m?js(\?|$)/.test(path))
                                                                      return <SiJavascript {...brand("#F7DF1E")} />;
   if (ct.includes("css") || /\.css(\?|$)/.test(path))                return <SiCss {...brand("#1572B6")} />;
@@ -200,15 +201,14 @@ export default function FlowList(props: { flows: Flow[] }) {
     flowsStore.selectedIds().forEach((id) => marksStore.set(id, color));
     closeCtx();
   };
-  const [noteFlowId, setNoteFlowId] = createSignal<string | null>(null);
   const noteFlow = () => {
-    const id = noteFlowId();
-    return id ? rows().find((f) => f.id === id) ?? null : null;
+    const id = noteStore.openId();
+    return id ? flowsStore.flows().find((f) => f.id === id) ?? null : null;
   };
   const editNote = () => {
     const c = ctx();
     if (!c) return;
-    setNoteFlowId(c.id);
+    noteStore.open(c.id);
     closeCtx();
   };
   const copyText = async (text: string) => {
@@ -229,7 +229,7 @@ export default function FlowList(props: { flows: Flow[] }) {
   };
   const saveNote = async (value: string | null) => {
     const flow = noteFlow();
-    setNoteFlowId(null);
+    noteStore.close();
     if (!flow) return;
     try {
       await ipc.updateFlowNote(flow.id, value);
@@ -485,7 +485,7 @@ export default function FlowList(props: { flows: Flow[] }) {
         open={noteFlow() !== null}
         initialValue={noteFlow()?.note ?? ""}
         onSave={saveNote}
-        onClose={() => setNoteFlowId(null)}
+        onClose={() => noteStore.close()}
       />
     </div>
   );

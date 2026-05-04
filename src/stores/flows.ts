@@ -45,7 +45,10 @@ export const flowsStore = {
   isSelected(id: string) { return selectedIds().has(id); },
   selectAll(ids: string[]) {
     setSelectedIds(new Set(ids));
-    setAnchorId(ids[0] ?? null);
+    // Preserve the previously inspected flow as the anchor — Cmd+A
+    // shouldn't change which flow the inspector is showing.
+    const cur = anchorId();
+    if (!cur || !ids.includes(cur)) setAnchorId(ids[0] ?? null);
   },
   clearSelection() { setSelectedIds(new Set<string>()); setAnchorId(null); },
 

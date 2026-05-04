@@ -41,12 +41,42 @@ impl SslSettings {
     /// Whether to MITM-intercept this host at all (vs. tunnel raw bytes).
     /// Hosts that need client-certificate authentication (smart cards,
     /// PJe judicial system, banks) MUST be tunneled — interception breaks
-    /// the client-cert handshake. Mirrors `should_capture`.
+    /// the client-cert handshake.
+    /// Known certificate-pinned hosts are always bypassed to prevent
+    /// `tls handshake eof` errors and broken functionality (e.g. WhatsApp media).
     pub fn should_intercept(&self, host: &str) -> bool {
+        if PINNED_HOSTS.iter().any(|p| matches_host(p, host)) {
+            return false;
+        }
         self.should_capture(host)
     }
 
 }
+
+/// Hosts known to use certificate pinning. Intercepting them causes a TLS
+/// handshake EOF (the app rejects the proxy's cert) and breaks functionality
+/// like WhatsApp media downloads. These are always tunneled regardless of the
+/// user's SSL mode setting.
+const PINNED_HOSTS: &[&str] = &[
+    // WhatsApp / Meta
+    "*.whatsapp.net",
+    "*.whatsapp.com",
+    "*.fbcdn.net",
+    "*.facebook.com",
+    "*.instagram.com",
+    // Apple push / iCloud
+    "*.apple.com",
+    "*.icloud.com",
+    "*.push.apple.com",
+    // Google
+    "*.googleapis.com",
+    "*.google.com",
+    "*.gstatic.com",
+    // Misc known-pinned
+    "*.twitter.com",
+    "*.x.com",
+    "*.twimg.com",
+];
 
 /// Glob-ish host match: supports `*.foo.com`, `api.*`, exact match, case-insensitive.
 fn matches_host(pattern: &str, host: &str) -> bool {

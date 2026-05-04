@@ -1,8 +1,11 @@
 import { createEffect, onCleanup } from "solid-js";
-import { EditorView, lineNumbers } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
+import { EditorView, lineNumbers, keymap } from "@codemirror/view";
+import { EditorState, Prec } from "@codemirror/state";
 import { xml } from "@codemirror/lang-xml";
 import { html } from "@codemirror/lang-html";
+import { search, searchKeymap, openSearchPanel } from "@codemirror/search";
+import { defaultKeymap } from "@codemirror/commands";
+import { searchPanel } from "../lib/cmSearchPanel";
 import { theme } from "../stores/theme";
 import { cmTheme } from "../lib/cmTheme";
 
@@ -26,12 +29,21 @@ export default function RawViewer(props: {
           lineNumbers(),
           ...ext,
           ...cmTheme(theme()),
-          EditorView.editable.of(false),
+          EditorState.readOnly.of(true),
+          search({ top: true, createPanel: searchPanel }),
+          Prec.highest(keymap.of([...searchKeymap, ...defaultKeymap])),
           ...wrapExt,
         ],
       }),
     });
   });
   onCleanup(() => view?.destroy());
-  return <div ref={host} class="h-full" />;
+  const onTcnFind = () => { if (view) { view.focus(); openSearchPanel(view); } };
+  return (
+    <div
+      ref={(el) => { host = el; el.addEventListener("tcn-find", onTcnFind as EventListener); }}
+      data-cm-find-host
+      class="h-full"
+    />
+  );
 }

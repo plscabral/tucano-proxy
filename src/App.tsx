@@ -22,6 +22,7 @@ import { updaterStore } from "./stores/updater";
 import { prefsStore } from "./stores/prefs";
 import { sessionStore } from "./stores/session";
 import { undoStore } from "./stores/undo";
+import { noteStore } from "./stores/note";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { t } from "./lib/i18n";
@@ -113,8 +114,29 @@ export default function App() {
   const unUp = onFlowUpdate((f) => flowsStore.upsert(f));
 
   const onKey = async (e: KeyboardEvent) => {
-    const meta = e.metaKey || e.ctrlKey;
+    // When a modal is open, keep all keystrokes scoped to the dialog —
+    // global shortcuts (Cmd+A, Space, etc.) must not leak through to the
+    // background flow list.
+    if (noteStore.openId() || onboardingOpen()) return;
+    if (settingsOpen()) {
+      if (e.key === "Escape") setSettingsOpen(false);
+      return;
+    }
+    // The Inspector pane owns its own keystrokes — CodeMirror search,
+    // Cmd+A inside source/JSON, etc. Never apply global shortcuts when
+    // either the event target OR the currently focused element is inside
+    // an inspector. Checking both is necessary: in WKWebView the keydown
+    // target can fall back to document/body even though focus is on a
+    // contenteditable child.
     const target = e.target as HTMLElement | null;
+    const ae = document.activeElement as HTMLElement | null;
+    const inInspector =
+      !!(target instanceof Element && target.closest("[data-inspector]")) ||
+      !!(ae instanceof Element && ae.closest("[data-inspector]")) ||
+      !!(target instanceof Element && target.closest(".cm-editor")) ||
+      !!(ae instanceof Element && ae.closest(".cm-editor"));
+    if (inInspector) return;
+    const meta = e.metaKey || e.ctrlKey;
     const tag = target?.tagName;
     const inField =
       tag === "INPUT" ||
@@ -125,7 +147,11 @@ export default function App() {
       // Space shortcut would double-toggle the capture button.
       tag === "BUTTON" ||
       tag === "A" ||
-      target?.isContentEditable === true;
+      target?.isContentEditable === true ||
+      // CodeMirror editors host content in a contenteditable div but
+      // events can also originate from gutters/scrollers — treat anything
+      // inside an editor as "in field" so Cmd+A selects code, not flows.
+      !!target?.closest?.(".cm-editor");
 
     if (meta && e.key.toLowerCase() === "a" && !inField) {
       e.preventDefault();
@@ -142,18 +168,10 @@ export default function App() {
         const inputs = document.querySelectorAll<HTMLInputElement>("[data-filter-input]");
         inputs[inputs.length - 1]?.focus();
       }, 0);
-    } else if (meta && e.shiftKey && e.key.toLowerCase() === "f") {
+    } else if (meta && e.shiftKey && e.key.toLowerCase() === "k") {
       e.preventDefault();
       const list = rulesStore.rules();
       if (list.length > 0) rulesStore.remove(list[list.length - 1].id);
-    } else if (meta && e.key.toLowerCase() === "f") {
-      e.preventDefault();
-      const { newRule } = await import("./lib/rules");
-      rulesStore.add(newRule());
-      setTimeout(() => {
-        const inputs = document.querySelectorAll<HTMLInputElement>("[data-filter-input]");
-        inputs[inputs.length - 1]?.focus();
-      }, 0);
     } else if (meta && e.key === ",") {
       e.preventDefault(); setSettingsOpen(true);
     } else if (meta && e.key.toLowerCase() === "l") {
@@ -215,6 +233,9 @@ export default function App() {
         const colorId = MARK_COLORS[parseInt(e.key, 10)]?.id;
         if (colorId) ids.forEach((id) => marksStore.set(id, colorId));
       }
+    } else if (!inField && e.key.toLowerCase() === "n" && !meta && !e.altKey) {
+      const id = flowsStore.selectedId();
+      if (id) { e.preventDefault(); noteStore.open(id); }
     } else if (!inField && /^[1-9]$/.test(e.key)) {
       const idx = parseInt(e.key, 10) - 1;
       if (CATEGORIES[idx]) flowsStore.setCategory(CATEGORIES[idx].id);
@@ -235,7 +256,12 @@ export default function App() {
     return sortFlows(byRules, s.by, s.dir);
   });
   const selected = createMemo(() => {
-    const id = flowsStore.selectedId();
+    // Inspector follows the anchor (last-clicked) flow so multi-select
+    // (Cmd+A, Shift-click) doesn't close the detail pane. Falls back to
+    // the single-selected id when no anchor is set.
+    const sel = flowsStore.selectedIds();
+    const anchor = flowsStore.anchorId();
+    const id = anchor && sel.has(anchor) ? anchor : flowsStore.selectedId();
     return id ? flowsStore.flows().find((f) => f.id === id) ?? null : null;
   });
 
@@ -262,25 +288,35 @@ export default function App() {
 
       <Show when={layoutStore.pos() === "right"}>
         <div ref={splitRef} class="flex-1 flex overflow-hidden">
-          <div style={{ width: `${layoutStore.rightPct()}%` }} class="overflow-hidden border-r border-ink-100 dark:border-ink-400/40">
+          <div
+            style={{ width: selected() ? `${layoutStore.rightPct()}%` : "100%" }}
+            class="overflow-hidden border-r border-ink-100 dark:border-ink-400/40"
+          >
             <FlowList flows={filtered()} />
           </div>
-          <Splitter orientation="vertical" containerRef={() => splitRef} onDrag={onDragRight} />
-          <div class="flex-1 overflow-hidden min-w-0">
-            <Inspector flow={selected()} />
-          </div>
+          <Show when={selected()}>
+            <Splitter orientation="vertical" containerRef={() => splitRef} onDrag={onDragRight} />
+            <div class="flex-1 overflow-hidden min-w-0">
+              <Inspector flow={selected()} onClose={() => flowsStore.clearSelection()} />
+            </div>
+          </Show>
         </div>
       </Show>
 
       <Show when={layoutStore.pos() === "bottom"}>
         <div ref={splitRef} class="flex-1 flex flex-col overflow-hidden">
-          <div style={{ height: `${100 - layoutStore.bottomPct()}%` }} class="overflow-hidden border-b border-ink-100 dark:border-ink-400/40">
+          <div
+            style={{ height: selected() ? `${100 - layoutStore.bottomPct()}%` : "100%" }}
+            class="overflow-hidden border-b border-ink-100 dark:border-ink-400/40"
+          >
             <FlowList flows={filtered()} />
           </div>
-          <Splitter orientation="horizontal" containerRef={() => splitRef} onDrag={onDragBottom} />
-          <div class="flex-1 overflow-hidden min-h-0">
-            <Inspector flow={selected()} />
-          </div>
+          <Show when={selected()}>
+            <Splitter orientation="horizontal" containerRef={() => splitRef} onDrag={onDragBottom} />
+            <div class="flex-1 overflow-hidden min-h-0">
+              <Inspector flow={selected()} onClose={() => flowsStore.clearSelection()} />
+            </div>
+          </Show>
         </div>
       </Show>
 

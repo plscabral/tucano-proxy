@@ -62,3 +62,9 @@ ca/
 coverage/
 *.tsbuildinfo
 .turbo/
+
+# --- Site (Next.js) --------------------------------------------------------
+site/.next/
+site/out/
+site/node_modules/
+site/next-env.d.ts

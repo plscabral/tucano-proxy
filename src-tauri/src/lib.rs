@@ -11,13 +11,20 @@ use state::AppState;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tauri::Manager;
+use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // hudsucker::proxy::internal spams ERROR "tls handshake eof" for every
+    // app with certificate pinning (WhatsApp, banking apps, etc.) — these
+    // are expected and not actionable. Silence that module while keeping
+    // warnings from the rest of hudsucker.
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "tucano_lib=info,hudsucker=warn".into()),
+                .unwrap_or_else(|_| {
+                    "tucano_lib=info,hudsucker=warn,hudsucker::proxy::internal=off".into()
+                }),
         )
         .init();
 
@@ -30,6 +37,47 @@ pub fn run() {
             let handle = app.handle().clone();
             let state = Arc::new(AppState::new(handle.clone()).expect("init state"));
             app.manage(state.clone());
+
+            // Replace the default macOS menu so Cmd+F isn't swallowed by a
+            // built-in "Find" item — we route Cmd+F to the in-app body
+            // search inside CodeMirror / preview iframes.
+            #[cfg(target_os = "macos")]
+            {
+                let app_submenu = SubmenuBuilder::new(app, "Tucano Proxy")
+                    .item(&PredefinedMenuItem::about(app, None, None)?)
+                    .separator()
+                    .item(&PredefinedMenuItem::services(app, None)?)
+                    .separator()
+                    .item(&PredefinedMenuItem::hide(app, None)?)
+                    .item(&PredefinedMenuItem::hide_others(app, None)?)
+                    .item(&PredefinedMenuItem::show_all(app, None)?)
+                    .separator()
+                    .item(&PredefinedMenuItem::quit(app, None)?)
+                    .build()?;
+
+                let edit_submenu = SubmenuBuilder::new(app, "Edit")
+                    .item(&PredefinedMenuItem::undo(app, None)?)
+                    .item(&PredefinedMenuItem::redo(app, None)?)
+                    .separator()
+                    .item(&PredefinedMenuItem::cut(app, None)?)
+                    .item(&PredefinedMenuItem::copy(app, None)?)
+                    .item(&PredefinedMenuItem::paste(app, None)?)
+                    .item(&PredefinedMenuItem::select_all(app, None)?)
+                    .build()?;
+
+                let window_submenu = SubmenuBuilder::new(app, "Window")
+                    .item(&PredefinedMenuItem::minimize(app, None)?)
+                    .item(&PredefinedMenuItem::maximize(app, None)?)
+                    .item(&PredefinedMenuItem::fullscreen(app, None)?)
+                    .build()?;
+
+                let menu = MenuBuilder::new(app)
+                    .item(&app_submenu)
+                    .item(&edit_submenu)
+                    .item(&window_submenu)
+                    .build()?;
+                app.set_menu(menu)?;
+            }
 
             // Trap SIGINT / SIGTERM (Ctrl+C in `tauri dev`, terminal close, etc).
             // Reverts the OS proxy synchronously before the process dies.

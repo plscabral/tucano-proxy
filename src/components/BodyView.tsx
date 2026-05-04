@@ -1,5 +1,7 @@
-import { createMemo, createSignal, Show } from "solid-js";
-import { Copy, Check, Download, WrapText, Sparkles, ChevronDown } from "lucide-solid";
+import { createMemo, createSignal, onCleanup, Show } from "solid-js";
+import { Copy, Check, Download, WrapText, Sparkles, ChevronDown, Maximize2, Minimize2 } from "lucide-solid";
+import { EditorView } from "@codemirror/view";
+import { openSearchPanel } from "@codemirror/search";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../lib/ipc";
 import JsonViewer from "../viewers/JsonViewer";
@@ -7,11 +9,16 @@ import RawViewer from "../viewers/RawViewer";
 import HexViewer from "../viewers/HexViewer";
 import ImageViewer from "../viewers/ImageViewer";
 import HtmlViewer from "../viewers/HtmlViewer";
+import XmlViewer from "../viewers/XmlViewer";
 import FormViewer from "../viewers/FormViewer";
 import { beautify, isBeautifiable, type BeautifyLang } from "../lib/format";
 import { t } from "../lib/i18n";
 
 type Mode = "auto" | "json" | "xml" | "html" | "form" | "raw" | "hex" | "image";
+
+// Track the BodyView the user is currently interacting with so a global
+// Cmd+F lands in the right pane (request vs response).
+let activeBody: HTMLElement | null = null;
 
 function detect(ct: string | null): Mode {
   if (!ct) return "raw";
@@ -65,6 +72,31 @@ export default function BodyView(props: {
   const [copied, setCopied] = createSignal(false);
   const [pretty, setPretty] = createSignal(true);
   const [wrap, setWrap] = createSignal(true);
+  const [full, setFull] = createSignal(false);
+  let rootEl!: HTMLDivElement;
+  const onWindowKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && full()) { e.stopPropagation(); setFull(false); return; }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+      const ae = document.activeElement as HTMLElement | null;
+      const focusedHere = !!ae && rootEl.contains(ae);
+      const hoveredHere = activeBody === rootEl;
+      if (!focusedHere && !hoveredHere) return;
+      const cm = rootEl.querySelector<HTMLElement>(".cm-editor");
+      if (!cm) return; // Preview viewers handle Cmd+F themselves.
+      const view = EditorView.findFromDOM(cm);
+      if (!view) return;
+      e.preventDefault();
+      e.stopPropagation();
+      view.focus();
+      openSearchPanel(view);
+    }
+  };
+  window.addEventListener("keydown", onWindowKey, true);
+  onCleanup(() => {
+    window.removeEventListener("keydown", onWindowKey, true);
+    if (activeBody === rootEl) activeBody = null;
+  });
+  const onRootEnter = () => { activeBody = rootEl; };
 
   const effective = createMemo<Mode>(() => mode() === "auto" ? detect(props.contentType) : mode());
 
@@ -137,7 +169,10 @@ export default function BodyView(props: {
     }`;
 
   return (
-    <div class="h-full flex flex-col">
+    <div ref={rootEl} onMouseEnter={onRootEnter} class={full()
+      ? "fixed inset-0 z-50 flex flex-col bg-white dark:bg-ink-500"
+      : "h-full flex flex-col"
+    }>
       <div class="flex items-center gap-1.5 px-3 py-2 text-xs border-b border-ink-100 dark:border-ink-400/20">
         {/* Mode dropdown — replaces 8-button row */}
         <div class="relative shrink-0">
@@ -178,13 +213,20 @@ export default function BodyView(props: {
             <Download size={13} />
           </button>
         </Show>
+        <button
+          onClick={() => setFull((v) => !v)}
+          class={iconBtn(false)}
+          title={full() ? t("body.exitFullscreen") : t("body.fullscreen")}
+        >
+          {full() ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+        </button>
       </div>
 
       <div class="flex-1 min-h-0 overflow-hidden">
         <Show when={props.body} fallback={<div class="p-4 opacity-50 text-sm">{t("body.empty")}</div>}>
           <>
             {effective() === "json" && <JsonViewer text={displayText()} />}
-            {effective() === "xml" && <RawViewer text={displayText()} lang="xml" wrap={wrap()} />}
+            {effective() === "xml" && <XmlViewer text={displayText()} wrap={wrap()} />}
             {effective() === "html" && <HtmlViewer text={displayText()} wrap={wrap()} />}
             {effective() === "form" && <FormViewer body={props.body!} encoding={props.encoding} contentType={props.contentType} />}
             {effective() === "raw" && <RawViewer text={displayText()} lang="raw" wrap={wrap()} />}
