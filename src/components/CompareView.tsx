@@ -1,8 +1,10 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
-import { X, ArrowLeftRight, GitCompareArrows } from "lucide-solid";
+import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
+import { X, ArrowLeftRight, GitCompareArrows, StickyNote } from "lucide-solid";
 import type { Flow } from "../lib/types";
 import { diffHeaders, diffBody, type HeaderDiffRow } from "../lib/diff";
 import { t } from "../lib/i18n";
+import { ipc } from "../lib/ipc";
+import { flowsStore } from "../stores/flows";
 
 type Section = "meta" | "reqHeaders" | "reqBody" | "resHeaders" | "resBody";
 
@@ -43,8 +45,8 @@ export default function CompareView(props: { a: Flow; b: Flow; onClose: () => vo
         </div>
 
         <div class="grid grid-cols-2 gap-px bg-ink-100 dark:bg-ink-400/30 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
-          <FlowSummary label="A" tone="text-rose-400" flow={a()} />
-          <FlowSummary label="B" tone="text-emerald-400" flow={b()} />
+          <FlowSummary label="A" tone="text-rose-400" flow={a()} onNote={(note) => setA({ ...a(), note })} />
+          <FlowSummary label="B" tone="text-emerald-400" flow={b()} onNote={(note) => setB({ ...b(), note })} />
         </div>
 
         <div class="flex-1 min-h-0 overflow-auto scroll-thin bg-ink-50/40 dark:bg-ink-600">
@@ -69,12 +71,36 @@ export default function CompareView(props: { a: Flow; b: Flow; onClose: () => vo
   );
 }
 
-function FlowSummary(props: { label: string; tone: string; flow: Flow }) {
+function FlowSummary(props: { label: string; tone: string; flow: Flow; onNote: (note: string | null) => void }) {
   const url = () => {
     const f = props.flow;
     const def = (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80);
     return `${f.scheme}://${f.host}${def ? "" : ":" + f.port}${f.path}`;
   };
+  const [editing, setEditing] = createSignal(false);
+  const [draft, setDraft] = createSignal(props.flow.note ?? "");
+
+  // Resync draft when the underlying flow swaps (A/B). Untrack flow.note so
+  // typing into the input isn't clobbered by upstream re-renders.
+  createEffect(() => {
+    const id = props.flow.id;
+    void id;
+    if (!editing()) setDraft(untrack(() => props.flow.note ?? ""));
+  });
+
+  const commit = async () => {
+    const v = draft().trim();
+    const next = v.length > 0 ? v : null;
+    setEditing(false);
+    if (next === (props.flow.note ?? null)) return;
+    try {
+      await ipc.updateFlowNote(props.flow.id, next);
+      flowsStore.upsert({ ...props.flow, note: next });
+      props.onNote(next);
+    } catch (e) { console.error(e); }
+  };
+  const cancel = () => { setDraft(props.flow.note ?? ""); setEditing(false); };
+
   return (
     <div class="bg-white dark:bg-ink-500 px-4 py-2.5">
       <div class="flex items-center gap-2 text-[10px] uppercase tracking-wider mb-1">
@@ -85,6 +111,39 @@ function FlowSummary(props: { label: string; tone: string; flow: Flow }) {
         <span class="font-semibold">{props.flow.method}</span>
         <span class="opacity-70">{props.flow.status ?? "…"}</span>
         <span class="truncate" title={url()}>{url()}</span>
+      </div>
+      <div class="mt-2 flex items-start gap-2 text-xs">
+        <StickyNote size={12} class="text-toucan-400 mt-1 shrink-0" />
+        <Show
+          when={editing()}
+          fallback={
+            <button
+              onClick={() => setEditing(true)}
+              class="flex-1 text-left px-2 py-1 rounded-lg hover:bg-ink-50 dark:hover:bg-ink-400/20 transition min-w-0"
+            >
+              <Show
+                when={props.flow.note}
+                fallback={<span class="opacity-50 italic">{t("note.placeholder")}</span>}
+              >
+                <span class="whitespace-pre-wrap [overflow-wrap:anywhere]">{props.flow.note}</span>
+              </Show>
+            </button>
+          }
+        >
+          <textarea
+            ref={(el) => queueMicrotask(() => el?.focus())}
+            value={draft()}
+            onInput={(e) => setDraft(e.currentTarget.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { e.preventDefault(); cancel(); }
+              else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit(); }
+            }}
+            rows={2}
+            placeholder={t("note.placeholder")}
+            class="flex-1 px-2 py-1 text-xs rounded-lg bg-ink-50 dark:bg-ink-600 border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
+          />
+        </Show>
       </div>
     </div>
   );

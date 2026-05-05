@@ -249,7 +249,7 @@ export default function App() {
         const colorId = MARK_COLORS[parseInt(e.key, 10)]?.id;
         if (colorId) ids.forEach((id) => marksStore.set(id, colorId));
       }
-    } else if (!inField && e.key.toLowerCase() === "n" && !meta && !e.altKey) {
+    } else if (!inField && e.key.toLowerCase() === "m" && !meta && !e.altKey) {
       const id = flowsStore.selectedId();
       if (id) { e.preventDefault(); noteStore.open(id); }
     } else if (!inField && /^[1-9]$/.test(e.key)) {
@@ -308,7 +308,7 @@ export default function App() {
             style={{ width: selected() ? `${layoutStore.rightPct()}%` : "100%" }}
             class="overflow-hidden border-r border-ink-100 dark:border-ink-400/40"
           >
-            <FlowList flows={filtered()} />
+            <FlowList flows={filtered()} onCompare={openCompare} />
           </div>
           <Show when={selected()}>
             <Splitter orientation="vertical" containerRef={() => splitRef} onDrag={onDragRight} />
@@ -325,7 +325,7 @@ export default function App() {
             style={{ height: selected() ? `${100 - layoutStore.bottomPct()}%` : "100%" }}
             class="overflow-hidden border-b border-ink-100 dark:border-ink-400/40"
           >
-            <FlowList flows={filtered()} />
+            <FlowList flows={filtered()} onCompare={openCompare} />
           </div>
           <Show when={selected()}>
             <Splitter orientation="horizontal" containerRef={() => splitRef} onDrag={onDragBottom} />
@@ -338,7 +338,7 @@ export default function App() {
 
       <Show when={layoutStore.pos() === "hidden"}>
         <div class="flex-1 overflow-hidden">
-          <FlowList flows={filtered()} />
+          <FlowList flows={filtered()} onCompare={openCompare} />
         </div>
       </Show>
 

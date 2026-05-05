@@ -12,6 +12,7 @@ import { t } from "../lib/i18n";
 import {
   ArrowUp, ArrowDown, AppWindow, Radio, ChevronRight, StickyNote, GripVertical,
   FileText, Film, Music, Database, Plug, FileType, Network, Braces, Type, FileCode2,
+  GitCompareArrows,
 } from "lucide-solid";
 import {
   SiJavascript, SiCss, SiHtml5, SiGraphql,
@@ -158,7 +159,7 @@ function renderCell(f: Flow, id: ColId) {
 
 type Ctx = { id: string; x: number; y: number };
 
-export default function FlowList(props: { flows: Flow[] }) {
+export default function FlowList(props: { flows: Flow[]; onCompare?: () => void }) {
   let parentRef!: HTMLDivElement;
   const rows = createMemo(() => props.flows);
   const [ctx, setCtx] = createSignal<Ctx | null>(null);
@@ -428,6 +429,15 @@ export default function FlowList(props: { flows: Flow[] }) {
               <span>{rows().find((f) => f.id === c().id)?.note ? t("list.editNote") : t("list.addNote")}</span>
               <StickyNote size={11} class="opacity-60" />
             </button>
+            <Show when={flowsStore.selectedIds().size === 2 && props.onCompare}>
+              <button
+                onClick={() => { props.onCompare?.(); closeCtx(); }}
+                class="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-toucan-400/10 hover:text-toucan-400"
+              >
+                <span>{t("tb.compare")}</span>
+                <GitCompareArrows size={11} class="opacity-60" />
+              </button>
+            </Show>
             <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
             <button
               onClick={() => { const f = ctxFlow(); if (f) copyText(fullUrlOf(f)); }}

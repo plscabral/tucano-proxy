@@ -379,6 +379,7 @@ const en: Dict = {
   "sk.selectAll": "Select all visible flows",
   "sk.markColor": "Color selected flows (0 clears)",
   "sk.note": "Add / edit note on selected flow",
+  "sk.compare": "Compare two selected captures",
 };
 
 const ptBR: Dict = {
@@ -736,6 +737,7 @@ const ptBR: Dict = {
   "sk.delete": "Excluir capturas / remover marca",
   "sk.selectAll": "Selecionar todas visíveis",
   "sk.note": "Adicionar / editar nota na captura selecionada",
+  "sk.compare": "Comparar duas capturas selecionadas",
 };
 
 const ptPT: Dict = {
@@ -1283,6 +1285,7 @@ const es: Dict = {
   "sk.delete": "Eliminar capturas / quitar marca",
   "sk.selectAll": "Seleccionar todas visibles",
   "sk.note": "Añadir / editar nota en la captura seleccionada",
+  "sk.compare": "Comparar dos capturas seleccionadas",
 };
 
 const dicts: Record<Locale, Dict> = { en, "pt-BR": ptBR, "pt-PT": ptPT, es };

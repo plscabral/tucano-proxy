@@ -1,4 +1,4 @@
-import { createEffect, createSignal, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, Show, untrack } from "solid-js";
 import { X, StickyNote } from "lucide-solid";
 import { t } from "../lib/i18n";
 
@@ -11,11 +11,14 @@ export default function NoteDialog(props: {
   const [value, setValue] = createSignal("");
   let textareaRef!: HTMLTextAreaElement;
 
-  // Resync the editable text whenever the dialog opens for a new flow.
+  // Resync only when the dialog transitions to open. We wrap props.open
+  // in a memo so that flow-array updates (which re-run the getter but
+  // produce the same boolean) don't propagate to this effect and wipe
+  // whatever the user has typed. initialValue is also untracked.
+  const isOpen = createMemo(() => props.open);
   createEffect(() => {
-    if (props.open) {
-      setValue(props.initialValue ?? "");
-      // Focus + select on next tick so the modal is in the DOM.
+    if (isOpen()) {
+      setValue(untrack(() => props.initialValue ?? ""));
       queueMicrotask(() => textareaRef?.focus());
     }
   });

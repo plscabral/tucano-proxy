@@ -27,6 +27,7 @@ const SHORTCUTS: [string, string][] = [
   [`${MOD} + K`,    "sk.focusFilter"],
   [`${MOD} + ⇧ + K`,     "sk.removeLastFilter"],
   [`${MOD} + F`,         "sk.bodySearch"],
+  [`${MOD} + D`,    "sk.compare"],
   [`${MOD} + L`,    "sk.clearAll"],
   [`${MOD} + S`,    "sk.saveSession"],
   [`${MOD} + O`,    "sk.openSession"],
@@ -37,7 +38,7 @@ const SHORTCUTS: [string, string][] = [
   [`${MOD} + 0–6`,  "sk.markColor"],
   ["Right click",   "sk.context"],
   ["Delete",        "sk.delete"],
-  ["N",             "sk.note"],
+  ["M",             "sk.note"],
 ];
 
 async function refresh() { flowsStore.setStatus(await ipc.status()); }
