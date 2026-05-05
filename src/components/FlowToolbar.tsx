@@ -1,4 +1,4 @@
-import { Trash2, Save, FileDown, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2 } from "lucide-solid";
+import { Trash2, Save, FileDown, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2, GitCompareArrows } from "lucide-solid";
 import { layoutStore, type InspectorPos } from "../stores/layout";
 import ColumnsMenu from "./ColumnsMenu";
 import { save, open } from "@tauri-apps/plugin-dialog";
@@ -13,7 +13,7 @@ import LlmExportDialog from "./LlmExportDialog";
 import { undoStore } from "../stores/undo";
 import type { Flow } from "../lib/types";
 
-export default function FlowToolbar(props: { count: number; flows: () => Flow[] }) {
+export default function FlowToolbar(props: { count: number; flows: () => Flow[]; onCompare?: () => void }) {
   const [openMark, setOpenMark] = createSignal(false);
   const [openExport, setOpenExport] = createSignal(false);
   let exportRef: HTMLDivElement | undefined;
@@ -108,6 +108,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[] 
     setOpenMark(false);
   };
   const hasSelection = () => flowsStore.selectedIds().size > 0;
+  const canCompare = () => flowsStore.selectedIds().size === 2;
 
   function LayoutBtn(p: { pos: InspectorPos; titleKey: string; icon: any }) {
     const active = () => layoutStore.pos() === p.pos;
@@ -149,6 +150,15 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[] 
           </div>
         </Show>
       </div>
+
+      <button
+        onClick={() => props.onCompare?.()}
+        disabled={!canCompare()}
+        title={t("tb.compareTitle") || "Compare two captures (⌘D)"}
+        class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-toucan-400/10 hover:text-toucan-400 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-current transition"
+      >
+        <GitCompareArrows size={13} /> {t("tb.compare") || "Compare"}
+      </button>
 
       <div class="w-px h-5 bg-ink-100 dark:bg-ink-400/30 mx-1.5" />
 

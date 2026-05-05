@@ -1,7 +1,5 @@
 import { createMemo, createSignal, onCleanup, Show } from "solid-js";
 import { Copy, Check, Download, WrapText, Sparkles, ChevronDown, Maximize2, Minimize2 } from "lucide-solid";
-import { EditorView } from "@codemirror/view";
-import { openSearchPanel } from "@codemirror/search";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../lib/ipc";
 import JsonViewer from "../viewers/JsonViewer";
@@ -76,20 +74,8 @@ export default function BodyView(props: {
   let rootEl!: HTMLDivElement;
   const onWindowKey = (e: KeyboardEvent) => {
     if (e.key === "Escape" && full()) { e.stopPropagation(); setFull(false); return; }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
-      const ae = document.activeElement as HTMLElement | null;
-      const focusedHere = !!ae && rootEl.contains(ae);
-      const hoveredHere = activeBody === rootEl;
-      if (!focusedHere && !hoveredHere) return;
-      const cm = rootEl.querySelector<HTMLElement>(".cm-editor");
-      if (!cm) return; // Preview viewers handle Cmd+F themselves.
-      const view = EditorView.findFromDOM(cm);
-      if (!view) return;
-      e.preventDefault();
-      e.stopPropagation();
-      view.focus();
-      openSearchPanel(view);
-    }
+    // Cmd+F is owned by the viewers' useFindShell — they each render their
+    // own FindBar above the content.
   };
   window.addEventListener("keydown", onWindowKey, true);
   onCleanup(() => {

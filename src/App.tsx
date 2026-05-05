@@ -9,6 +9,7 @@ import FlowToolbar from "./components/FlowToolbar";
 import Settings from "./components/Settings";
 import Splitter from "./components/Splitter";
 import Onboarding, { shouldShowOnboarding } from "./components/Onboarding";
+import CompareView from "./components/CompareView";
 import { flowsStore } from "./stores/flows";
 import { marksStore, MARK_COLORS } from "./stores/marks";
 import { ipc, onFlowNew, onFlowUpdate } from "./lib/ipc";
@@ -30,6 +31,19 @@ import { t } from "./lib/i18n";
 export default function App() {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [onboardingOpen, setOnboardingOpen] = createSignal(shouldShowOnboarding());
+  const [compareOpen, setCompareOpen] = createSignal(false);
+
+  const compareFlows = createMemo(() => {
+    const ids = Array.from(flowsStore.selectedIds());
+    if (ids.length !== 2) return null;
+    const all = flowsStore.flows();
+    const a = all.find((f) => f.id === ids[0]);
+    const b = all.find((f) => f.id === ids[1]);
+    return a && b ? { a, b } : null;
+  });
+  const openCompare = () => {
+    if (compareFlows()) setCompareOpen(true);
+  };
   let splitRef!: HTMLDivElement;
 
   onMount(async () => {
@@ -172,6 +186,8 @@ export default function App() {
       e.preventDefault();
       const list = rulesStore.rules();
       if (list.length > 0) rulesStore.remove(list[list.length - 1].id);
+    } else if (meta && e.key.toLowerCase() === "d") {
+      if (compareFlows()) { e.preventDefault(); setCompareOpen(true); }
     } else if (meta && e.key === ",") {
       e.preventDefault(); setSettingsOpen(true);
     } else if (meta && e.key.toLowerCase() === "l") {
@@ -284,7 +300,7 @@ export default function App() {
       <TopBar onOpenSettings={() => setSettingsOpen(true)} />
       <CategoryTabs />
       <FilterBar />
-      <FlowToolbar count={filtered().length} flows={filtered} />
+      <FlowToolbar count={filtered().length} flows={filtered} onCompare={openCompare} />
 
       <Show when={layoutStore.pos() === "right"}>
         <div ref={splitRef} class="flex-1 flex overflow-hidden">
@@ -330,6 +346,11 @@ export default function App() {
       <Settings open={settingsOpen()} onClose={() => setSettingsOpen(false)} />
       <Show when={onboardingOpen()}>
         <Onboarding onClose={() => setOnboardingOpen(false)} />
+      </Show>
+      <Show when={compareOpen() && compareFlows()}>
+        {(pair) => (
+          <CompareView a={pair().a} b={pair().b} onClose={() => setCompareOpen(false)} />
+        )}
       </Show>
     </div>
   );

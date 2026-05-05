@@ -4,9 +4,11 @@ import type { Flow } from "../lib/types";
 import HeadersView from "./HeadersView";
 import BodyView from "./BodyView";
 import TimingView from "./TimingView";
+import RawView from "./RawView";
+import { buildRawRequest, buildRawResponse } from "../lib/rawHttp";
 import { t } from "../lib/i18n";
 
-type SubTab = "headers" | "body";
+type SubTab = "headers" | "body" | "raw";
 type Focus = "both" | "req" | "res";
 
 function methodColor(m: string) {
@@ -149,7 +151,9 @@ export default function Inspector(props: { flow: Flow | null; onClose?: () => vo
                   >
                     {reqTab() === "headers"
                       ? <HeadersView headers={f().reqHeaders} />
-                      : <BodyView body={f().reqBody} encoding={f().reqBodyEncoding} contentType={f().reqContentType} />}
+                      : reqTab() === "raw"
+                        ? <RawView text={buildRawRequest(f())} />
+                        : <BodyView body={f().reqBody} encoding={f().reqBodyEncoding} contentType={f().reqContentType} />}
                   </Pane>
                 </Show>
                 <Show when={focus() !== "req"}>
@@ -164,7 +168,9 @@ export default function Inspector(props: { flow: Flow | null; onClose?: () => vo
                   >
                     {resTab() === "headers"
                       ? <HeadersView headers={f().resHeaders} />
-                      : <BodyView body={f().resBody} encoding={f().resBodyEncoding} contentType={f().resContentType} />}
+                      : resTab() === "raw"
+                        ? <RawView text={buildRawResponse(f())} />
+                        : <BodyView body={f().resBody} encoding={f().resBodyEncoding} contentType={f().resContentType} />}
                   </Pane>
                 </Show>
               </div>
@@ -193,6 +199,7 @@ function Pane(props: {
         <span class={`text-[10px] uppercase tracking-wider font-semibold mr-2 ${props.accent}`}>{props.label}</span>
         <SubTabBtn active={props.tab === "headers"} onClick={() => props.onTab("headers")}>Headers</SubTabBtn>
         <SubTabBtn active={props.tab === "body"} onClick={() => props.onTab("body")}>Body</SubTabBtn>
+        <SubTabBtn active={props.tab === "raw"} onClick={() => props.onTab("raw")}>Raw</SubTabBtn>
         <div class="ml-auto flex items-center gap-0.5">
           <button
             onClick={props.onToggleFocus}

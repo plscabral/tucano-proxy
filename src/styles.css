@@ -30,20 +30,45 @@ html.dark body {
 .scroll-thin::-webkit-scrollbar-thumb { background: rgba(127,127,127,.3); border-radius: 4px; }
 .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(127,127,127,.5); }
 
-/* Find bar — shared by CodeMirror panel and the floating iframe overlay. */
+/* Find bar — single shared component rendered in a dedicated row above
+   the source/preview viewport. No floating, no overlap with content. */
+.tcn-find-row {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  background: rgba(0,0,0,0.02);
+}
+html.dark .tcn-find-row {
+  border-bottom-color: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+}
 .tcn-find {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 4px 6px;
+  width: 100%;
   background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   font: 12px Manrope, system-ui, sans-serif;
 }
 html.dark .tcn-find {
-  background: rgba(15,24,46,0.85);
-  border-bottom-color: rgba(255,255,255,0.06);
+  background: rgba(15,24,46,0.6);
+  border-color: rgba(255,255,255,0.10);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+
+/* Match the native browser-find palette in CodeMirror so source and preview
+   look identical. !important wins against CM's injected theme rules. */
+.cm-editor .cm-searchMatch {
+  background: #FFFF00 !important;
+  color: #000 !important;
+  outline: none !important;
+}
+.cm-editor .cm-searchMatch-selected {
+  background: #FF9632 !important;
+  color: #000 !important;
 }
 .tcn-find-input {
   flex: 1;
