@@ -27,6 +27,7 @@ const SHORTCUTS: [string, string][] = [
   [`${MOD} + K`,    "sk.focusFilter"],
   [`${MOD} + ⇧ + K`,     "sk.removeLastFilter"],
   [`${MOD} + F`,         "sk.bodySearch"],
+  [`${MOD} + ⇧ + F`,     "sk.findAll"],
   [`${MOD} + D`,    "sk.compare"],
   [`${MOD} + L`,    "sk.clearAll"],
   [`${MOD} + S`,    "sk.saveSession"],

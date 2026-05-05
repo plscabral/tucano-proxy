@@ -8,11 +8,12 @@ import { undoStore } from "../stores/undo";
 import { columnsStore, type ColId } from "../stores/columns";
 import { sortStore } from "../stores/sort";
 import { noteStore } from "../stores/note";
+import { findAllStore } from "../stores/findAll";
 import { t } from "../lib/i18n";
 import {
-  ArrowUp, ArrowDown, AppWindow, Radio, ChevronRight, StickyNote, GripVertical,
+  ArrowUp, ArrowDown, AppWindow, Radio, WifiOff, ChevronRight, StickyNote, GripVertical,
   FileText, Film, Music, Database, Plug, FileType, Network, Braces, Type, FileCode2,
-  GitCompareArrows,
+  GitCompareArrows, Crosshair,
 } from "lucide-solid";
 import {
   SiJavascript, SiCss, SiHtml5, SiGraphql,
@@ -123,21 +124,21 @@ function fmtSize(n: number) {
 function renderCell(f: Flow, id: ColId) {
   switch (id) {
     case "index":    return (
-      <div class="flex items-center gap-1.5 truncate pr-2">
+      <div class="flex items-center gap-1.5 truncate pl-3 pr-2">
         <span class="shrink-0">{typeIcon(f)}</span>
         <span class="opacity-50 truncate">{f.index}</span>
       </div>
     );
-    case "method":   return <div class={`truncate pr-2 font-semibold ${methodColor(f.method)}`}>{f.method}</div>;
-    case "status":   return <div class={`truncate pr-2 font-semibold ${statusColor(f.status)}`}>{f.status ?? "—"}</div>;
-    case "host":     return <div class="truncate pr-2">{f.host}</div>;
-    case "path":     return <div class="truncate pr-2 opacity-80">{f.path}</div>;
-    case "size":     return <div class="truncate pr-2 opacity-70">{fmtSize(f.resSize || f.reqSize)}</div>;
-    case "duration": return <div class="truncate pr-2 opacity-70">{f.durationMs != null ? `${f.durationMs}ms` : "…"}</div>;
-    case "scheme":   return <div class="truncate pr-2 opacity-70 uppercase">{f.scheme}</div>;
-    case "mime":     return <div class="truncate pr-2 opacity-70">{f.resContentType ?? f.reqContentType ?? "—"}</div>;
+    case "method":   return <div class={`truncate pl-3 pr-2 font-semibold ${methodColor(f.method)}`}>{f.method}</div>;
+    case "status":   return <div class={`truncate pl-3 pr-2 font-semibold ${statusColor(f.status)}`}>{f.status ?? "—"}</div>;
+    case "host":     return <div class="truncate pl-3 pr-2">{f.host}</div>;
+    case "path":     return <div class="truncate pl-3 pr-2 opacity-80">{f.path}</div>;
+    case "size":     return <div class="truncate pl-3 pr-2 opacity-70">{fmtSize(f.resSize || f.reqSize)}</div>;
+    case "duration": return <div class="truncate pl-3 pr-2 opacity-70">{f.durationMs != null ? `${f.durationMs}ms` : "…"}</div>;
+    case "scheme":   return <div class="truncate pl-3 pr-2 opacity-70 uppercase">{f.scheme}</div>;
+    case "mime":     return <div class="truncate pl-3 pr-2 opacity-70">{f.resContentType ?? f.reqContentType ?? "—"}</div>;
     case "client":   return (
-      <div class={`flex items-center gap-1.5 truncate pr-2 ${f.clientApp ? "" : "opacity-40"}`}>
+      <div class={`flex items-center gap-1.5 truncate pl-3 pr-2 ${f.clientApp ? "" : "opacity-40"}`}>
         {f.clientIcon
           ? <img src={f.clientIcon} alt="" class="h-4 w-4 rounded-sm shrink-0" />
           : <span class="h-4 w-4 rounded-sm bg-ink-100 dark:bg-ink-400/30 shrink-0 grid place-items-center text-ink-400 dark:text-ink-200">
@@ -147,7 +148,7 @@ function renderCell(f: Flow, id: ColId) {
       </div>
     );
     case "note":     return (
-      <div class={`flex items-center gap-1.5 truncate pr-2 ${f.note ? "text-toucan-400" : "opacity-30"}`} title={f.note ?? ""}>
+      <div class={`flex items-center gap-1.5 truncate pl-3 pr-2 ${f.note ? "text-toucan-400" : "opacity-30"}`} title={f.note ?? ""}>
         <Show when={f.note} fallback={<span class="opacity-50">—</span>}>
           <StickyNote size={11} class="shrink-0" />
           <span class="truncate">{f.note}</span>
@@ -167,8 +168,12 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
   const [dragOver, setDragOver] = createSignal<ColId | null>(null);
 
   const visibleCols = () => columnsStore.visible();
-  const gridTemplate = () => visibleCols().map((c) => `${c.width}px`).join(" ");
-  const totalWidth = () => visibleCols().reduce((s, c) => s + c.width, 0) + 24;
+  // Reserve a fixed-width gutter at the very start of the grid for the
+  // selection / find-all indicators so they live in their own column
+  // instead of pushing the data columns around when toggled.
+  const INDICATOR_W = 36;
+  const gridTemplate = () => `${INDICATOR_W}px ${visibleCols().map((c) => `${c.width}px`).join(" ")}`;
+  const totalWidth = () => visibleCols().reduce((s, c) => s + c.width, 0) + INDICATOR_W + 24;
 
   const virt = createVirtualizer({
     get count() { return rows().length; },
@@ -180,7 +185,21 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
   const onRowClick = (e: MouseEvent, id: string) => {
     if (e.shiftKey) flowsStore.selectRange(id, rows());
     else if (e.metaKey || e.ctrlKey) flowsStore.toggle(id);
-    else flowsStore.selectSingle(id);
+    else {
+      // Plain click toggles: clicking the already-open row closes the
+      // detail pane. Multi-select (Cmd/Shift) keeps its own semantics.
+      const sel = flowsStore.selectedIds();
+      if (sel.size === 1 && sel.has(id)) flowsStore.clearSelection();
+      else flowsStore.selectSingle(id);
+    }
+    // Forward the find-all query to the inspector's body finders so the
+    // first match is already highlighted when the row opens.
+    if (findAllStore.active() && findAllStore.isMatch(id)) {
+      const q = findAllStore.query();
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new CustomEvent("tucano:findAll", { detail: { query: q } }));
+      });
+    }
   };
   const onContext = (e: MouseEvent, id: string) => {
     e.preventDefault();
@@ -267,6 +286,49 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
     window.addEventListener("mouseup", up);
   };
 
+  // Auto-fit column to its widest visible content (Excel-style dbl-click).
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d");
+  const cellText = (f: Flow, id: ColId): string => {
+    switch (id) {
+      case "index":    return String(f.index);
+      case "method":   return f.method;
+      case "status":   return f.status != null ? String(f.status) : "—";
+      case "host":     return f.host;
+      case "path":     return f.path;
+      case "size":     return fmtSize(f.resSize || f.reqSize);
+      case "duration": return f.durationMs != null ? `${f.durationMs}ms` : "…";
+      case "scheme":   return f.scheme.toUpperCase();
+      case "mime":     return f.resContentType ?? f.reqContentType ?? "—";
+      case "client":   return f.clientApp ?? "—";
+      case "note":     return f.note ?? "";
+    }
+  };
+  // Cells with a leading icon/avatar that also takes horizontal space.
+  const ICON_PAD: Partial<Record<ColId, number>> = {
+    index: 22,   // type icon ~14px + gap 6 + slack
+    client: 22,  // app icon 16 + gap 6
+    note: 18,    // sticky-note icon 11 + gap 6
+  };
+  const autoFitColumn = (id: ColId) => {
+    if (!measureCtx) return;
+    // text-xs (12px) + the JetBrains-mono fallback used by .mono class.
+    measureCtx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    let max = 0;
+    for (const f of rows()) {
+      const w = measureCtx.measureText(cellText(f, id)).width;
+      if (w > max) max = w;
+    }
+    // Floor: header label width (so the title never gets cut off).
+    const headerLabel = t(`col.${id}`);
+    measureCtx.font = "10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    const headerW = measureCtx.measureText(headerLabel.toUpperCase()).width * 1.12; // tracking
+    // Padding: pl-3 (12) + pr-2 (8) + sort-arrow/grip space (~24) + icon overhead.
+    const padding = 12 + 8 + 24 + (ICON_PAD[id] ?? 0);
+    const target = Math.ceil(Math.max(max, headerW) + padding);
+    columnsStore.setWidth(id, Math.min(target, 900));
+  };
+
   // Manual column drag (mouse-based — bypasses HTML5 DnD which is flaky in WebView)
   const startHeaderDrag = (e: MouseEvent, id: ColId) => {
     if (e.button !== 0) return;
@@ -318,9 +380,11 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
       <div class="flex-1 min-h-0 flex flex-col" style={{ "min-width": `${totalWidth()}px` }}>
       {/* Header */}
       <div
-        class="grid h-9 items-stretch text-[10px] uppercase tracking-[0.12em] bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 mono opacity-90 pl-3 shrink-0"
+        class="grid h-9 items-stretch text-[10px] uppercase tracking-[0.12em] bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 mono opacity-90 shrink-0"
         style={{ "grid-template-columns": gridTemplate() }}
       >
+        {/* Indicator gutter — empty header to keep columns aligned. */}
+        <div class="h-full" />
         <For each={visibleCols()}>{(c, i) => {
           const sortState = sortStore.state;
           const isSorted = () => sortState().by === c.id;
@@ -329,14 +393,14 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
             <div
               data-col-header={c.id}
               onMouseDown={(e) => startHeaderDrag(e, c.id)}
-              class={`group relative h-full flex items-center gap-1.5 pl-2 pr-5 select-none cursor-grab active:cursor-grabbing
+              class={`group relative h-full flex items-center gap-1.5 pl-3 pr-5 select-none cursor-grab active:cursor-grabbing
                 ${!isLast() ? "border-r border-ink-100 dark:border-ink-400/30" : ""}
                 ${dragOver() === c.id && dragId() !== c.id ? "bg-toucan-400/15 ring-2 ring-toucan-400/60" : ""}
                 ${dragId() === c.id ? "opacity-50" : ""}
                 ${isSorted() ? "text-toucan-400" : "hover:text-toucan-400 hover:bg-ink-100/40 dark:hover:bg-ink-400/15"}`}
               title={`${t("col.dragHint")} · ${t(`col.${c.id}`)}`}
             >
-              <GripVertical size={11} class="opacity-0 group-hover:opacity-50 transition shrink-0" />
+              <GripVertical size={11} class="absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition pointer-events-none" />
               <span class="truncate">{t(`col.${c.id}`)}</span>
               {isSorted() && (sortState().dir === "asc"
                 ? <ArrowUp size={11} />
@@ -344,7 +408,8 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
               <span
                 onMouseDown={(e) => startResize(e, c.id, c.width)}
                 onClick={(e) => e.stopPropagation()}
-                title={t("col.resizeHint")}
+                onDblClick={(e) => { e.stopPropagation(); autoFitColumn(c.id); }}
+                title={t("col.autoFitHint")}
                 class="absolute right-0 top-0 h-full w-3 cursor-col-resize flex items-center justify-center group/r"
               >
                 <span class="block w-px h-4 bg-ink-200 dark:bg-ink-300 opacity-0 group-hover/r:opacity-100 group-hover/r:bg-toucan-400 transition" />
@@ -361,6 +426,7 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
             const f = rows()[vi.index];
             const sel = flowsStore.isSelected(f.id);
             const markColor = colorOf(marksStore.marks()[f.id]);
+            const findHit = findAllStore.active() && findAllStore.isMatch(f.id);
             const fullUrl = `${f.scheme}://${f.host}${
               (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80)
                 ? ""
@@ -374,14 +440,49 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
                 style={{
                   position: "absolute", top: 0, left: 0, right: 0,
                   height: `${vi.size}px`, transform: `translateY(${vi.start}px)`,
-                  background: markColor ? `${markColor}1f` : undefined,
+                  background: sel
+                    ? undefined
+                    : (markColor ? `${markColor}1f` : undefined),
                   "border-left": markColor ? `3px solid ${markColor}` : "3px solid transparent",
+                  // Selection cue: a single indigo accent bar on the left,
+                  // no extra bottom rule — keeps the row flush with its
+                  // neighbors so the gradient does the rest of the work.
+                  "box-shadow": sel
+                    ? "inset 3px 0 0 0 rgb(99 102 241 / 0.95)"
+                    : undefined,
                   "grid-template-columns": gridTemplate(),
                 }}
-                class={`grid items-center text-xs mono cursor-pointer select-none pl-3 pr-3
-                  ${sel ? "bg-toucan-400/20 text-toucan-400" : "hover:bg-ink-50 dark:hover:bg-ink-400/20"}
+                class={`grid items-center text-xs mono cursor-pointer select-none pr-3
+                  ${sel
+                    ? "bg-gradient-to-r from-indigo-500/10 via-indigo-500/5 to-transparent dark:from-indigo-400/20 dark:via-indigo-400/10 font-medium"
+                    : findHit
+                      ? "bg-yellow-300/10 hover:bg-yellow-300/20 dark:bg-yellow-200/5 dark:hover:bg-yellow-200/15"
+                      : "hover:bg-ink-50 dark:hover:bg-ink-400/20"}
                   border-b border-ink-100/70 dark:border-ink-400/20`}
               >
+                {/* Indicator gutter cell — match dot + selection crosshair. */}
+                <div class="h-full grid grid-cols-[6px_13px] items-center justify-center gap-2.5 pl-2.5 pr-1">
+                  <span class="grid place-items-center">
+                    <Show
+                      when={findHit}
+                      fallback={
+                        <span class="h-1.5 w-1.5 rounded-full bg-ink-200/40 dark:bg-ink-200/50" />
+                      }
+                    >
+                      <span class="relative grid place-items-center h-1.5 w-1.5" title={t("findAll.matchBadge")}>
+                        <span class="absolute inset-0 rounded-full bg-yellow-400/60 animate-ping" />
+                        <span class="relative h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                      </span>
+                    </Show>
+                  </span>
+                  <span class="grid place-items-center">
+                    <Show when={sel}>
+                      <span class="text-indigo-500 dark:text-indigo-300" title={t("list.selectedRow")}>
+                        <Crosshair size={13} stroke-width={2.25} />
+                      </span>
+                    </Show>
+                  </span>
+                </div>
                 <For each={visibleCols()}>{(c) => renderCell(f, c.id)}</For>
               </div>
             );
@@ -393,17 +494,29 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
       {rows().length === 0 && (
           <div class="absolute inset-0 top-9 flex items-center justify-center px-6 text-center pointer-events-none select-none">
             <div class="flex flex-col items-center justify-center gap-5 max-w-sm">
-              <div class="relative w-24 h-24 flex items-center justify-center">
-                <span class="absolute w-20 h-20 rounded-full bg-toucan-400/10 animate-ping" />
-                <span class="absolute w-16 h-16 rounded-full bg-toucan-400/15" />
-                <Radio size={36} class="relative text-toucan-400" stroke-width={1.75} />
-              </div>
+              <Show
+                when={flowsStore.status().running}
+                fallback={
+                  <div class="relative w-24 h-24 flex items-center justify-center">
+                    <span class="absolute w-16 h-16 rounded-full bg-ink-200/20 dark:bg-ink-300/15" />
+                    <WifiOff size={36} class="relative text-ink-300 dark:text-ink-200/70" stroke-width={1.75} />
+                  </div>
+                }
+              >
+                <div class="relative w-24 h-24 flex items-center justify-center">
+                  <span class="absolute w-20 h-20 rounded-full bg-toucan-400/10 animate-ping" />
+                  <span class="absolute w-16 h-16 rounded-full bg-toucan-400/15" />
+                  <Radio size={36} class="relative text-toucan-400" stroke-width={1.75} />
+                </div>
+              </Show>
               <div class="flex flex-col items-center gap-1">
-                <div class="text-base font-semibold text-ink-500 dark:text-ink-50">
-                  {t("list.emptyTitle")}
+                <div class={`text-base font-semibold ${flowsStore.status().running ? "text-ink-500 dark:text-ink-50" : "text-ink-400 dark:text-ink-200/80"}`}>
+                  {flowsStore.status().running ? t("list.emptyTitle") : t("list.emptyTitleOff")}
                 </div>
                 <div class="text-xs opacity-60 leading-relaxed">
-                  {t("list.empty", { port: flowsStore.status().port })}
+                  {flowsStore.status().running
+                    ? t("list.empty", { port: flowsStore.status().port })
+                    : t("list.emptyOff")}
                 </div>
               </div>
             </div>

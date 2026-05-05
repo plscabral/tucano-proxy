@@ -10,6 +10,8 @@ import Settings from "./components/Settings";
 import Splitter from "./components/Splitter";
 import Onboarding, { shouldShowOnboarding } from "./components/Onboarding";
 import CompareView from "./components/CompareView";
+import FindAllBar from "./components/FindAllBar";
+import { findAllStore } from "./stores/findAll";
 import { flowsStore } from "./stores/flows";
 import { marksStore, MARK_COLORS } from "./stores/marks";
 import { ipc, onFlowNew, onFlowUpdate } from "./lib/ipc";
@@ -136,6 +138,17 @@ export default function App() {
       if (e.key === "Escape") setSettingsOpen(false);
       return;
     }
+    // Find All is global — fires from anywhere (grid, inspector, find bars).
+    // Handled before the in-inspector early return so Cmd+Shift+F works
+    // regardless of where focus currently is.
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      findAllStore.setOpen(true);
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLInputElement>("[data-findall-input]")?.focus();
+      });
+      return;
+    }
     // The Inspector pane owns its own keystrokes — CodeMirror search,
     // Cmd+A inside source/JSON, etc. Never apply global shortcuts when
     // either the event target OR the currently focused element is inside
@@ -220,7 +233,9 @@ export default function App() {
       const p = await open({ multiple: false, filters: [{ name: "Tucano", extensions: ["tucano"] }] });
       if (p && typeof p === "string") { await ipc.openSession(p); flowsStore.setFlows(await ipc.listFlows()); }
     } else if (e.key === "Escape") {
-      if (settingsOpen()) setSettingsOpen(false);
+      if (settingsOpen()) { setSettingsOpen(false); return; }
+      if (selected()) { e.preventDefault(); flowsStore.clearSelection(); return; }
+      if (findAllStore.open()) findAllStore.close();
     } else if (!inField && e.key === " ") {
       e.preventDefault();
       const s = flowsStore.status();
@@ -301,6 +316,7 @@ export default function App() {
       <CategoryTabs />
       <FilterBar />
       <FlowToolbar count={filtered().length} flows={filtered} onCompare={openCompare} />
+      <FindAllBar />
 
       <Show when={layoutStore.pos() === "right"}>
         <div ref={splitRef} class="flex-1 flex overflow-hidden">

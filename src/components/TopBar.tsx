@@ -1,4 +1,5 @@
-import { Sun, Moon, Monitor, Settings as Cog, Play, Pause } from "lucide-solid";
+import { Sun, Moon, Monitor, Settings as Cog, Play, Pause, Loader2 } from "lucide-solid";
+import { createSignal } from "solid-js";
 import { flowsStore } from "../stores/flows";
 import { ipc } from "../lib/ipc";
 import { themeMode, toggleTheme } from "../stores/theme";
@@ -9,14 +10,20 @@ async function refresh() { flowsStore.setStatus(await ipc.status()); }
 
 export default function TopBar(props: { onOpenSettings: () => void }) {
   const s = flowsStore.status;
-  const start = async () => { await ipc.startCapture(s().port); await refresh(); };
-  const stop = async () => { await ipc.stopCapture(); await refresh(); };
+  const [busy, setBusy] = createSignal(false);
   const toggle = async (e: MouseEvent) => {
     // Drop focus so a follow-up Space key doesn't double-toggle (the
     // browser would re-fire click on the focused button AND the global
     // Space shortcut would also run).
     (e.currentTarget as HTMLButtonElement)?.blur();
-    if (s().running) await stop(); else await start();
+    if (busy()) return;
+    setBusy(true);
+    try {
+      if (s().running) await ipc.stopCapture(); else await ipc.startCapture(s().port);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
   };
 
   // Inline JSX expression so Solid re-evaluates the icon when `themeMode()`
@@ -39,31 +46,32 @@ export default function TopBar(props: { onOpenSettings: () => void }) {
 
       <button
         onClick={toggle}
-        title={s().running ? t("topbar.stopTitle") : t("topbar.startTitle")}
-        class={`h-9 pl-2.5 pr-4 rounded-full flex items-center gap-2 text-xs font-medium transition border
-          ${s().running
-            ? "border-red-500/50 bg-red-500/10 text-red-500 hover:bg-red-500/15"
-            : "border-emerald-500/50 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/15"}`}
+        disabled={busy()}
+        title={busy()
+          ? t("topbar.busyTitle")
+          : s().running ? t("topbar.stopTitle") : t("topbar.startTitle")}
+        class={`h-9 w-9 grid place-items-center rounded-xl transition hover:bg-ink-50 dark:hover:bg-ink-400/20
+          ${busy() ? "opacity-60 cursor-not-allowed" : ""}
+          ${s().running ? "text-red-500" : "text-emerald-500"}`}
       >
-        {s().running
-          ? <Pause size={13} fill="currentColor" />
-          : <Play size={13} fill="currentColor" />}
-        {s().running ? t("topbar.capturing") : t("topbar.capture")}
+        {busy()
+          ? <Loader2 size={15} class="animate-spin" />
+          : s().running
+            ? <Pause size={15} fill="currentColor" />
+            : <Play size={15} fill="currentColor" />}
       </button>
-
-      <div class="w-px h-5 bg-ink-100 dark:bg-ink-400/30 mx-0.5" />
-
-      <button
-        onClick={props.onOpenSettings}
-        class="h-9 w-9 grid place-items-center rounded-xl opacity-70 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-ink-400/20 transition"
-        title={t("topbar.settings")}
-      ><Cog size={15} /></button>
 
       <button
         onClick={toggleTheme}
         class="h-9 w-9 grid place-items-center rounded-xl opacity-70 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-ink-400/20 transition"
         title={t("topbar.toggleTheme")}
       >{themeIcon()}</button>
+
+      <button
+        onClick={props.onOpenSettings}
+        class="h-9 w-9 grid place-items-center rounded-xl opacity-70 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-ink-400/20 transition"
+        title={t("topbar.settings")}
+      ><Cog size={15} /></button>
     </header>
   );
 }

@@ -42,7 +42,7 @@ export function useFindShell(opts?: { placeholder?: string }) {
   const onMouseLeave = () => { hovered = false; };
 
   const onWindowKey = (e: KeyboardEvent) => {
-    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "f") return;
+    if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.key.toLowerCase() !== "f") return;
     if (!rootEl) return;
     const ae = document.activeElement as Node | null;
     const target = e.target as Node | null;
@@ -55,6 +55,19 @@ export function useFindShell(opts?: { placeholder?: string }) {
   };
   onMount(() => window.addEventListener("keydown", onWindowKey, true));
   onCleanup(() => window.removeEventListener("keydown", onWindowKey, true));
+
+  // Cross-component handoff from the global Find All bar: when the user
+  // opens a captured row from a Find All match, every mounted body viewer
+  // pre-fills its FindBar with the same query so the first hit is visible.
+  const onFindAll = (e: Event) => {
+    const q = (e as CustomEvent<{ query: string }>).detail?.query ?? "";
+    if (!q) return;
+    setOpen(true);
+    setQuery(q);
+    controller?.setQuery(q);
+  };
+  onMount(() => window.addEventListener("tucano:findAll", onFindAll));
+  onCleanup(() => window.removeEventListener("tucano:findAll", onFindAll));
 
   const FindRow = () => (
     <FindBar
