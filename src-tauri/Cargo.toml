@@ -2,7 +2,9 @@
 name = "tucano"
 version = "0.1.6"
 description = "Tucano — open source HTTP/HTTPS debugging proxy"
-authors = ["Tucano Contributors"]
+authors = ["Paulo Cabral"]
+license = "MIT"
+repository = "https://github.com/plscabral/tucano-proxy"
 edition = "2021"
 
 [lib]

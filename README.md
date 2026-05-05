@@ -5,18 +5,37 @@ Free alternative to Fiddler Classic / Proxyman, running natively on macOS (Apple
 
 ![logo](src/assets/logo.png)
 
-## Features (v0.1)
+## Features
+
+**Capture & inspection**
 
 - MITM proxy on `127.0.0.1:8888` (configurable) — HTTP, HTTPS, WebSocket
 - Self-generated root CA with one-click install into the OS trust store
 - One-click toggle of the system proxy (macOS `networksetup`, Windows registry)
+- Per-host SSL allowlist / blocklist (skip MITM on hosts you don't own)
 - Virtualized flow list — handles tens of thousands of captures
-- Inspector with auto-detected viewers: JSON tree, XML, HTML, Raw, Hex, Image
-- Filter DSL: `host:api.foo.com status:>=400 method:POST`
-- Save/load capture sessions as `.tucano` (SQLite)
-- Dark / Light theme — palette `#0C142E` ink, `#F99245` toucan accent
+- Inspector with auto-detected viewers: JSON tree, XML, HTML, Raw, Hex, Image, Form (urlencoded / multipart)
+- Headers, timing, and response/request bodies side-by-side
+- Customizable columns: drag to reorder, drag the right edge to resize, **double-click to auto-fit**
 
-Roadmap: Composer/replay, breakpoints, AutoResponder, WebSocket frames, HAR/cURL export, gRPC, scripting.
+**Workflow**
+
+- Filter DSL: `host:api.foo.com status:>=400 method:POST` with multi-rule AND
+- Category tabs: HTTP, HTTPS, WebSocket, JSON, Form, XML, JS, CSS, GraphQL, Document, Media, Other
+- **Compare** any two captures with header / body diff (`⌘D`)
+- **Find All** across all captured flows — URL, body, notes — with live highlight (`⌘⇧F`)
+- Color marks per capture (`⌘0`–`⌘6`) and inline notes per capture (`M`)
+- Save / load capture sessions as `.tucano` (SQLite, portable)
+- Export selected flows as cURL (bash / cmd), PowerShell, JS `fetch`, Python `requests`, HTTPie, raw HTTP/1.1, or HAR 1.2
+
+**App**
+
+- Dark / Light theme — palette `#0C142E` ink, `#F99245` toucan accent
+- Localized in English, Português (BR/PT) and Español
+- Inspector layout: right pane, bottom pane, or hidden
+- In-app auto-updater (signed releases via GitHub)
+
+**Roadmap** — Composer / replay, breakpoints, AutoResponder, WebSocket frame inspector, gRPC, scripting.
 
 ## Downloads
 
@@ -71,11 +90,40 @@ pnpm tauri build --target x86_64-pc-windows-msvc
 
 ## How it works
 
-1. Click **Start** — Tucano binds a hyper-based MITM proxy on `127.0.0.1:8888`.
-2. Click **Install CA** — your OS trusts the Tucano root, so HTTPS interception works without browser warnings.
-3. Click **System proxy** — Tucano flips the OS-level proxy so all traffic flows through it (and reverts on quit).
-4. Browse / hit your APIs — flows stream into the list in real time. Click any to inspect headers, body (JSON/XML/HTML/raw/hex/image), and timing.
+1. Hit the **Play** button in the toolbar (or press <kbd>Space</kbd>) — Tucano binds a hudsucker MITM proxy on `127.0.0.1:8888`.
+2. Open **Settings → Certificate → Install CA** — your OS trusts the Tucano root, so HTTPS interception works without browser warnings.
+3. Toggle **System proxy** in the status bar — Tucano flips the OS-level proxy so all traffic flows through it (and reverts on quit).
+4. Browse / hit your APIs — flows stream into the list in real time. Click any to inspect headers, body (JSON / XML / HTML / Form / Raw / Hex / Image) and timing.
+
+## Shortcuts
+
+| Action | Shortcut |
+|---|---|
+| Start / stop capture | <kbd>Space</kbd> |
+| Focus / add filter | <kbd>⌘</kbd> <kbd>K</kbd> |
+| Remove last filter | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>K</kbd> |
+| Search inside body | <kbd>⌘</kbd> <kbd>F</kbd> |
+| Find All across captures | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>F</kbd> |
+| Compare two selected captures | <kbd>⌘</kbd> <kbd>D</kbd> |
+| Save / open session | <kbd>⌘</kbd> <kbd>S</kbd> / <kbd>⌘</kbd> <kbd>O</kbd> |
+| Clear all flows | <kbd>⌘</kbd> <kbd>L</kbd> |
+| Select all visible | <kbd>⌘</kbd> <kbd>A</kbd> |
+| Mark with color | <kbd>⌘</kbd> <kbd>0</kbd>–<kbd>⌘</kbd> <kbd>6</kbd> |
+| Add / edit note | <kbd>M</kbd> |
+| Delete selected | <kbd>Delete</kbd> / <kbd>Backspace</kbd> |
+| Switch category tab | <kbd>1</kbd>–<kbd>9</kbd> |
+| Settings | <kbd>⌘</kbd> <kbd>,</kbd> |
+| Close inspector / Find All | <kbd>Esc</kbd> |
+
+Use <kbd>Ctrl</kbd> in place of <kbd>⌘</kbd> on Linux / Windows. The full list lives under **Settings → Keyboard shortcuts**.
+
+## Author
+
+Created and maintained by **[Paulo Cabral](https://github.com/plscabral)**.
+
+If you fork, build on, or redistribute Tucano Proxy, please keep the copyright
+notice in `LICENSE` intact — it's the only thing the MIT license asks of you.
 
 ## License
 
-MIT.
+[MIT](./LICENSE) © 2026 Paulo Cabral.

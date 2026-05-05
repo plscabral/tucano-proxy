@@ -3,6 +3,17 @@
   "version": "0.1.6",
   "private": true,
   "type": "module",
+  "description": "Open source HTTP/HTTPS debugging proxy — desktop app built with Tauri 2 + SolidJS.",
+  "author": "Paulo Cabral",
+  "license": "MIT",
+  "homepage": "https://github.com/plscabral/tucano-proxy",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/plscabral/tucano-proxy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/plscabral/tucano-proxy/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
