@@ -72,6 +72,11 @@ const PINNED_HOSTS: &[&str] = &[
     "*.googleapis.com",
     "*.google.com",
     "*.gstatic.com",
+    // OpenAI / ChatGPT
+    "*.openai.com",
+    "*.chatgpt.com",
+    "*.oaiusercontent.com",
+    "*.oaidynamic.com",
     // Misc known-pinned
     "*.twitter.com",
     "*.x.com",
