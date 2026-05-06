@@ -130,18 +130,20 @@ mod macos {
 #[cfg(target_os = "windows")]
 mod windows {
     use std::process::Command;
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
     pub fn set(on: bool, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let key = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings";
         if on {
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "1", "/f"]).status();
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyServer", "/t", "REG_SZ", "/d", &format!("127.0.0.1:{}", port), "/f"]).status();
+            let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "1", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
+            let _ = Command::new("reg").args(["add", key, "/v", "ProxyServer", "/t", "REG_SZ", "/d", &format!("127.0.0.1:{}", port), "/f"]).creation_flags(CREATE_NO_WINDOW).status();
             // Force everything through the proxy, including localhost — Windows
             // by default bypasses <local>, which would hide dev/local traffic.
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "", "/f"]).status();
+            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
         } else {
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f"]).status();
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "<local>", "/f"]).status();
+            let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
+            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "<local>", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
         }
         Ok(())
     }

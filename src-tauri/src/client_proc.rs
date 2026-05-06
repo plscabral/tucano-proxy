@@ -285,6 +285,8 @@ mod macos {
 #[cfg(target_os = "windows")]
 mod windows {
     use super::*;
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     pub fn resolve(port: u16) -> ClientInfo {
         let Some(pid) = pid_for_port(port) else { return ClientInfo::default() };
         let name = process_name(pid);
@@ -296,7 +298,7 @@ mod windows {
         // Columns: Proto, LocalAddr:Port, RemoteAddr:Port, State, PID.
         // We want the row whose LOCAL port equals `port` (the client side),
         // not the row whose remote port matches (server side = us).
-        let netstat = Command::new("netstat").args(["-ano", "-p", "TCP"]).output().ok()?;
+        let netstat = Command::new("netstat").args(["-ano", "-p", "TCP"]).creation_flags(CREATE_NO_WINDOW).output().ok()?;
         let s = String::from_utf8_lossy(&netstat.stdout);
         let our_pid = std::process::id();
         let port_suffix = format!(":{port}");
@@ -314,7 +316,7 @@ mod windows {
         None
     }
     fn process_name(pid: u32) -> Option<String> {
-        let out = Command::new("tasklist").args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"]).output().ok()?;
+        let out = Command::new("tasklist").args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"]).creation_flags(CREATE_NO_WINDOW).output().ok()?;
         let s = String::from_utf8_lossy(&out.stdout);
         s.lines().next().and_then(|l| {
             let parts: Vec<&str> = l.split(',').collect();
