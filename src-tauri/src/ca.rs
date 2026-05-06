@@ -93,8 +93,11 @@ impl CertAuthority {
         }
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             let status = std::process::Command::new("certutil")
                 .args(["-user", "-delstore", "ROOT", "Tucano Root CA"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .status()?;
             if !status.success() { return Err("certutil -delstore failed".into()); }
         }
@@ -150,8 +153,11 @@ impl CertAuthority {
         }
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             std::process::Command::new("certutil")
                 .args(["-user", "-store", "ROOT", "Tucano Root CA"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output()
                 .map(|o| o.status.success())
                 .unwrap_or(false)

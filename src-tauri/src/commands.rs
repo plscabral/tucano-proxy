@@ -83,11 +83,13 @@ pub async fn start_capture(state: tauri::State<'_, Arc<AppState>>, port: u16) ->
         });
     }
     // Flip the OS proxy so traffic actually reaches us.
+    // system_proxy::set() spawns child processes (networksetup, reg) — run it
+    // in a blocking thread so the tokio runtime stays responsive.
     let active_port = state.port.load(Ordering::SeqCst);
-    if let Err(e) = system_proxy::set(true, active_port) {
-        tracing::error!("system_proxy set failed: {e}");
-        return Err(format!("system proxy: {e}"));
-    }
+    tokio::task::spawn_blocking(move || system_proxy::set(true, active_port))
+        .await
+        .map_err(|e| format!("spawn_blocking: {e}"))?
+        .map_err(|e| { tracing::error!("system_proxy set failed: {e}"); format!("system proxy: {e}") })?;
     state.system_proxy_on.store(true, Ordering::SeqCst);
     Ok(())
 }
@@ -95,10 +97,14 @@ pub async fn start_capture(state: tauri::State<'_, Arc<AppState>>, port: u16) ->
 /// Atomic "Stop capturing": tears down the OS proxy first (so the user's
 /// internet is restored immediately) and then stops the local server.
 #[tauri::command]
-pub fn stop_capture(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+pub async fn stop_capture(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
     let port = state.port.load(Ordering::SeqCst);
     if state.system_proxy_on.load(Ordering::SeqCst) {
-        let _ = system_proxy::set(false, port);
+        // system_proxy::set() spawns child processes — run off the async executor.
+        tokio::task::spawn_blocking(move || system_proxy::set(false, port))
+            .await
+            .map_err(|e| format!("spawn_blocking: {e}"))?
+            .map_err(|e| format!("system proxy: {e}"))?;
         state.system_proxy_on.store(false, Ordering::SeqCst);
     }
     if let Some(tx) = state.stop_tx.lock().take() { let _ = tx.send(()); }
