@@ -10,12 +10,10 @@ import { sortStore } from "../stores/sort";
 import { noteStore } from "../stores/note";
 import { findAllStore } from "../stores/findAll";
 import { t } from "../lib/i18n";
-import { hostOnly, matchesPattern } from "../lib/sslHelper";
-import { sslStore } from "../stores/ssl";
 import {
   ArrowUp, ArrowDown, AppWindow, Radio, WifiOff, ChevronRight, StickyNote, GripVertical,
   FileText, Film, Music, Database, Plug, FileType, Network, Braces, Type, FileCode2,
-  GitCompareArrows, Crosshair, ShieldCheck,
+  GitCompareArrows, Crosshair,
 } from "lucide-solid";
 import {
   SiJavascript, SiCss, SiHtml5, SiGraphql,
@@ -162,7 +160,7 @@ function renderCell(f: Flow, id: ColId) {
 
 type Ctx = { id: string; x: number; y: number };
 
-export default function FlowList(props: { flows: Flow[]; onCompare?: () => void; onOpen?: (id: string) => void; onSslList?: (domain?: string) => void }) {
+export default function FlowList(props: { flows: Flow[]; onCompare?: () => void; onOpen?: (id: string) => void }) {
   let parentRef!: HTMLDivElement;
   const rows = createMemo(() => props.flows);
   const [ctx, setCtx] = createSignal<Ctx | null>(null);
@@ -256,17 +254,6 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
     return c ? rows().find((f) => f.id === c.id) ?? null : null;
   };
 
-  const ctxFlowHasSsl = () => {
-    const f = ctxFlow();
-    if (!f || f.scheme !== "https") return false;
-    return sslStore.settings().hosts.some((p) => matchesPattern(p, hostOnly(f.host)));
-  };
-  const disableSslForCtxFlow = async () => {
-    const f = ctxFlow();
-    if (!f) return;
-    await sslStore.disableHost(f.host);
-    closeCtx();
-  };
 
   const fullUrlOf = (f: Flow) => {
     const def = (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80);
@@ -512,13 +499,7 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                       </span>
                     </Show>
                   </span>
-                  <span class="grid place-items-center">
-                    <Show when={f.scheme === "https" && sslStore.settings().hosts.some((p) => matchesPattern(p, hostOnly(f.host)))}>
-                      <span class="text-emerald-400/70" title="SSL interception active">
-                        <ShieldCheck size={11} />
-                      </span>
-                    </Show>
-                  </span>
+                  <span class="grid place-items-center"></span>
                 </div>
                 <For each={visibleCols()}>{(c) => renderCell(f, c.id)}</For>
               </div>
@@ -576,22 +557,6 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                 class="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-toucan-400/10 hover:text-toucan-400"
               >
                 <span>Open</span><span class="opacity-50 mono text-[10px]">↵</span>
-              </button>
-            </Show>
-            <Show when={ctxFlow()?.method === "CONNECT" && props.onSslList}>
-              <button
-                onClick={() => { const f = ctxFlow(); props.onSslList?.(f?.host.replace(/:\d+$/, "")); closeCtx(); }}
-                class="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-toucan-400/10 hover:text-toucan-400"
-              >
-                Enable SSL Proxying
-              </button>
-            </Show>
-            <Show when={ctxFlowHasSsl()}>
-              <button
-                onClick={disableSslForCtxFlow}
-                class="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-red-500/10 hover:text-red-400"
-              >
-                Disable SSL Proxying
               </button>
             </Show>
             <button onClick={deleteSelected}

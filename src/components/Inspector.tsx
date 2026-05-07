@@ -1,5 +1,5 @@
 import { createMemo, createSignal, Show } from "solid-js";
-import { Copy, Check, ChevronDown, ChevronUp, Clock, Maximize2, Minimize2, EyeOff, X, RotateCcw, Send, ShieldOff, ShieldCheck, ShieldX } from "lucide-solid";
+import { Copy, Check, ChevronDown, ChevronUp, Clock, Maximize2, Minimize2, EyeOff, X, RotateCcw, Send } from "lucide-solid";
 import type { Flow } from "../lib/types";
 import HeadersView from "./HeadersView";
 import BodyView from "./BodyView";
@@ -8,8 +8,6 @@ import RawView from "./RawView";
 import { buildRawRequest, buildRawResponse } from "../lib/rawHttp";
 import { ipc } from "../lib/ipc";
 import { t } from "../lib/i18n";
-import { isHostTunneled, hostOnly } from "../lib/sslHelper";
-import { sslStore } from "../stores/ssl";
 
 type SubTab = "headers" | "body" | "raw";
 type Focus = "both" | "req" | "res";
@@ -40,7 +38,7 @@ function buildFullUrl(f: Flow): string {
   return `${f.scheme}://${f.host}${def ? "" : ":" + f.port}${f.path}`;
 }
 
-export default function Inspector(props: { flow: Flow | null; onClose?: () => void; onComposer?: (flow: Flow) => void; onSslList?: (domain?: string) => void }) {
+export default function Inspector(props: { flow: Flow | null; onClose?: () => void; onComposer?: (flow: Flow) => void }) {
   const [reqTab, setReqTab] = createSignal<SubTab>("headers");
   const [resTab, setResTab] = createSignal<SubTab>("body");
   const [showTiming, setShowTiming] = createSignal(false);
@@ -49,41 +47,6 @@ export default function Inspector(props: { flow: Flow | null; onClose?: () => vo
   const [urlCopied, setUrlCopied] = createSignal(false);
   const [replaying, setReplaying] = createSignal(false);
 
-  const tunneled = createMemo(() => {
-    if (!props.flow) return false;
-    const { mode, hosts, skipHosts } = sslStore.settings();
-    return isHostTunneled(props.flow.host, mode, hosts, skipHosts);
-  });
-
-  const [sslToast, setSslToast] = createSignal<string | null>(null);
-  let sslToastTimer: ReturnType<typeof setTimeout>;
-  const showSslToast = (msg: string) => {
-    clearTimeout(sslToastTimer);
-    setSslToast(msg);
-    sslToastTimer = setTimeout(() => setSslToast(null), 6000);
-  };
-
-  const [enabling, setEnabling] = createSignal(false);
-  const enableHost = async () => {
-    if (!props.flow || enabling()) return;
-    setEnabling(true);
-    try {
-      await sslStore.enableHost(props.flow.host);
-      showSslToast(`SSL enabled for ${hostOnly(props.flow.host)} — flush socket pools in chrome://net-internals/#sockets then reload`);
-    } catch (e) { console.error(e); }
-    finally { setEnabling(false); }
-  };
-
-  const [disabling, setDisabling] = createSignal(false);
-  const disableHost = async () => {
-    if (!props.flow || disabling()) return;
-    setDisabling(true);
-    try {
-      await sslStore.disableHost(props.flow.host);
-      showSslToast(`SSL disabled for ${hostOnly(props.flow.host)} — flush socket pools in chrome://net-internals/#sockets then reload`);
-    } catch (e) { console.error(e); }
-    finally { setDisabling(false); }
-  };
 
   const fullUrl = createMemo(() => (props.flow ? buildFullUrl(props.flow) : ""));
 
@@ -106,11 +69,6 @@ export default function Inspector(props: { flow: Flow | null; onClose?: () => vo
 
   return (
     <div data-inspector="true" class="h-full flex flex-col relative">
-      <Show when={sslToast()}>
-        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-ink-800/95 dark:bg-ink-900/95 text-white text-[11px] shadow-xl max-w-[360px] text-center leading-relaxed pointer-events-none">
-          {sslToast()}
-        </div>
-      </Show>
       <Show when={props.flow} fallback={
         <div class="h-full grid place-items-center opacity-50 text-sm">{t("ins.placeholder")}</div>
       }>
@@ -141,24 +99,6 @@ export default function Inspector(props: { flow: Flow | null; onClose?: () => vo
                   >
                     <Send size={11} /> Composer
                   </button>
-                </Show>
-                <Show when={f().scheme === "https"}>
-                  <Show
-                    when={!tunneled()}
-                    fallback={
-                      <button onClick={enableHost} disabled={enabling()}
-                        title={`Enable SSL for ${hostOnly(f().host)}`}
-                        class="h-7 px-2 rounded-lg text-[11px] flex items-center gap-1 transition shrink-0 opacity-50 hover:opacity-100 hover:text-emerald-400 disabled:opacity-30">
-                        <ShieldCheck size={11} class="opacity-60" /> SSL
-                      </button>
-                    }
-                  >
-                    <button onClick={disableHost} disabled={disabling()}
-                      title={`Disable SSL for ${hostOnly(f().host)}`}
-                      class="h-7 px-2 rounded-lg text-[11px] flex items-center gap-1 transition shrink-0 text-emerald-400 hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30">
-                      <ShieldX size={11} /> SSL
-                    </button>
-                  </Show>
                 </Show>
                 <button
                   onClick={() => setShowTiming((v) => !v)}
@@ -245,53 +185,21 @@ export default function Inspector(props: { flow: Flow | null; onClose?: () => vo
                   </Pane>
                 </Show>
                 <Show when={focus() !== "req"}>
-                  <Show
-                    when={!tunneled()}
-                    fallback={
-                      <div class="flex-1 flex flex-col items-center justify-center gap-4 bg-ink-50/40 dark:bg-ink-600 px-6 text-center">
-                        <ShieldOff size={28} class="opacity-30" />
-                        <div>
-                          <div class="text-sm font-medium opacity-70 mb-1">HTTPS traffic is tunneled</div>
-                          <div class="text-xs opacity-40 leading-relaxed">
-                            This host is not being intercepted.<br />
-                            Enable SSL to inspect the content.
-                          </div>
-                        </div>
-                        <div class="flex flex-col gap-2 w-full max-w-[260px]">
-                          <button
-                            onClick={enableHost}
-                            disabled={enabling()}
-                            class="h-8 px-4 text-xs rounded-xl bg-toucan-400 text-ink-500 font-medium hover:bg-toucan-300 disabled:opacity-50 flex items-center justify-center gap-1.5 transition"
-                          >
-                            <ShieldCheck size={12} />
-                            {enabling() ? "Enabling…" : `Enable SSL for ${hostOnly(f().host)}`}
-                          </button>
-                          <button
-                            onClick={() => props.onSslList?.()}
-                            class="h-8 px-4 text-xs rounded-xl border border-ink-200 dark:border-ink-400/40 hover:bg-toucan-400/10 hover:text-toucan-400 hover:border-toucan-400/40 flex items-center justify-center gap-1.5 transition"
-                          >
-                            Manage SSL Proxying List…
-                          </button>
-                        </div>
-                      </div>
-                    }
+                  <Pane
+                    label="Response"
+                    accent="text-emerald-400"
+                    tab={resTab()}
+                    onTab={setResTab}
+                    focused={focus() === "res"}
+                    onToggleFocus={() => setFocus(focus() === "res" ? "both" : "res")}
+                    onHide={() => setFocus("req")}
                   >
-                    <Pane
-                      label="Response"
-                      accent="text-emerald-400"
-                      tab={resTab()}
-                      onTab={setResTab}
-                      focused={focus() === "res"}
-                      onToggleFocus={() => setFocus(focus() === "res" ? "both" : "res")}
-                      onHide={() => setFocus("req")}
-                    >
-                      {resTab() === "headers"
-                        ? <HeadersView headers={f().resHeaders} />
-                        : resTab() === "raw"
-                          ? <RawView text={buildRawResponse(f())} />
-                          : <BodyView body={f().resBody} encoding={f().resBodyEncoding} contentType={f().resContentType} />}
-                    </Pane>
-                  </Show>
+                    {resTab() === "headers"
+                      ? <HeadersView headers={f().resHeaders} />
+                      : resTab() === "raw"
+                        ? <RawView text={buildRawResponse(f())} />
+                        : <BodyView body={f().resBody} encoding={f().resBodyEncoding} contentType={f().resContentType} />}
+                  </Pane>
                 </Show>
               </div>
             </Show>

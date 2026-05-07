@@ -40,18 +40,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
     } catch {}
   });
 
-  const closeOnOutside = (ref: () => HTMLDivElement | undefined, setter: (v: boolean) => void) => {
-    createEffect(() => {
-      if (!openExport() && !openRemove() && !openKeep()) return;
-      const el = ref();
-      if (!el) return;
-      const onDown = (e: MouseEvent) => {
-        if (!el.contains(e.target as Node)) setter(false);
-      };
-      document.addEventListener("mousedown", onDown, true);
-      onCleanup(() => document.removeEventListener("mousedown", onDown, true));
-    });
-  };
+
   createEffect(() => {
     if (!openExport()) return;
     const onDown = (e: MouseEvent) => {
@@ -212,16 +201,24 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
     if (type === "all" && !confirm("Remove all captures?")) return;
     const ids = toRemove.map((f) => f.id);
     const snapshot = toRemove.slice();
-    await ipc.deleteFlows(ids);
-    flowsStore.removeMany(new Set(ids));
-    if (type === "all") marksStore.clear();
-    undoStore.push(snapshot);
+    try {
+      await ipc.deleteFlows(ids);
+      flowsStore.removeMany(new Set(ids));
+      if (type === "all") marksStore.clear();
+      undoStore.push(snapshot);
+    } catch (e) {
+      console.error("removeByType failed", e);
+    }
   };
 
   const setKeep = async (limit: number) => {
     setOpenKeep(false);
     prefsStore.setKeepLimit(limit);
-    await ipc.setKeepLimit(limit);
+    try {
+      await ipc.setKeepLimit(limit);
+    } catch (e) {
+      console.error("setKeepLimit failed", e);
+    }
   };
 
   const keepLabel = () => {
@@ -266,30 +263,29 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
        : "opacity-70 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20"}`;
 
   return (
-    <div class="h-11 flex items-stretch bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 relative">
-      <div class="flex-1 min-w-0 flex items-center gap-1 px-3 overflow-x-auto scroll-thin">
+    <div class="h-11 flex items-stretch bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30">
 
-      {/* ── Capture controls ─────────────────────────── */}
-      {/* Remove dropdown */}
-      <div class="relative shrink-0" ref={removeRef}>
+      {/* ── Remove & Keep: outside overflow container so dropdowns aren't clipped ── */}
+      <div class="relative shrink-0 flex items-center pl-3" ref={removeRef}>
         <button onClick={() => setOpenRemove(!openRemove())}
           class={`${tbBtn(openRemove())} hover:bg-red-500/10 hover:text-red-500`}>
           <Trash2 size={13} /> Remove <ChevronDown size={11} class="opacity-60" />
         </button>
         <Show when={openRemove()}>
-          <div class="absolute z-30 top-10 left-0 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl py-1 min-w-[220px] text-xs">
+          <div class="absolute z-30 top-10 left-0 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl py-1 min-w-[210px] text-xs">
             <button onClick={() => removeByType("all")}
               class="w-full px-3 py-1.5 text-left font-medium hover:bg-red-500/10 hover:text-red-500 transition">
               Remove all
             </button>
             <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
-            <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-40">By content type</div>
+            <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-40">By type</div>
             {([
               ["images",  "Images"],
-              ["scripts", "Scripts (.js)"],
-              ["css",     "Stylesheets (.css)"],
-              ["media",   "Media (video / audio)"],
+              ["scripts", "JavaScript"],
+              ["css",     "CSS"],
               ["fonts",   "Fonts"],
+              ["media",   "Media (video / audio)"],
+              ["connects","CONNECTs"],
             ] as [string, string][]).map(([type, label]) => (
               <button onClick={() => removeByType(type)}
                 class="w-full px-3 py-1.5 text-left hover:bg-red-500/10 hover:text-red-500 transition">
@@ -299,9 +295,9 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
             <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
             <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-40">By status</div>
             {([
+              ["non200", "Non-200s"],
               ["4xx",    "4xx Client errors"],
               ["5xx",    "5xx Server errors"],
-              ["non200", "Non-200s"],
             ] as [string, string][]).map(([type, label]) => (
               <button onClick={() => removeByType(type)}
                 class="w-full px-3 py-1.5 text-left hover:bg-red-500/10 hover:text-red-500 transition">
@@ -311,8 +307,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
             <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
             <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-40">Other</div>
             {([
-              ["connects",   "CONNECTs"],
-              ["nonbrowser", "Non-Browser traffic"],
+              ["nonbrowser", "Non-Browser"],
               ["unmarked",   "Complete & Unmarked"],
               ["dupes",      "Duplicate response bodies"],
             ] as [string, string][]).map(([type, label]) => (
@@ -325,8 +320,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
         </Show>
       </div>
 
-      {/* Keep dropdown */}
-      <div class="relative shrink-0" ref={keepRef}>
+      <div class="relative shrink-0 flex items-center" ref={keepRef}>
         <button onClick={() => setOpenKeep(!openKeep())}
           class={tbBtn(openKeep())}>
           <Layers size={13} /> Keep: {keepLabel()} <ChevronDown size={11} class="opacity-60" />
@@ -347,6 +341,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
         </Show>
       </div>
 
+      <div class="flex-1 min-w-0 flex items-center gap-1 px-3 overflow-x-auto scroll-thin">
       <Sep />
 
       {/* ── Selection actions ────────────────────────── */}

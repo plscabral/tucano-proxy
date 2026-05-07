@@ -12,7 +12,6 @@ import Onboarding, { shouldShowOnboarding } from "./components/Onboarding";
 import CompareView from "./components/CompareView";
 import FindAllBar from "./components/FindAllBar";
 import Composer from "./components/Composer";
-import SslProxyingList from "./components/SslProxyingList";
 import { findAllStore } from "./stores/findAll";
 import { flowsStore } from "./stores/flows";
 import { marksStore, MARK_COLORS } from "./stores/marks";
@@ -40,9 +39,6 @@ export default function App() {
   const [composerOpen, setComposerOpen] = createSignal(false);
   const [composerFlow, setComposerFlow] = createSignal<Flow | null>(null);
   const [openedFlowId, setOpenedFlowId] = createSignal<string | null>(null);
-  const [sslListDomain, setSslListDomain] = createSignal<string | undefined>(undefined);
-  const [sslListOpen, setSslListOpen] = createSignal(false);
-  const openSslList = (domain?: string) => { setSslListDomain(domain); setSslListOpen(true); };
 
   const openComposer = (flow?: Flow | null) => {
     setComposerFlow(flow ?? null);
@@ -334,13 +330,13 @@ export default function App() {
             style={{ width: (selected() || composerOpen()) ? `${layoutStore.rightPct()}%` : "100%" }}
             class="overflow-hidden border-r border-ink-100 dark:border-ink-400/40"
           >
-            <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} onSslList={openSslList} />
+            <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} />
           </div>
           <Show when={selected() || composerOpen()}>
             <Splitter orientation="vertical" containerRef={() => splitRef} onDrag={onDragRight} />
             <div class="flex-1 overflow-hidden min-w-0">
               <Show when={composerOpen()} fallback={
-                <Inspector flow={selected()} onClose={() => { setOpenedFlowId(null); flowsStore.clearSelection(); }} onComposer={openComposer} onSslList={openSslList} />
+                <Inspector flow={selected()} onClose={() => { setOpenedFlowId(null); flowsStore.clearSelection(); }} onComposer={openComposer} />
               }>
                 <Composer onClose={() => setComposerOpen(false)} initialFlow={composerFlow()} />
               </Show>
@@ -355,13 +351,13 @@ export default function App() {
             style={{ height: (selected() || composerOpen()) ? `${100 - layoutStore.bottomPct()}%` : "100%" }}
             class="overflow-hidden border-b border-ink-100 dark:border-ink-400/40"
           >
-            <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} onSslList={openSslList} />
+            <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} />
           </div>
           <Show when={selected() || composerOpen()}>
             <Splitter orientation="horizontal" containerRef={() => splitRef} onDrag={onDragBottom} />
             <div class="flex-1 overflow-hidden min-h-0">
               <Show when={composerOpen()} fallback={
-                <Inspector flow={selected()} onClose={() => { setOpenedFlowId(null); flowsStore.clearSelection(); }} onComposer={openComposer} onSslList={openSslList} />
+                <Inspector flow={selected()} onClose={() => { setOpenedFlowId(null); flowsStore.clearSelection(); }} onComposer={openComposer} />
               }>
                 <Composer onClose={() => setComposerOpen(false)} initialFlow={composerFlow()} />
               </Show>
@@ -372,7 +368,7 @@ export default function App() {
 
       <Show when={layoutStore.pos() === "hidden"}>
         <div class="flex-1 overflow-hidden">
-          <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} onSslList={openSslList} />
+          <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} />
         </div>
       </Show>
 
@@ -393,9 +389,7 @@ export default function App() {
           <CompareView a={pair().a} b={pair().b} onClose={() => setCompareOpen(false)} />
         )}
       </Show>
-      <Show when={sslListOpen()}>
-        <SslProxyingList initialDomain={sslListDomain()} onClose={() => setSslListOpen(false)} />
-      </Show>
+
     </div>
   );
 }
