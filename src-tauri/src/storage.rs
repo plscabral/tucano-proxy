@@ -99,6 +99,29 @@ impl Storage {
         Ok(())
     }
 
+    pub fn count(&self) -> usize {
+        self.conn.query_row("SELECT COUNT(*) FROM flows", [], |r| r.get::<_, i64>(0)).unwrap_or(0) as usize
+    }
+
+    /// Delete the oldest flows so at most `max` remain. Returns the deleted ids.
+    pub fn trim_to_limit(&mut self, max: usize) -> Vec<String> {
+        let total = self.count();
+        if total <= max { return vec![]; }
+        let to_delete = total - max;
+        let ids: Vec<String> = {
+            let mut s = match self.conn.prepare("SELECT id FROM flows ORDER BY idx ASC LIMIT ?1") {
+                Ok(s) => s,
+                Err(_) => return vec![],
+            };
+            s.query_map([to_delete as i64], |r| r.get(0))
+                .unwrap_or_else(|_| panic!("trim query failed"))
+                .filter_map(|r| r.ok())
+                .collect()
+        };
+        if !ids.is_empty() { let _ = self.delete_many(&ids); }
+        ids
+    }
+
     pub fn next_index(&self) -> i64 {
         self.conn
             .query_row("SELECT COALESCE(MAX(idx), 0) + 1 FROM flows", [], |r| r.get(0))

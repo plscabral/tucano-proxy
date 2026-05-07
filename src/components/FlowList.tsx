@@ -10,10 +10,12 @@ import { sortStore } from "../stores/sort";
 import { noteStore } from "../stores/note";
 import { findAllStore } from "../stores/findAll";
 import { t } from "../lib/i18n";
+import { hostOnly, matchesPattern } from "../lib/sslHelper";
+import { sslStore } from "../stores/ssl";
 import {
   ArrowUp, ArrowDown, AppWindow, Radio, WifiOff, ChevronRight, StickyNote, GripVertical,
   FileText, Film, Music, Database, Plug, FileType, Network, Braces, Type, FileCode2,
-  GitCompareArrows, Crosshair,
+  GitCompareArrows, Crosshair, ShieldCheck,
 } from "lucide-solid";
 import {
   SiJavascript, SiCss, SiHtml5, SiGraphql,
@@ -160,7 +162,7 @@ function renderCell(f: Flow, id: ColId) {
 
 type Ctx = { id: string; x: number; y: number };
 
-export default function FlowList(props: { flows: Flow[]; onCompare?: () => void }) {
+export default function FlowList(props: { flows: Flow[]; onCompare?: () => void; onOpen?: (id: string) => void; onSslList?: (domain?: string) => void }) {
   let parentRef!: HTMLDivElement;
   const rows = createMemo(() => props.flows);
   const [ctx, setCtx] = createSignal<Ctx | null>(null);
@@ -171,7 +173,7 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
   // Reserve a fixed-width gutter at the very start of the grid for the
   // selection / find-all indicators so they live in their own column
   // instead of pushing the data columns around when toggled.
-  const INDICATOR_W = 36;
+  const INDICATOR_W = 48;
   const gridTemplate = () => `${INDICATOR_W}px ${visibleCols().map((c) => `${c.width}px`).join(" ")}`;
   const totalWidth = () => visibleCols().reduce((s, c) => s + c.width, 0) + INDICATOR_W + 24;
 
@@ -182,25 +184,39 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
     overscan: 12,
   });
 
+  // Manual double-click detection: SolidJS re-renders on selectSingle() which
+  // can destroy the DOM node before the native dblclick fires on it. Track the
+  // last click id + timestamp ourselves so the second click always opens the
+  // inspector even after a re-render.
+  let lastClickId = "";
+  let lastClickTime = 0;
+  const DBL_CLICK_MS = 350;
+
   const onRowClick = (e: MouseEvent, id: string) => {
-    if (e.shiftKey) flowsStore.selectRange(id, rows());
-    else if (e.metaKey || e.ctrlKey) flowsStore.toggle(id);
-    else {
-      // Plain click toggles: clicking the already-open row closes the
-      // detail pane. Multi-select (Cmd/Shift) keeps its own semantics.
-      const sel = flowsStore.selectedIds();
-      if (sel.size === 1 && sel.has(id)) flowsStore.clearSelection();
-      else flowsStore.selectSingle(id);
-    }
-    // Forward the find-all query to the inspector's body finders so the
-    // first match is already highlighted when the row opens.
-    if (findAllStore.active() && findAllStore.isMatch(id)) {
-      const q = findAllStore.query();
-      requestAnimationFrame(() => {
-        window.dispatchEvent(new CustomEvent("tucano:findAll", { detail: { query: q } }));
-      });
+    if (e.shiftKey) { flowsStore.selectRange(id, rows()); return; }
+    if (e.metaKey || e.ctrlKey) { flowsStore.toggle(id); return; }
+
+    const now = Date.now();
+    if (id === lastClickId && now - lastClickTime < DBL_CLICK_MS) {
+      // Second click within threshold → open inspector
+      lastClickId = "";
+      lastClickTime = 0;
+      flowsStore.selectSingle(id);
+      props.onOpen?.(id);
+      if (findAllStore.active() && findAllStore.isMatch(id)) {
+        const q = findAllStore.query();
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new CustomEvent("tucano:findAll", { detail: { query: q } }));
+        });
+      }
+    } else {
+      lastClickId = id;
+      lastClickTime = now;
+      flowsStore.selectSingle(id);
     }
   };
+
+  const onRowDblClick = (_e: MouseEvent, _id: string) => { /* handled in onRowClick */ };
   const onContext = (e: MouseEvent, id: string) => {
     e.preventDefault();
     if (!flowsStore.isSelected(id)) flowsStore.selectSingle(id);
@@ -239,6 +255,19 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
     const c = ctx();
     return c ? rows().find((f) => f.id === c.id) ?? null : null;
   };
+
+  const ctxFlowHasSsl = () => {
+    const f = ctxFlow();
+    if (!f || f.scheme !== "https") return false;
+    return sslStore.settings().hosts.some((p) => matchesPattern(p, hostOnly(f.host)));
+  };
+  const disableSslForCtxFlow = async () => {
+    const f = ctxFlow();
+    if (!f) return;
+    await sslStore.disableHost(f.host);
+    closeCtx();
+  };
+
   const fullUrlOf = (f: Flow) => {
     const def = (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80);
     return `${f.scheme}://${f.host}${def ? "" : ":" + f.port}${f.path}`;
@@ -435,6 +464,7 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
             return (
               <div
                 onClick={(e) => onRowClick(e, f.id)}
+                onDblClick={(e) => onRowDblClick(e, f.id)}
                 onContextMenu={(e) => onContext(e, f.id)}
                 title={fullUrl}
                 style={{
@@ -460,8 +490,8 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
                       : "hover:bg-ink-50 dark:hover:bg-ink-400/20"}
                   border-b border-ink-100/70 dark:border-ink-400/20`}
               >
-                {/* Indicator gutter cell — match dot + selection crosshair. */}
-                <div class="h-full grid grid-cols-[6px_13px] items-center justify-center gap-2.5 pl-2.5 pr-1">
+                {/* Indicator gutter cell — dot + selection crosshair + SSL shield. */}
+                <div class="h-full grid grid-cols-[6px_13px_11px] items-center justify-center gap-2 pl-2.5 pr-1">
                   <span class="grid place-items-center">
                     <Show
                       when={findHit}
@@ -479,6 +509,13 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
                     <Show when={sel}>
                       <span class="text-indigo-500 dark:text-indigo-300" title={t("list.selectedRow")}>
                         <Crosshair size={13} stroke-width={2.25} />
+                      </span>
+                    </Show>
+                  </span>
+                  <span class="grid place-items-center">
+                    <Show when={f.scheme === "https" && sslStore.settings().hosts.some((p) => matchesPattern(p, hostOnly(f.host)))}>
+                      <span class="text-emerald-400/70" title="SSL interception active">
+                        <ShieldCheck size={11} />
                       </span>
                     </Show>
                   </span>
@@ -533,6 +570,30 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void 
             <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-50">
               {t("list.selected", { n: flowsStore.selectedIds().size })}
             </div>
+            <Show when={props.onOpen}>
+              <button
+                onClick={() => { props.onOpen?.(c().id); closeCtx(); }}
+                class="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-toucan-400/10 hover:text-toucan-400"
+              >
+                <span>Open</span><span class="opacity-50 mono text-[10px]">↵</span>
+              </button>
+            </Show>
+            <Show when={ctxFlow()?.method === "CONNECT" && props.onSslList}>
+              <button
+                onClick={() => { const f = ctxFlow(); props.onSslList?.(f?.host.replace(/:\d+$/, "")); closeCtx(); }}
+                class="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-toucan-400/10 hover:text-toucan-400"
+              >
+                Enable SSL Proxying
+              </button>
+            </Show>
+            <Show when={ctxFlowHasSsl()}>
+              <button
+                onClick={disableSslForCtxFlow}
+                class="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-red-500/10 hover:text-red-400"
+              >
+                Disable SSL Proxying
+              </button>
+            </Show>
             <button onClick={deleteSelected}
               class="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-red-500/10 hover:text-red-500">
               <span>{t("list.delete")}</span><span class="opacity-50 mono">⌫</span>

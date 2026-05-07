@@ -11,10 +11,13 @@ import Splitter from "./components/Splitter";
 import Onboarding, { shouldShowOnboarding } from "./components/Onboarding";
 import CompareView from "./components/CompareView";
 import FindAllBar from "./components/FindAllBar";
+import Composer from "./components/Composer";
+import SslProxyingList from "./components/SslProxyingList";
 import { findAllStore } from "./stores/findAll";
 import { flowsStore } from "./stores/flows";
 import { marksStore, MARK_COLORS } from "./stores/marks";
-import { ipc, onFlowNew, onFlowUpdate } from "./lib/ipc";
+import { ipc, onFlowNew, onFlowUpdate, onFlowsTrimmed } from "./lib/ipc";
+import type { Flow } from "./lib/types";
 import { applyRules } from "./lib/rules";
 import { rulesStore } from "./stores/rules";
 import { matchesCategory, CATEGORIES, type Category } from "./lib/category";
@@ -34,6 +37,17 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [onboardingOpen, setOnboardingOpen] = createSignal(shouldShowOnboarding());
   const [compareOpen, setCompareOpen] = createSignal(false);
+  const [composerOpen, setComposerOpen] = createSignal(false);
+  const [composerFlow, setComposerFlow] = createSignal<Flow | null>(null);
+  const [openedFlowId, setOpenedFlowId] = createSignal<string | null>(null);
+  const [sslListDomain, setSslListDomain] = createSignal<string | undefined>(undefined);
+  const [sslListOpen, setSslListOpen] = createSignal(false);
+  const openSslList = (domain?: string) => { setSslListDomain(domain); setSslListOpen(true); };
+
+  const openComposer = (flow?: Flow | null) => {
+    setComposerFlow(flow ?? null);
+    setComposerOpen(true);
+  };
 
   const compareFlows = createMemo(() => {
     const ids = Array.from(flowsStore.selectedIds());
@@ -128,6 +142,7 @@ export default function App() {
 
   const unNew = onFlowNew((f) => flowsStore.upsert(f));
   const unUp = onFlowUpdate((f) => flowsStore.upsert(f));
+  const unTrimmed = onFlowsTrimmed((ids) => flowsStore.removeMany(new Set(ids)));
 
   const onKey = async (e: KeyboardEvent) => {
     // When a modal is open, keep all keystrokes scoped to the dialog —
@@ -234,7 +249,7 @@ export default function App() {
       if (p && typeof p === "string") { await ipc.openSession(p); flowsStore.setFlows(await ipc.listFlows()); }
     } else if (e.key === "Escape") {
       if (settingsOpen()) { setSettingsOpen(false); return; }
-      if (selected()) { e.preventDefault(); flowsStore.clearSelection(); return; }
+      if (selected()) { e.preventDefault(); setOpenedFlowId(null); flowsStore.clearSelection(); return; }
       if (findAllStore.open()) findAllStore.close();
     } else if (!inField && e.key === " ") {
       e.preventDefault();
@@ -276,7 +291,7 @@ export default function App() {
 
   onCleanup(async () => {
     window.removeEventListener("keydown", onKey);
-    (await unNew)(); (await unUp)();
+    (await unNew)(); (await unUp)(); (await unTrimmed)();
   });
 
   const filtered = createMemo(() => {
@@ -287,12 +302,7 @@ export default function App() {
     return sortFlows(byRules, s.by, s.dir);
   });
   const selected = createMemo(() => {
-    // Inspector follows the anchor (last-clicked) flow so multi-select
-    // (Cmd+A, Shift-click) doesn't close the detail pane. Falls back to
-    // the single-selected id when no anchor is set.
-    const sel = flowsStore.selectedIds();
-    const anchor = flowsStore.anchorId();
-    const id = anchor && sel.has(anchor) ? anchor : flowsStore.selectedId();
+    const id = openedFlowId();
     return id ? flowsStore.flows().find((f) => f.id === id) ?? null : null;
   });
 
@@ -321,15 +331,19 @@ export default function App() {
       <Show when={layoutStore.pos() === "right"}>
         <div ref={splitRef} class="flex-1 flex overflow-hidden">
           <div
-            style={{ width: selected() ? `${layoutStore.rightPct()}%` : "100%" }}
+            style={{ width: (selected() || composerOpen()) ? `${layoutStore.rightPct()}%` : "100%" }}
             class="overflow-hidden border-r border-ink-100 dark:border-ink-400/40"
           >
-            <FlowList flows={filtered()} onCompare={openCompare} />
+            <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} onSslList={openSslList} />
           </div>
-          <Show when={selected()}>
+          <Show when={selected() || composerOpen()}>
             <Splitter orientation="vertical" containerRef={() => splitRef} onDrag={onDragRight} />
             <div class="flex-1 overflow-hidden min-w-0">
-              <Inspector flow={selected()} onClose={() => flowsStore.clearSelection()} />
+              <Show when={composerOpen()} fallback={
+                <Inspector flow={selected()} onClose={() => { setOpenedFlowId(null); flowsStore.clearSelection(); }} onComposer={openComposer} onSslList={openSslList} />
+              }>
+                <Composer onClose={() => setComposerOpen(false)} initialFlow={composerFlow()} />
+              </Show>
             </div>
           </Show>
         </div>
@@ -338,15 +352,19 @@ export default function App() {
       <Show when={layoutStore.pos() === "bottom"}>
         <div ref={splitRef} class="flex-1 flex flex-col overflow-hidden">
           <div
-            style={{ height: selected() ? `${100 - layoutStore.bottomPct()}%` : "100%" }}
+            style={{ height: (selected() || composerOpen()) ? `${100 - layoutStore.bottomPct()}%` : "100%" }}
             class="overflow-hidden border-b border-ink-100 dark:border-ink-400/40"
           >
-            <FlowList flows={filtered()} onCompare={openCompare} />
+            <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} onSslList={openSslList} />
           </div>
-          <Show when={selected()}>
+          <Show when={selected() || composerOpen()}>
             <Splitter orientation="horizontal" containerRef={() => splitRef} onDrag={onDragBottom} />
             <div class="flex-1 overflow-hidden min-h-0">
-              <Inspector flow={selected()} onClose={() => flowsStore.clearSelection()} />
+              <Show when={composerOpen()} fallback={
+                <Inspector flow={selected()} onClose={() => { setOpenedFlowId(null); flowsStore.clearSelection(); }} onComposer={openComposer} onSslList={openSslList} />
+              }>
+                <Composer onClose={() => setComposerOpen(false)} initialFlow={composerFlow()} />
+              </Show>
             </div>
           </Show>
         </div>
@@ -354,12 +372,19 @@ export default function App() {
 
       <Show when={layoutStore.pos() === "hidden"}>
         <div class="flex-1 overflow-hidden">
-          <FlowList flows={filtered()} onCompare={openCompare} />
+          <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} onSslList={openSslList} />
         </div>
       </Show>
 
       <StatusBar />
       <Settings open={settingsOpen()} onClose={() => setSettingsOpen(false)} />
+      <Show when={composerOpen() && layoutStore.pos() === "hidden"}>
+        <div class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm grid place-items-center" onClick={() => setComposerOpen(false)}>
+          <div class="w-[800px] max-w-[95vw] h-[600px] max-h-[90vh] rounded-2xl overflow-hidden border border-ink-100 dark:border-ink-400/40 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <Composer onClose={() => setComposerOpen(false)} initialFlow={composerFlow()} />
+          </div>
+        </div>
+      </Show>
       <Show when={onboardingOpen()}>
         <Onboarding onClose={() => setOnboardingOpen(false)} />
       </Show>
@@ -367,6 +392,9 @@ export default function App() {
         {(pair) => (
           <CompareView a={pair().a} b={pair().b} onClose={() => setCompareOpen(false)} />
         )}
+      </Show>
+      <Show when={sslListOpen()}>
+        <SslProxyingList initialDomain={sslListDomain()} onClose={() => setSslListOpen(false)} />
       </Show>
     </div>
   );

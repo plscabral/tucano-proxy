@@ -9,10 +9,14 @@ pub struct SslSettings {
     /// "blocklist" — decrypt every host except those matching `hosts`
     pub mode: String,
     pub hosts: Vec<String>,
+    /// Hosts that are always tunneled (never MITM-intercepted), independent of
+    /// `mode`. Appended at runtime to the hardcoded PINNED_HOSTS list.
+    #[serde(default)]
+    pub skip_hosts: Vec<String>,
 }
 
 impl Default for SslSettings {
-    fn default() -> Self { Self { mode: "all".into(), hosts: vec![] } }
+    fn default() -> Self { Self { mode: "all".into(), hosts: vec![], skip_hosts: vec![] } }
 }
 
 impl SslSettings {
@@ -46,6 +50,9 @@ impl SslSettings {
     /// `tls handshake eof` errors and broken functionality (e.g. WhatsApp media).
     pub fn should_intercept(&self, host: &str) -> bool {
         if PINNED_HOSTS.iter().any(|p| matches_host(p, host)) {
+            return false;
+        }
+        if self.skip_hosts.iter().any(|p| matches_host(p, host)) {
             return false;
         }
         self.should_capture(host)

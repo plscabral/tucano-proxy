@@ -20,18 +20,27 @@ export const ipc = {
   updateFlowNote: (id: string, note: string | null) => invoke<void>("update_flow_note", { id, note }),
   replay: (id: string, headers: [string, string][], body: string | null) =>
     invoke<string>("replay_flow", { id, headers, body }),
+  composeRequest: (args: {
+    method: string; url: string;
+    headers: [string, string][]; body: string | null; log: boolean;
+  }) => invoke<Flow>("compose_request", args),
   saveSession: (path: string, ids?: string[]) =>
     invoke<void>("save_session", { path, ids: ids ?? null }),
   openSession: (path: string) => invoke<void>("open_session", { path }),
   writeTextFile: (path: string, contents: string) => invoke<void>("write_text_file", { path, contents }),
   writeBinaryFile: (path: string, contentsBase64: string) => invoke<void>("write_binary_file", { path, contentsBase64 }),
   quitApp: () => invoke<void>("quit_app"),
-  getSslSettings: () => invoke<{ mode: "all" | "allowlist" | "blocklist"; hosts: string[] }>("get_ssl_settings"),
-  setSslSettings: (settings: { mode: "all" | "allowlist" | "blocklist"; hosts: string[] }) =>
+  getSslSettings: () =>
+    invoke<{ mode: "all" | "allowlist" | "blocklist"; hosts: string[]; skipHosts: string[] }>("get_ssl_settings"),
+  setSslSettings: (settings: { mode: "all" | "allowlist" | "blocklist"; hosts: string[]; skipHosts: string[] }) =>
     invoke<void>("set_ssl_settings", { settings }),
+  getKeepLimit: () => invoke<number>("get_keep_limit"),
+  setKeepLimit: (limit: number) => invoke<void>("set_keep_limit", { limit }),
 };
 
 export const onFlowNew = (cb: (f: Flow) => void): Promise<UnlistenFn> =>
   listen<Flow>("flow:new", (e) => cb(e.payload));
 export const onFlowUpdate = (cb: (f: Flow) => void): Promise<UnlistenFn> =>
   listen<Flow>("flow:update", (e) => cb(e.payload));
+export const onFlowsTrimmed = (cb: (ids: string[]) => void): Promise<UnlistenFn> =>
+  listen<string[]>("flows:trimmed", (e) => cb(e.payload));

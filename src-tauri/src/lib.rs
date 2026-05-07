@@ -1,6 +1,7 @@
 mod ca;
 mod client_proc;
 mod commands;
+mod http_client;
 mod proxy;
 mod ssl_settings;
 mod state;
@@ -128,6 +129,9 @@ pub fn run() {
             commands::quit_app,
             commands::get_ssl_settings,
             commands::set_ssl_settings,
+            commands::get_keep_limit,
+            commands::set_keep_limit,
+            commands::compose_request,
         ])
         .build(tauri::generate_context!())
         .expect("error building Tucano");

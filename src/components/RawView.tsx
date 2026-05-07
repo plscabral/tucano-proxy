@@ -21,9 +21,24 @@ export default function RawView(props: { text: string }) {
         {copied() ? <Check size={11} /> : <Copy size={11} />}
         {copied() ? t("ins.copied") || "Copied" : t("ins.copy") || "Copy"}
       </button>
-      <pre class="mono text-[11px] leading-relaxed px-3 py-3 whitespace-pre-wrap [overflow-wrap:anywhere] select-text">
-        {props.text}
-      </pre>
+      <pre
+        tabindex="0"
+        data-inspector="true"
+        onMouseDown={(e) => (e.currentTarget as HTMLElement).focus()}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+            e.stopPropagation();
+            const el = e.currentTarget as HTMLElement;
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+            e.preventDefault();
+          }
+        }}
+        class="mono text-[11px] leading-relaxed px-3 py-3 whitespace-pre-wrap [overflow-wrap:anywhere] select-text outline-none h-full"
+      >{props.text}</pre>
     </div>
   );
 }

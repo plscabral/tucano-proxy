@@ -5,7 +5,6 @@ use http_body_util::{BodyExt, Full};
 use hudsucker::{
     certificate_authority::RcgenAuthority,
     hyper::{Request, Response, body::Bytes},
-    rustls,
     Body, HttpContext, HttpHandler, Proxy, RequestOrResponse,
 };
 use parking_lot::Mutex;
@@ -13,56 +12,10 @@ use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::SystemTime;
 use tauri::Emitter;
 
-/// rustls verifier that accepts every upstream certificate. Required so
-/// Tucano can MITM dev servers / localhost / internal hosts presenting
-/// self-signed or untrusted certs (PJe Office's local server, etc.) —
-/// the same default Proxyman/Charles use ("Disable SSL verification").
-#[derive(Debug)]
-struct AcceptAllVerifier;
-
-impl rustls::client::danger::ServerCertVerifier for AcceptAllVerifier {
-    fn verify_server_cert(
-        &self,
-        _end_entity: &rustls::pki_types::CertificateDer<'_>,
-        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
-        _server_name: &rustls::pki_types::ServerName<'_>,
-        _ocsp_response: &[u8],
-        _now: rustls::pki_types::UnixTime,
-    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::danger::ServerCertVerified::assertion())
-    }
-
-    fn verify_tls12_signature(
-        &self,
-        _message: &[u8],
-        _cert: &rustls::pki_types::CertificateDer<'_>,
-        _dss: &rustls::DigitallySignedStruct,
-    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        _message: &[u8],
-        _cert: &rustls::pki_types::CertificateDer<'_>,
-        _dss: &rustls::DigitallySignedStruct,
-    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        use rustls::SignatureScheme::*;
-        vec![
-            RSA_PKCS1_SHA256, RSA_PKCS1_SHA384, RSA_PKCS1_SHA512,
-            RSA_PSS_SHA256, RSA_PSS_SHA384, RSA_PSS_SHA512,
-            ECDSA_NISTP256_SHA256, ECDSA_NISTP384_SHA384, ECDSA_NISTP521_SHA512,
-            ED25519, ED448,
-        ]
-    }
-}
 
 #[derive(Clone)]
 pub struct TucanoHandler {
@@ -70,23 +23,23 @@ pub struct TucanoHandler {
     pub pending: Arc<Mutex<HashMap<SocketAddr, VecDeque<Flow>>>>,
 }
 
-fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
 }
 
-fn headers_to_vec(h: &http::HeaderMap) -> Vec<(String, String)> {
+pub(crate) fn headers_to_vec(h: &http::HeaderMap) -> Vec<(String, String)> {
     h.iter().map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string())).collect()
 }
 
-fn content_type(h: &http::HeaderMap) -> Option<String> {
+pub(crate) fn content_type(h: &http::HeaderMap) -> Option<String> {
     h.get(http::header::CONTENT_TYPE).and_then(|v| v.to_str().ok().map(|s| s.to_string()))
 }
 
-fn content_encoding(h: &http::HeaderMap) -> Option<String> {
+pub(crate) fn content_encoding(h: &http::HeaderMap) -> Option<String> {
     h.get(http::header::CONTENT_ENCODING).and_then(|v| v.to_str().ok().map(|s| s.to_lowercase()))
 }
 
-fn decompress(bytes: &Bytes, encoding: Option<&str>) -> Bytes {
+pub(crate) fn decompress(bytes: &Bytes, encoding: Option<&str>) -> Bytes {
     use std::io::Read;
     let enc = match encoding { Some(e) => e, None => return bytes.clone() };
     let mut out = Vec::new();
@@ -118,7 +71,7 @@ fn decompress(bytes: &Bytes, encoding: Option<&str>) -> Bytes {
     if res.is_ok() && !out.is_empty() { Bytes::from(out) } else { bytes.clone() }
 }
 
-fn encode_body(bytes: &Bytes, ct: Option<&str>) -> (String, &'static str) {
+pub(crate) fn encode_body(bytes: &Bytes, ct: Option<&str>) -> (String, &'static str) {
     let is_text = ct.map(|c| c.contains("text") || c.contains("json") || c.contains("xml") || c.contains("javascript") || c.contains("html") || c.contains("form-urlencoded")).unwrap_or(false);
     if is_text {
         match std::str::from_utf8(bytes) {
@@ -154,12 +107,69 @@ impl HttpHandler for TucanoHandler {
             // CONNECT URI is `host:port`.
             let authority = req.uri().authority().map(|a| a.host().to_string());
             match authority {
-                Some(host) => self.state.ssl.lock().should_intercept(&host),
+                Some(host) => {
+                    let intercept = self.state.ssl.lock().should_intercept(&host);
+                    tracing::info!("should_intercept: host={} -> {}", host, intercept);
+                    intercept
+                }
                 None => true,
             }
         } else {
             true
         };
+
+        // When tunneling (not intercepting) a CONNECT, record a minimal flow
+        // so the user sees it in the list and can enable SSL per-host.
+        if !should && req.method() == http::Method::CONNECT {
+            if let Some(authority) = req.uri().authority() {
+                let host = authority.host().to_string();
+                let port = authority.port_u16().unwrap_or(443);
+                let req_headers = headers_to_vec(req.headers());
+                let state = self.state.clone();
+                let id = uuid::Uuid::new_v4().to_string();
+                let idx = state.storage.lock().next_index();
+                let flow = Flow {
+                    id,
+                    index: idx,
+                    started_at: now_ms(),
+                    ended_at: Some(now_ms()),
+                    method: "CONNECT".to_string(),
+                    scheme: "https".to_string(),
+                    host,
+                    port,
+                    path: "/".to_string(),
+                    http_version: "HTTP/1.1".to_string(),
+                    status: None,
+                    status_text: None,
+                    req_headers,
+                    req_body: None,
+                    req_body_encoding: "utf8".into(),
+                    req_content_type: None,
+                    req_size: 0,
+                    res_headers: vec![],
+                    res_body: None,
+                    res_body_encoding: "utf8".into(),
+                    res_content_type: None,
+                    res_size: 0,
+                    duration_ms: None,
+                    error: None,
+                    client_app: None,
+                    client_port: None,
+                    client_icon: None,
+                    note: None,
+                };
+                let _ = state.app.emit("flow:new", &flow);
+                let _ = state.storage.lock().upsert(&flow);
+                let limit = state.keep_limit.load(Ordering::Relaxed);
+                if limit > 0 {
+                    let trimmed = state.storage.lock().trim_to_limit(limit);
+                    if !trimmed.is_empty() {
+                        let _ = state.app.emit("flows:trimmed", &trimmed);
+                    }
+                }
+            }
+        }
+
         async move { should }
     }
 
@@ -185,11 +195,32 @@ impl HttpHandler for TucanoHandler {
             let req_enc = content_encoding(&parts.headers);
             let display_bytes = decompress(&bytes, req_enc.as_deref());
 
-            let scheme = parts.uri.scheme_str().unwrap_or("http").to_string();
-            let host = parts.uri.host().unwrap_or("").to_string();
-            let port = parts.uri.port_u16().unwrap_or(if scheme == "https" { 443 } else { 80 });
+            // For MITM'd HTTPS, hudsucker delivers the inner requests with a
+            // relative URI (no scheme/host) — the host lives in the Host header.
+            let host_header = parts.headers.get(http::header::HOST)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            let host_from_hdr = host_header.split(':').next().unwrap_or("").to_string();
+            let port_from_hdr = host_header.split(':').nth(1)
+                .and_then(|p| p.parse::<u16>().ok());
+
+            let uri_has_authority = parts.uri.scheme_str().is_some() && parts.uri.host().is_some();
+            let (scheme, host, port) = if uri_has_authority {
+                let s = parts.uri.scheme_str().unwrap_or("http").to_string();
+                let h = parts.uri.host().unwrap_or("").to_string();
+                let p = parts.uri.port_u16().unwrap_or(if s == "https" { 443 } else { 80 });
+                (s, h, p)
+            } else {
+                // Relative URI → MITM'd HTTPS request. Infer from Host header.
+                let p = port_from_hdr.unwrap_or(443);
+                let s = if p == 443 { "https" } else { "http" }.to_string();
+                (s, host_from_hdr, p)
+            };
+
             let path = parts.uri.path_and_query().map(|p| p.as_str().to_string()).unwrap_or_else(|| "/".into());
             let ct = content_type(&parts.headers);
+            tracing::debug!("handle_request: {} {} scheme={} host={}", parts.method, path, scheme, host);
             let ssl_capture = scheme != "https" || self.state.ssl.lock().should_capture(&host);
             let (body_str, enc) = if !ssl_capture {
                 (Some("(SSL not decrypted — host excluded)".to_string()), "utf8".to_string())
@@ -248,6 +279,15 @@ impl HttpHandler for TucanoHandler {
 
             let _ = self.state.app.emit("flow:new", &flow);
             let _ = self.state.storage.lock().upsert(&flow);
+
+            // Trim oldest flows if a keep-limit is set.
+            let limit = self.state.keep_limit.load(Ordering::Relaxed);
+            if limit > 0 {
+                let trimmed = self.state.storage.lock().trim_to_limit(limit);
+                if !trimmed.is_empty() {
+                    let _ = self.state.app.emit("flows:trimmed", &trimmed);
+                }
+            }
 
             self.pending.lock().entry(client).or_default().push_back(flow);
 
@@ -326,27 +366,11 @@ pub async fn run(state: Arc<AppState>, port: u16, stop_rx: tokio::sync::oneshot:
     // MITM hosts with self-signed / untrusted certs (PJe Office on
     // localhost, internal staging servers, dev environments) — without it,
     // those connections fail before we ever see a request.
-    let tls_config = rustls::ClientConfig::builder_with_provider(
-            Arc::new(rustls::crypto::ring::default_provider()),
-        )
-        .with_safe_default_protocol_versions()?
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::new(AcceptAllVerifier))
-        .with_no_client_auth();
-
-    let mut http_connector = hyper_util::client::legacy::connect::HttpConnector::new();
-    http_connector.enforce_http(false);
-
-    let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
-        .with_tls_config(tls_config)
-        .https_or_http()
-        .enable_http1()
-        .wrap_connector(http_connector);
-
+    let connector = crate::http_client::build_connector()?;
     let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
         .http1_title_case_headers(true)
         .http1_preserve_header_case(true)
-        .build(https_connector);
+        .build(connector);
 
     let proxy = Proxy::builder()
         .with_addr(addr)

@@ -1,7 +1,7 @@
 use crate::{ca::CertAuthority, ssl_settings::SslSettings, storage::Storage};
 use parking_lot::Mutex;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU16};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicUsize};
 use tauri::{AppHandle, Manager};
 
 pub type BoxResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -16,6 +16,8 @@ pub struct AppState {
     pub stop_tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     pub ssl: Mutex<SslSettings>,
     pub app: AppHandle,
+    /// Maximum number of flows to keep in storage. 0 = unlimited.
+    pub keep_limit: AtomicUsize,
 }
 
 impl AppState {
@@ -39,6 +41,7 @@ impl AppState {
             stop_tx: Mutex::new(None),
             ssl: Mutex::new(ssl),
             app,
+            keep_limit: AtomicUsize::new(0),
         })
     }
 }

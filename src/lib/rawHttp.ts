@@ -22,7 +22,9 @@ function headerLines(headers: [string, string][]): string {
 }
 
 export function buildRawRequest(f: Flow): string {
-  const requestLine = `${f.method} ${f.path} ${normalizeVersion(f.httpVersion)}`;
+  const def = (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80);
+  const fullUrl = `${f.scheme}://${f.host}${def ? "" : ":" + f.port}${f.path}`;
+  const requestLine = `${f.method} ${fullUrl} ${normalizeVersion(f.httpVersion)}`;
   const hostInHeaders = f.reqHeaders.some(([k]) => k.toLowerCase() === "host");
   const headers: [string, string][] = hostInHeaders
     ? f.reqHeaders

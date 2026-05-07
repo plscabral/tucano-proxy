@@ -1,26 +1,77 @@
-import { Trash2, Save, FileDown, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2, GitCompareArrows } from "lucide-solid";
+import { Trash2, Save, FileDown, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2, GitCompareArrows, ChevronDown, Layers, RotateCcw } from "lucide-solid";
 import { layoutStore, type InspectorPos } from "../stores/layout";
 import ColumnsMenu from "./ColumnsMenu";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { flowsStore } from "../stores/flows";
 import { marksStore, MARK_COLORS } from "../stores/marks";
 import { sessionStore } from "../stores/session";
+import { prefsStore } from "../stores/prefs";
 import { ipc } from "../lib/ipc";
 import { COLLECTION_FORMATS } from "../lib/exporters";
-import { createSignal, Show, For, createEffect, onCleanup } from "solid-js";
+import { createSignal, Show, For, createEffect, onCleanup, onMount } from "solid-js";
 import { t } from "../lib/i18n";
 import LlmExportDialog from "./LlmExportDialog";
 import { undoStore } from "../stores/undo";
 import type { Flow } from "../lib/types";
 
+const KEEP_OPTIONS = [
+  { label: "100 sessions",   value: 100 },
+  { label: "250 sessions",   value: 250 },
+  { label: "500 sessions",   value: 500 },
+  { label: "1000 sessions",  value: 1000 },
+  { label: "5000 sessions",  value: 5000 },
+  { label: "10000 sessions", value: 10000 },
+  { label: "All sessions",   value: 0 },
+];
+
 export default function FlowToolbar(props: { count: number; flows: () => Flow[]; onCompare?: () => void }) {
   const [openMark, setOpenMark] = createSignal(false);
   const [openExport, setOpenExport] = createSignal(false);
+  const [openRemove, setOpenRemove] = createSignal(false);
+  const [openKeep, setOpenKeep] = createSignal(false);
   let exportRef: HTMLDivElement | undefined;
+  let removeRef: HTMLDivElement | undefined;
+  let keepRef: HTMLDivElement | undefined;
+
+  onMount(async () => {
+    try {
+      const limit = await ipc.getKeepLimit();
+      if (limit !== prefsStore.prefs().keepLimit) prefsStore.setKeepLimit(limit);
+    } catch {}
+  });
+
+  const closeOnOutside = (ref: () => HTMLDivElement | undefined, setter: (v: boolean) => void) => {
+    createEffect(() => {
+      if (!openExport() && !openRemove() && !openKeep()) return;
+      const el = ref();
+      if (!el) return;
+      const onDown = (e: MouseEvent) => {
+        if (!el.contains(e.target as Node)) setter(false);
+      };
+      document.addEventListener("mousedown", onDown, true);
+      onCleanup(() => document.removeEventListener("mousedown", onDown, true));
+    });
+  };
   createEffect(() => {
     if (!openExport()) return;
     const onDown = (e: MouseEvent) => {
       if (exportRef && !exportRef.contains(e.target as Node)) setOpenExport(false);
+    };
+    document.addEventListener("mousedown", onDown, true);
+    onCleanup(() => document.removeEventListener("mousedown", onDown, true));
+  });
+  createEffect(() => {
+    if (!openRemove()) return;
+    const onDown = (e: MouseEvent) => {
+      if (removeRef && !removeRef.contains(e.target as Node)) setOpenRemove(false);
+    };
+    document.addEventListener("mousedown", onDown, true);
+    onCleanup(() => document.removeEventListener("mousedown", onDown, true));
+  });
+  createEffect(() => {
+    if (!openKeep()) return;
+    const onDown = (e: MouseEvent) => {
+      if (keepRef && !keepRef.contains(e.target as Node)) setOpenKeep(false);
     };
     document.addEventListener("mousedown", onDown, true);
     onCleanup(() => document.removeEventListener("mousedown", onDown, true));
@@ -95,13 +146,88 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
       sessionStore.setPath(path);
     }
   };
-  const clear = async () => {
-    if (!confirm(t("tb.clearTitle"))) return;
-    const snapshot = flowsStore.flows().slice();
-    await ipc.clearFlows();
-    flowsStore.clear();
-    marksStore.clear();
+  const removeByType = async (type: string) => {
+    setOpenRemove(false);
+    const all = flowsStore.flows();
+    let toRemove: Flow[] = [];
+    const marks = marksStore.marks();
+    const BROWSERS = ["google chrome", "safari", "firefox", "microsoft edge", "opera", "brave"];
+    const JS_TYPES = ["text/javascript", "application/javascript", "application/x-javascript", "text/ecmascript"];
+    const CSS_TYPES = ["text/css"];
+    switch (type) {
+      case "all": toRemove = all; break;
+      case "images": toRemove = all.filter((f) => {
+        const ct = f.resContentType ?? "";
+        const path = f.path.toLowerCase().split("?")[0];
+        return ct.startsWith("image/")
+          || ct.includes("icon")
+          || /\.(png|jpe?g|gif|webp|svg|ico|avif|bmp|tiff?)$/.test(path)
+          || path.includes("favicon");
+      }); break;
+      case "scripts": toRemove = all.filter((f) => {
+        const ct = f.resContentType ?? "";
+        const path = f.path.toLowerCase().split("?")[0];
+        return JS_TYPES.some((t) => ct.startsWith(t)) || /\.(js|mjs|cjs)$/.test(path);
+      }); break;
+      case "css": toRemove = all.filter((f) => {
+        const ct = f.resContentType ?? "";
+        const path = f.path.toLowerCase().split("?")[0];
+        return CSS_TYPES.some((t) => ct.startsWith(t)) || path.endsWith(".css");
+      }); break;
+      case "media":    toRemove = all.filter((f) => f.resContentType?.startsWith("video/") || f.resContentType?.startsWith("audio/")); break;
+      case "fonts": toRemove = all.filter((f) => {
+        const ct = f.resContentType ?? "";
+        const path = f.path.toLowerCase().split("?")[0];
+        return ct.startsWith("font/")
+          || ct.includes("font-")
+          || ct.includes("fontobject")
+          || ct === "application/font-woff"
+          || ct === "application/font-woff2"
+          || ct === "application/x-font-ttf"
+          || ct === "application/x-font-opentype"
+          || /\.(woff2?|ttf|otf|eot|sfnt)$/.test(path);
+      }); break;
+      case "connects": toRemove = all.filter((f) => f.method === "CONNECT"); break;
+      case "4xx":      toRemove = all.filter((f) => f.status != null && f.status >= 400 && f.status < 500); break;
+      case "5xx":      toRemove = all.filter((f) => f.status != null && f.status >= 500); break;
+      case "non200":   toRemove = all.filter((f) => f.status != null && f.status !== 200); break;
+      case "nonbrowser": toRemove = all.filter((f) => {
+        if (!f.clientApp) return true;
+        const a = f.clientApp.toLowerCase();
+        return !BROWSERS.some((b) => a.includes(b));
+      }); break;
+      case "unmarked": toRemove = all.filter((f) => f.endedAt != null && !marks[f.id]); break;
+      case "dupes": {
+        const seen = new Set<string>();
+        toRemove = all.filter((f) => {
+          if (!f.resBody) return false;
+          if (seen.has(f.resBody)) return true;
+          seen.add(f.resBody);
+          return false;
+        });
+        break;
+      }
+    }
+    if (toRemove.length === 0) return;
+    if (type === "all" && !confirm("Remove all captures?")) return;
+    const ids = toRemove.map((f) => f.id);
+    const snapshot = toRemove.slice();
+    await ipc.deleteFlows(ids);
+    flowsStore.removeMany(new Set(ids));
+    if (type === "all") marksStore.clear();
     undoStore.push(snapshot);
+  };
+
+  const setKeep = async (limit: number) => {
+    setOpenKeep(false);
+    prefsStore.setKeepLimit(limit);
+    await ipc.setKeepLimit(limit);
+  };
+
+  const keepLabel = () => {
+    const v = prefsStore.prefs().keepLimit;
+    const opt = KEEP_OPTIONS.find((o) => o.value === v);
+    return opt ? opt.label : "All sessions";
   };
   const setMark = (colorId: string) => {
     flowsStore.selectedIds().forEach((id) => marksStore.set(id, colorId));
@@ -109,6 +235,16 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
   };
   const hasSelection = () => flowsStore.selectedIds().size > 0;
   const canCompare = () => flowsStore.selectedIds().size === 2;
+
+  const [replaying, setReplaying] = createSignal(false);
+  const replay = async () => {
+    const id = flowsStore.anchorId() ?? flowsStore.selectedId();
+    if (!id || replaying()) return;
+    setReplaying(true);
+    try { await ipc.replay(id, [], null); }
+    catch (e) { console.error("replay failed", e); }
+    finally { setReplaying(false); }
+  };
 
   function LayoutBtn(p: { pos: InspectorPos; titleKey: string; icon: any }) {
     const active = () => layoutStore.pos() === p.pos;
@@ -122,17 +258,114 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
     );
   }
 
+  const Sep = () => <div class="w-px h-5 bg-ink-100 dark:bg-ink-400/30 mx-0.5 shrink-0" />;
+  const tbBtn = (active = false) =>
+    `h-8 px-2.5 rounded-xl text-xs flex items-center gap-1.5 transition shrink-0
+     ${active
+       ? "bg-toucan-400/15 text-toucan-400"
+       : "opacity-70 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20"}`;
+
   return (
-    <div class="h-11 px-3 flex items-center gap-1.5 bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 relative">
-      <button onClick={clear} title={t("tb.clearTitle")}
-        class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-red-500/10 hover:text-red-500 transition">
-        <Trash2 size={13} /> {t("tb.clear")}
+    <div class="h-11 flex items-stretch bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 relative">
+      <div class="flex-1 min-w-0 flex items-center gap-1 px-3 overflow-x-auto scroll-thin">
+
+      {/* ── Capture controls ─────────────────────────── */}
+      {/* Remove dropdown */}
+      <div class="relative shrink-0" ref={removeRef}>
+        <button onClick={() => setOpenRemove(!openRemove())}
+          class={`${tbBtn(openRemove())} hover:bg-red-500/10 hover:text-red-500`}>
+          <Trash2 size={13} /> Remove <ChevronDown size={11} class="opacity-60" />
+        </button>
+        <Show when={openRemove()}>
+          <div class="absolute z-30 top-10 left-0 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl py-1 min-w-[220px] text-xs">
+            <button onClick={() => removeByType("all")}
+              class="w-full px-3 py-1.5 text-left font-medium hover:bg-red-500/10 hover:text-red-500 transition">
+              Remove all
+            </button>
+            <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
+            <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-40">By content type</div>
+            {([
+              ["images",  "Images"],
+              ["scripts", "Scripts (.js)"],
+              ["css",     "Stylesheets (.css)"],
+              ["media",   "Media (video / audio)"],
+              ["fonts",   "Fonts"],
+            ] as [string, string][]).map(([type, label]) => (
+              <button onClick={() => removeByType(type)}
+                class="w-full px-3 py-1.5 text-left hover:bg-red-500/10 hover:text-red-500 transition">
+                {label}
+              </button>
+            ))}
+            <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
+            <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-40">By status</div>
+            {([
+              ["4xx",    "4xx Client errors"],
+              ["5xx",    "5xx Server errors"],
+              ["non200", "Non-200s"],
+            ] as [string, string][]).map(([type, label]) => (
+              <button onClick={() => removeByType(type)}
+                class="w-full px-3 py-1.5 text-left hover:bg-red-500/10 hover:text-red-500 transition">
+                {label}
+              </button>
+            ))}
+            <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
+            <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-40">Other</div>
+            {([
+              ["connects",   "CONNECTs"],
+              ["nonbrowser", "Non-Browser traffic"],
+              ["unmarked",   "Complete & Unmarked"],
+              ["dupes",      "Duplicate response bodies"],
+            ] as [string, string][]).map(([type, label]) => (
+              <button onClick={() => removeByType(type)}
+                class="w-full px-3 py-1.5 text-left hover:bg-red-500/10 hover:text-red-500 transition">
+                {label}
+              </button>
+            ))}
+          </div>
+        </Show>
+      </div>
+
+      {/* Keep dropdown */}
+      <div class="relative shrink-0" ref={keepRef}>
+        <button onClick={() => setOpenKeep(!openKeep())}
+          class={tbBtn(openKeep())}>
+          <Layers size={13} /> Keep: {keepLabel()} <ChevronDown size={11} class="opacity-60" />
+        </button>
+        <Show when={openKeep()}>
+          <div class="absolute z-30 top-10 left-0 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl py-1 min-w-[180px] text-xs">
+            <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-50">Max sessions to keep</div>
+            <For each={KEEP_OPTIONS}>{(opt) => (
+              <button
+                onClick={() => setKeep(opt.value)}
+                class={`w-full px-3 py-1.5 text-left transition
+                  ${prefsStore.prefs().keepLimit === opt.value
+                    ? "text-toucan-400 bg-toucan-400/10"
+                    : "hover:bg-toucan-400/10 hover:text-toucan-400"}`}
+              >{opt.label}</button>
+            )}</For>
+          </div>
+        </Show>
+      </div>
+
+      <Sep />
+
+      {/* ── Selection actions ────────────────────────── */}
+      <button
+        onClick={replay}
+        disabled={!hasSelection() || replaying()}
+        title="Replay selected request"
+        class={`${tbBtn()} disabled:opacity-30`}
+      >
+        <RotateCcw size={13} class={replaying() ? "animate-spin" : ""} /> Replay
       </button>
 
-      <div class="relative">
+
+      <Sep />
+
+      <div class="relative shrink-0">
         <button onClick={() => setOpenMark(!openMark())} disabled={!hasSelection()}
           title={t("tb.markTitle")}
-          class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-toucan-400/10 hover:text-toucan-400 disabled:opacity-40 transition">
+          class={`${tbBtn(openMark())} disabled:opacity-30`}>
           <Tag size={13} /> {t("tb.mark")}
         </button>
         <Show when={openMark() && hasSelection()}>
@@ -155,29 +388,27 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
         onClick={() => props.onCompare?.()}
         disabled={!canCompare()}
         title={t("tb.compareTitle") || "Compare two captures (⌘D)"}
-        class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-toucan-400/10 hover:text-toucan-400 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-current transition"
+        class={`${tbBtn()} disabled:opacity-30`}
       >
         <GitCompareArrows size={13} /> {t("tb.compare") || "Compare"}
       </button>
 
-      <div class="w-px h-5 bg-ink-100 dark:bg-ink-400/30 mx-1.5" />
+      <Sep />
 
-      <button onClick={onOpen} title={t("tb.openTitle")}
-        class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-ink-100 dark:hover:bg-ink-400/20 transition">
+      {/* ── File ─────────────────────────────────────── */}
+      <button onClick={onOpen} title={t("tb.openTitle")} class={tbBtn()}>
         <FolderOpen size={13} /> {t("tb.open")}
       </button>
-      <button onClick={onSave} title={sessionStore.path() ? t("tb.saveTitleBound", { path: sessionStore.path()! }) : t("tb.saveTitle")}
-        class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-ink-100 dark:hover:bg-ink-400/20 transition">
+      <button onClick={onSave} title={sessionStore.path() ? t("tb.saveTitleBound", { path: sessionStore.path()! }) : t("tb.saveTitle")} class={tbBtn()}>
         <Save size={13} /> {t("tb.save")}
       </button>
-      <button onClick={onSaveAs} title={t("tb.saveAsTitle")}
-        class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-ink-100 dark:hover:bg-ink-400/20 transition">
+      <button onClick={onSaveAs} title={t("tb.saveAsTitle")} class={tbBtn()}>
         <FileDown size={13} /> {t("tb.saveAs")}
       </button>
 
-      <div class="relative" ref={exportRef}>
+      <div class="relative shrink-0" ref={exportRef}>
         <button onClick={() => setOpenExport(!openExport())} title={t("tb.exportTitle")}
-          class="h-8 px-3 rounded-xl text-xs flex items-center gap-1.5 hover:bg-ink-100 dark:hover:bg-ink-400/20 transition">
+          class={tbBtn(openExport())}>
           <Share2 size={13} /> {t("tb.export")}
         </button>
         <Show when={openExport()}>
@@ -208,17 +439,18 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
         <LlmExportDialog flows={flowsForExport} onClose={() => setOpenLlm(false)} />
       </Show>
 
-      <div class="w-px h-5 bg-ink-100 dark:bg-ink-400/30 mx-1.5" />
+      <Sep />
       <ColumnsMenu />
+      </div>
 
-      <div class="flex-1" />
-      <span class="text-[11px] opacity-50 mono pr-2">{t("tb.countOf", { count: props.count, total: flowsStore.flows().length })}</span>
-
-      <div class="w-px h-5 bg-ink-100 dark:bg-ink-400/30 mx-1" />
-
-      <LayoutBtn pos="right"  titleKey="tb.inspectorRight"  icon={<PanelRight size={14} />} />
-      <LayoutBtn pos="bottom" titleKey="tb.inspectorBottom" icon={<PanelBottom size={14} />} />
-      <LayoutBtn pos="hidden" titleKey="tb.inspectorHidden" icon={<EyeOff size={14} />} />
+      {/* ── Right: count + layout — always visible ─────── */}
+      <div class="flex items-center gap-1 px-2 shrink-0 border-l border-ink-100 dark:border-ink-400/30">
+        <span class="text-[11px] opacity-50 mono px-1">{t("tb.countOf", { count: props.count, total: flowsStore.flows().length })}</span>
+        <Sep />
+        <LayoutBtn pos="right"  titleKey="tb.inspectorRight"  icon={<PanelRight size={14} />} />
+        <LayoutBtn pos="bottom" titleKey="tb.inspectorBottom" icon={<PanelBottom size={14} />} />
+        <LayoutBtn pos="hidden" titleKey="tb.inspectorHidden" icon={<EyeOff size={14} />} />
+      </div>
     </div>
   );
 }

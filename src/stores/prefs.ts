@@ -3,10 +3,11 @@ import { createSignal } from "solid-js";
 const KEY = "tucano:prefs";
 
 type Prefs = {
-  autoCapture: boolean; // start capturing automatically when the app launches
+  autoCapture: boolean;
+  keepLimit: number; // 0 = all sessions
 };
 
-const DEFAULTS: Prefs = { autoCapture: true };
+const DEFAULTS: Prefs = { autoCapture: true, keepLimit: 0 };
 
 function load(): Prefs {
   try {
@@ -28,4 +29,5 @@ function save(next: Prefs) {
 export const prefsStore = {
   prefs,
   setAutoCapture(on: boolean) { save({ ...prefs(), autoCapture: on }); },
+  setKeepLimit(n: number) { save({ ...prefs(), keepLimit: n }); },
 };

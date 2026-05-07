@@ -49,23 +49,26 @@ type SslMode = "all" | "allowlist" | "blocklist";
 export default function Settings(props: { open: boolean; onClose: () => void }) {
   const [port, setPort] = createSignal(flowsStore.status().port);
   const [busy, setBusy] = createSignal(false);
-  const [sslMode, setSslMode] = createSignal<SslMode>("all");
+  const [sslMode, setSslMode] = createSignal<SslMode>("allowlist");
   const [sslHosts, setSslHosts] = createSignal("");
+  const [skipHosts, setSkipHosts] = createSignal("");
   const [sslSaved, setSslSaved] = createSignal(false);
   const [appVersion, setAppVersion] = createSignal("");
 
   onMount(async () => {
     try {
       const s = await ipc.getSslSettings();
-      setSslMode((s.mode as SslMode) || "all");
+      setSslMode((s.mode as SslMode) || "allowlist");
       setSslHosts((s.hosts || []).join("\n"));
+      setSkipHosts((s.skipHosts || []).join("\n"));
     } catch {}
     try { setAppVersion(await getVersion()); } catch {}
   });
 
   const saveSsl = async () => {
     const hosts = sslHosts().split("\n").map((s) => s.trim()).filter(Boolean);
-    await ipc.setSslSettings({ mode: sslMode(), hosts });
+    const skipHostsList = skipHosts().split("\n").map((s) => s.trim()).filter(Boolean);
+    await ipc.setSslSettings({ mode: sslMode(), hosts, skipHosts: skipHostsList });
     setSslSaved(true);
     setTimeout(() => setSslSaved(false), 1500);
   };
@@ -208,21 +211,37 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
           </Section>
 
           <Section icon={<Lock size={14} />} title={t("set.ssl")}>
-            <p class="text-xs opacity-70 leading-relaxed">{t("set.sslHint")}</p>
+            <p class="text-xs opacity-70 leading-relaxed">
+              By default, HTTPS traffic is tunneled (not decrypted). Add domains to the SSL Proxying List to inspect their content. Use the "Enable SSL Proxying" button inside any HTTPS capture to add domains quickly.
+            </p>
             <div class="flex gap-1 p-1 rounded-xl bg-ink-50 dark:bg-ink-500 w-full">
-              <SslOpt mode="all"        label={t("set.sslMode.all")}        current={sslMode} setCurrent={setSslMode} />
-              <SslOpt mode="allowlist"  label={t("set.sslMode.allowlist")}  current={sslMode} setCurrent={setSslMode} />
-              <SslOpt mode="blocklist"  label={t("set.sslMode.blocklist")}  current={sslMode} setCurrent={setSslMode} />
+              <SslOpt mode="allowlist" label="Allow List (default)" current={sslMode} setCurrent={setSslMode} />
+              <SslOpt mode="all"       label="Decrypt All"           current={sslMode} setCurrent={setSslMode} />
+              <SslOpt mode="blocklist" label="Block List"            current={sslMode} setCurrent={setSslMode} />
             </div>
             <Show when={sslMode() !== "all"}>
               <div>
-                <div class="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">{t("set.sslHostsLabel")}</div>
+                <div class="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">
+                  {sslMode() === "allowlist" ? "Domains to decrypt (include list):" : "Domains to skip (exclude list):"}
+                </div>
                 <textarea
                   value={sslHosts()}
                   onInput={(e) => setSslHosts(e.currentTarget.value)}
-                  placeholder={"api.example.com\n*.foo.com\nbaz.*"}
+                  placeholder={"api.example.com\n*.foo.com"}
                   class="w-full h-28 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
                 />
+              </div>
+            </Show>
+            <Show when={sslMode() === "all"}>
+              <div>
+                <div class="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">Always bypass (never decrypt):</div>
+                <textarea
+                  value={skipHosts()}
+                  onInput={(e) => setSkipHosts(e.currentTarget.value)}
+                  placeholder={"*.example.com\napi.pinned-app.com"}
+                  class="w-full h-24 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
+                />
+                <div class="text-[10px] opacity-50 mt-1">Supports wildcards: *.example.com</div>
               </div>
             </Show>
             <button

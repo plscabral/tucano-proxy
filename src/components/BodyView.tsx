@@ -1,5 +1,5 @@
 import { createMemo, createSignal, onCleanup, Show } from "solid-js";
-import { Copy, Check, Download, WrapText, Sparkles, ChevronDown, Maximize2, Minimize2 } from "lucide-solid";
+import { Copy, Check, Download, WrapText, Sparkles, ChevronDown, Maximize2, Minimize2, Binary } from "lucide-solid";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../lib/ipc";
 import JsonViewer from "../viewers/JsonViewer";
@@ -71,6 +71,7 @@ export default function BodyView(props: {
   const [pretty, setPretty] = createSignal(true);
   const [wrap, setWrap] = createSignal(true);
   const [full, setFull] = createSignal(false);
+  const [decoded, setDecoded] = createSignal(false);
   let rootEl!: HTMLDivElement;
   const onWindowKey = (e: KeyboardEvent) => {
     if (e.key === "Escape" && full()) { e.stopPropagation(); setFull(false); return; }
@@ -84,17 +85,29 @@ export default function BodyView(props: {
   });
   const onRootEnter = () => { activeBody = rootEl; };
 
-  const effective = createMemo<Mode>(() => mode() === "auto" ? detect(props.contentType) : mode());
+  // When Decode is active and encoding is base64, expose body as Latin-1 text.
+  const decodedBody = createMemo<string | null>(() => {
+    if (!decoded() || props.encoding !== "base64" || !props.body) return props.body ?? null;
+    try {
+      const bin = atob(props.body);
+      return bin; // Latin-1 string
+    } catch { return props.body ?? null; }
+  });
+  const effectiveEncoding = () => decoded() && props.encoding === "base64" ? "utf8" : props.encoding;
 
-  // What the underlying viewer should render. Beautify only applies to text
-  // formats and only when explicitly enabled — turning it off shows the
-  // server's wire bytes verbatim.
+  const effective = createMemo<Mode>(() => {
+    if (mode() !== "auto") return mode();
+    if (decoded() && props.encoding === "base64") return "raw";
+    return detect(props.contentType);
+  });
+
   const displayText = createMemo<string>(() => {
-    if (!props.body) return "";
-    if (!pretty()) return props.body;
+    const body = decodedBody();
+    if (!body) return "";
+    if (!pretty()) return body;
     const m = effective();
-    if (isBeautifiable(m as BeautifyLang)) return beautify(props.body, m as BeautifyLang);
-    return props.body;
+    if (isBeautifiable(m as BeautifyLang)) return beautify(body, m as BeautifyLang);
+    return body;
   });
 
   const canBeautify = () => isBeautifiable(effective() as BeautifyLang);
@@ -182,6 +195,11 @@ export default function BodyView(props: {
         <button onClick={() => setWrap((v) => !v)} class={iconBtn(wrap(), canWrap())} title={t("body.wrap")}>
           <WrapText size={13} />
         </button>
+        <Show when={props.encoding === "base64"}>
+          <button onClick={() => setDecoded((v) => !v)} class={iconBtn(decoded())} title="Decode (show as text)">
+            <Binary size={13} />
+          </button>
+        </Show>
 
         <span class="ml-auto opacity-50 mono text-[11px] truncate pl-2">
           {props.contentType ?? t("body.noCt")}
@@ -209,15 +227,15 @@ export default function BodyView(props: {
       </div>
 
       <div class="flex-1 min-h-0 overflow-hidden">
-        <Show when={props.body} fallback={<div class="p-4 opacity-50 text-sm">{t("body.empty")}</div>}>
+        <Show when={decodedBody()} fallback={<div class="p-4 opacity-50 text-sm">{t("body.empty")}</div>}>
           <>
             {effective() === "json" && <JsonViewer text={displayText()} />}
             {effective() === "xml" && <XmlViewer text={displayText()} wrap={wrap()} />}
             {effective() === "html" && <HtmlViewer text={displayText()} wrap={wrap()} />}
-            {effective() === "form" && <FormViewer body={props.body!} encoding={props.encoding} contentType={props.contentType} />}
+            {effective() === "form" && <FormViewer body={decodedBody()!} encoding={effectiveEncoding() as "utf8" | "base64"} contentType={props.contentType} />}
             {effective() === "raw" && <RawViewer text={displayText()} lang="raw" wrap={wrap()} />}
-            {effective() === "hex" && <HexViewer text={props.body!} encoding={props.encoding} />}
-            {effective() === "image" && <ImageViewer body={props.body!} encoding={props.encoding} contentType={props.contentType} />}
+            {effective() === "hex" && <HexViewer text={decodedBody()!} encoding={effectiveEncoding() as "utf8" | "base64"} />}
+            {effective() === "image" && <ImageViewer body={decodedBody()!} encoding={effectiveEncoding() as "utf8" | "base64"} contentType={props.contentType} />}
           </>
         </Show>
       </div>
