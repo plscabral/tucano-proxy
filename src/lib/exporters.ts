@@ -289,6 +289,8 @@ export type LlmExportOptions = {
   redactSecrets: boolean;
   /** Emit a "Steps (estruturado)" section that pre-parses bodies and detects cross-step placeholders. */
   includeStructuredSteps: boolean;
+  /** Include cleaned response bodies (HTML/JSON/XML) so the LLM can derive extraction selectors. */
+  includeResponseBodies: boolean;
 };
 
 export const LLM_TARGET_LANGUAGES: { id: string; label: string }[] = [
@@ -307,6 +309,7 @@ Antes de gerar código:
 1. Inspecione o repositório atual e identifique o padrão usado para representar chamadas HTTP (classes, helpers, naming, montagem de body/headers, parsing de resposta). Reproduza ESSE padrão — não invente uma estrutura nova.
 2. Em seguida, traduza o fluxo abaixo respeitando o padrão do repositório: cada item da seção "Steps (estruturado)" vira uma unidade do framework existente, mantendo método, URL, headers, encoding/charset, content-type e os placeholders \`{varN}\` exatamente como marcados.
 3. Quando um placeholder tiver \`from: stepN + locator\`, gere o código que extrai esse valor da resposta do step indicado usando os helpers de parsing já existentes no repositório (XPath/regex/JSON path conforme o estilo da casa).
+4. Quando um step incluir \`response.body\`, use o conteúdo para derivar os seletores/localizadores corretos (XPath, CSS selector, JSON path, regex) para extrair dados em tela. Prefira seletores estáveis (id, name, atributos semânticos) a posicionais.
 
 Preserve a ordem das chamadas, headers relevantes e bodies. Comente apenas pontos não óbvios e, ao final, descreva em uma frase o que o fluxo faz.`;
 
@@ -370,6 +373,7 @@ type LlmStep = {
   responseStatusText: string | null;
   responseContentType: string | null;
   responseHeaders: [string, string][];
+  responseBody?: string;
   durationMs: number | null;
   note?: string | null;
   error?: string | null;
@@ -467,6 +471,44 @@ function findJsonPath(obj: unknown, target: string, path = "$"): string | null {
     }
   }
   return null;
+}
+
+function isTextualContentType(ct: string | null): boolean {
+  if (!ct) return false;
+  const t = ct.toLowerCase();
+  return t.includes("html") || t.includes("json") || t.includes("xml") ||
+    t.includes("text/") || t.includes("graphql");
+}
+
+function compactBody(body: string, ct: string | null): string {
+  const t = (ct ?? "").toLowerCase();
+  if (t.includes("html")) {
+    return body
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/\s+on\w+="[^"]*"/gi, "")
+      .replace(/\s+on\w+='[^']*'/gi, "")
+      .replace(/\s+style="[^"]*"/gi, "")
+      .replace(/\s+style='[^']*'/gi, "")
+      .replace(/<(div|span)[^>]*>\s*<\/\1>/gi, "")
+      .replace(/<img[^>]+src=["']data:[^"']*["'][^>]*\/?>/gi, "")
+      .replace(/\s+src=["']data:[^"']*["']/gi, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n\s*\n/g, "\n")
+      .trim();
+  }
+  if (t.includes("json")) {
+    try { return JSON.stringify(JSON.parse(body)); } catch { /* fall through */ }
+  }
+  if (t.includes("xml")) {
+    return body
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n\s*\n/g, "\n")
+      .trim();
+  }
+  return body.replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n").trim();
 }
 
 function buildLlmSteps(flows: Flow[], opts: LlmExportOptions): LlmStep[] {
@@ -607,6 +649,9 @@ function buildLlmSteps(flows: Flow[], opts: LlmExportOptions): LlmStep[] {
       responseStatusText: f.statusText,
       responseContentType: f.resContentType,
       responseHeaders: maskHeaders(f.resHeaders, opts.redactSecrets),
+      responseBody: (opts.includeResponseBodies && decodedRes && f.resBodyEncoding === "utf8" && isTextualContentType(f.resContentType))
+        ? compactBody(decodedRes, f.resContentType)
+        : undefined,
       durationMs: f.durationMs,
       note: f.note ?? null,
       error: f.error,
@@ -699,6 +744,10 @@ function renderStructuredSteps(steps: LlmStep[]): string {
       out.push("  headers:");
       for (const [k, v] of s.responseHeaders) out.push(`    - ${JSON.stringify([k, v])}`);
     }
+    if (s.responseBody) {
+      out.push("  body: |");
+      for (const line of s.responseBody.split("\n")) out.push(`    ${line}`);
+    }
     if (s.placeholders.length) {
       out.push("placeholders:");
       for (const ph of s.placeholders) {
@@ -755,6 +804,16 @@ export function toLlmMarkdown(flows: Flow[], opts: LlmExportOptions): string {
       if (f.note) out.push("", `**Note:** ${f.note}`);
       out.push("", "**Request headers**", headersTable(maskHeaders(f.reqHeaders, opts.redactSecrets)));
       out.push("**Response headers**", headersTable(maskHeaders(f.resHeaders, opts.redactSecrets)));
+      if (opts.includeResponseBodies) {
+        const resBodyDecoded = decodeBody(f.resBody, f.resBodyEncoding);
+        if (resBodyDecoded && f.resBodyEncoding === "utf8" && isTextualContentType(f.resContentType)) {
+          const cleaned = compactBody(resBodyDecoded, f.resContentType);
+          const fenceLang = f.resContentType?.includes("json") ? "json"
+            : f.resContentType?.includes("html") ? "html"
+            : f.resContentType?.includes("xml") ? "xml" : "";
+          out.push("**Response body**", "", `\`\`\`${fenceLang}`, cleaned, "```", "");
+        }
+      }
       if (f.error) out.push(`**Error:** ${f.error}`, "");
       if (i < flows.length - 1) out.push("---", "");
     });

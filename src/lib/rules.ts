@@ -1,5 +1,7 @@
 import type { Flow } from "./types";
 
+const _reCache = new Map<string, RegExp | null>();
+
 export type Field =
   | "url" | "host" | "path" | "method" | "status"
   | "mime" | "header" | "body" | "duration" | "size" | "scheme";
@@ -101,8 +103,14 @@ function strOp(op: Op, hay: string, needle: string): boolean {
     case "not_equals":   return h !== n;
     case "starts_with":  return h.startsWith(n);
     case "ends_with":    return h.endsWith(n);
-    case "matches":
-      try { return new RegExp(needle, "i").test(hay); } catch { return false; }
+    case "matches": {
+      let re = _reCache.get(needle);
+      if (re === undefined) {
+        try { re = new RegExp(needle, "i"); } catch { re = null; }
+        _reCache.set(needle, re);
+      }
+      return re ? re.test(hay) : false;
+    }
     default: return false;
   }
 }

@@ -62,6 +62,7 @@ export default function App() {
     try {
       flowsStore.setStatus(await ipc.status());
       flowsStore.setFlows(await ipc.listFlows());
+      flowsStore.rebuildIndex();
       // Fiddler-style auto-start: bring up proxy + system proxy as soon as
       // the window is ready, so the user is debugging immediately. Skipped
       // if the user disabled it in Settings, or if something is already
@@ -136,8 +137,23 @@ export default function App() {
     } catch (e) { console.warn("could not hook close", e); }
   });
 
-  const unNew = onFlowNew((f) => flowsStore.upsert(f));
-  const unUp = onFlowUpdate((f) => flowsStore.upsert(f));
+  // Batch incoming flow events into a single state update per animation frame.
+  // Without batching, 50+ flows/sec each trigger a full sort+filter in the
+  // `filtered` memo, which freezes the UI during active capture.
+  let _pending: Flow[] = [];
+  let _raf: number | null = null;
+  const scheduleFlush = (f: Flow) => {
+    _pending.push(f);
+    if (_raf === null) {
+      _raf = requestAnimationFrame(() => {
+        _raf = null;
+        const batch = _pending.splice(0);
+        flowsStore.batchUpsert(batch);
+      });
+    }
+  };
+  const unNew = onFlowNew(scheduleFlush);
+  const unUp = onFlowUpdate(scheduleFlush);
   const unTrimmed = onFlowsTrimmed((ids) => flowsStore.removeMany(new Set(ids)));
 
   const onKey = async (e: KeyboardEvent) => {
@@ -242,7 +258,11 @@ export default function App() {
       e.preventDefault();
       const { open } = await import("@tauri-apps/plugin-dialog");
       const p = await open({ multiple: false, filters: [{ name: "Tucano", extensions: ["tucano"] }] });
-      if (p && typeof p === "string") { await ipc.openSession(p); flowsStore.setFlows(await ipc.listFlows()); }
+      if (p && typeof p === "string") {
+        await ipc.openSession(p);
+        flowsStore.setFlows(await ipc.listFlows());
+        flowsStore.rebuildIndex();
+      }
     } else if (e.key === "Escape") {
       if (settingsOpen()) { setSettingsOpen(false); return; }
       if (selected()) { e.preventDefault(); setOpenedFlowId(null); flowsStore.clearSelection(); return; }

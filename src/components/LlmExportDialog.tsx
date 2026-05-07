@@ -22,6 +22,7 @@ export default function LlmExportDialog(props: Props) {
   );
   const [redact, setRedact] = createSignal(true);
   const [structured, setStructured] = createSignal(true);
+  const [responseBodies, setResponseBodies] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [toast, setToast] = createSignal<string | null>(null);
 
@@ -39,6 +40,7 @@ export default function LlmExportDialog(props: Props) {
       targetLanguage: lang(),
       redactSecrets: redact(),
       includeStructuredSteps: structured(),
+      includeResponseBodies: responseBodies(),
     };
     return toLlmMarkdown(flows, opts);
   };
@@ -131,13 +133,22 @@ export default function LlmExportDialog(props: Props) {
           {t("tb.export.llm.redact")}
         </label>
 
-        <label class="flex items-center gap-2 text-xs mb-4 cursor-pointer">
+        <label class="flex items-center gap-2 text-xs mb-2 cursor-pointer">
           <input
             type="checkbox"
             checked={structured()}
             onChange={(e) => setStructured(e.currentTarget.checked)}
           />
           {t("tb.export.llm.structured")}
+        </label>
+
+        <label class="flex items-center gap-2 text-xs mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={responseBodies()}
+            onChange={(e) => setResponseBodies(e.currentTarget.checked)}
+          />
+          {t("tb.export.llm.responseBodies")}
         </label>
 
         <div class="flex items-center gap-2 justify-end">

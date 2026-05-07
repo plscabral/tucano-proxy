@@ -10,6 +10,10 @@ const [status, setStatus] = createSignal<ProxyStatus>({
   running: false, port: 8888, caInstalled: false, systemProxyOn: false, flowsCount: 0,
 });
 
+// id → index in the flows array. Kept in sync with every mutation so upsert
+// is O(1) instead of O(n) findIndex on every Tauri flow:new / flow:update event.
+const _idx = new Map<string, number>();
+
 export const flowsStore = {
   flows, setFlows,
   selectedIds,
@@ -54,17 +58,53 @@ export const flowsStore = {
 
   upsert(f: Flow) {
     setFlows((prev) => {
-      const idx = prev.findIndex((x) => x.id === f.id);
-      if (idx === -1) return [...prev, f];
+      const idx = _idx.get(f.id);
+      if (idx === undefined) {
+        _idx.set(f.id, prev.length);
+        return [...prev, f];
+      }
       const next = prev.slice();
       next[idx] = f;
       return next;
     });
   },
+  batchUpsert(batch: Flow[]) {
+    if (batch.length === 0) return;
+    setFlows((prev) => {
+      const next = prev.slice();
+      for (const f of batch) {
+        const idx = _idx.get(f.id);
+        if (idx === undefined) {
+          _idx.set(f.id, next.length);
+          next.push(f);
+        } else {
+          next[idx] = f;
+        }
+      }
+      return next;
+    });
+  },
   removeMany(ids: Set<string>) {
-    setFlows((prev) => prev.filter((f) => !ids.has(f.id)));
+    setFlows((prev) => {
+      const next = prev.filter((f) => !ids.has(f.id));
+      // Rebuild index after removal since positions shift.
+      _idx.clear();
+      next.forEach((f, i) => _idx.set(f.id, i));
+      return next;
+    });
     setSelectedIds(new Set<string>());
     setAnchorId(null);
   },
-  clear() { setFlows([]); setSelectedIds(new Set<string>()); setAnchorId(null); },
+  clear() {
+    _idx.clear();
+    setFlows([]);
+    setSelectedIds(new Set<string>());
+    setAnchorId(null);
+  },
+  // Called after a bulk setFlows (e.g. ipc.listFlows on mount/open session)
+  // so the index reflects the new array.
+  rebuildIndex() {
+    _idx.clear();
+    flows().forEach((f, i) => _idx.set(f.id, i));
+  },
 };
