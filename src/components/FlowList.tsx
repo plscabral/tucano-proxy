@@ -49,11 +49,24 @@ function methodColor(m: string) {
 // Maps a flow to a Fiddler-style icon. Primary distinction is the HTTP method
 // (GET ≠ POST regardless of response). Status colors the icon. Special cases:
 // WebSocket and CONNECT keep their own glyphs since they aren't really "requests".
+// Memoize the rendered icon JSX per flow id + a cheap signature of the inputs
+// that affect it. typeIcon runs for every visible row on every list refresh,
+// and each call does ~12 regex tests + brand-icon allocations. With 50+ visible
+// rows during active capture this dominates row render time.
+const _iconCache = new Map<string, { sig: string; node: any }>();
 function typeIcon(f: Flow) {
   const ct = (f.resContentType || f.reqContentType || "").toLowerCase();
-  const path = f.path.toLowerCase();
   const isWs = f.reqHeaders.some(([k, v]) => k.toLowerCase() === "upgrade" && v.toLowerCase() === "websocket");
   const status = f.status;
+  const sig = `${f.method}|${status ?? ""}|${ct}|${isWs ? 1 : 0}|${f.path}`;
+  const cached = _iconCache.get(f.id);
+  if (cached && cached.sig === sig) return cached.node;
+  const node = _typeIconImpl(f, ct, isWs, status);
+  _iconCache.set(f.id, { sig, node });
+  return node;
+}
+function _typeIconImpl(f: Flow, ct: string, isWs: boolean, status: number | null) {
+  const path = f.path.toLowerCase();
   const sz = 14;
 
   if (f.method === "CONNECT")                                        return <Network size={sz} class="text-slate-300" />;
@@ -179,7 +192,51 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
     get count() { return rows().length; },
     getScrollElement: () => parentRef,
     estimateSize: () => 32,
-    overscan: 12,
+    overscan: 30,
+  });
+
+  // Stable visible entries: a click handler must keep firing on the row the
+  // user actually pressed, even while the captures torrent re-renders the
+  // surrounding list. `getVirtualItems()` returns brand-new objects every call,
+  // so we recycle the SAME wrapper reference whenever the underlying flow id
+  // and y-position are unchanged. Solid's `<For>` keys by element reference,
+  // so DOM nodes (and their listeners) survive across updates — fixing the
+  // "click on row N, selection lands on N+1" race during heavy capture.
+  type VisibleEntry = { id: string; f: Flow; start: number; size: number };
+  // LRU-ish cache (Map preserves insertion order; we re-insert on hit so the
+  // oldest unused entries fall off the front). Keeping recently-seen entries
+  // around means scrolling back over visited rows recycles the SAME wrapper
+  // refs → Solid's <For> reuses DOM instead of mounting fresh nodes — which
+  // was the source of the white flash on fast scroll.
+  const ENTRY_CACHE_MAX = 500;
+  const _entryCache = new Map<string, VisibleEntry>();
+  const visibleEntries = createMemo<VisibleEntry[]>(() => {
+    const items = virt.getVirtualItems();
+    const arr = rows();
+    const out: VisibleEntry[] = [];
+    for (const vi of items) {
+      const f = arr[vi.index];
+      if (!f) continue;
+      const prev = _entryCache.get(f.id);
+      if (prev && prev.f === f && prev.start === vi.start && prev.size === vi.size) {
+        // Touch (re-insert) so it's marked as recently used.
+        _entryCache.delete(f.id);
+        _entryCache.set(f.id, prev);
+        out.push(prev);
+      } else {
+        const entry: VisibleEntry = { id: f.id, f, start: vi.start, size: vi.size };
+        if (prev) _entryCache.delete(f.id);
+        _entryCache.set(f.id, entry);
+        out.push(entry);
+      }
+    }
+    // Evict oldest until we're under the cap.
+    while (_entryCache.size > ENTRY_CACHE_MAX) {
+      const oldestKey = _entryCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      _entryCache.delete(oldestKey);
+    }
+    return out;
   });
 
   // Manual double-click detection: SolidJS re-renders on selectSingle() which
@@ -392,11 +449,15 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
 
   return (
     <div class="h-full flex flex-col relative" onClick={closeCtx}>
-      <div class="flex-1 min-h-0 overflow-x-auto overflow-y-hidden scroll-thin flex flex-col">
-      <div class="flex-1 min-h-0 flex flex-col" style={{ "min-width": `${totalWidth()}px` }}>
-      {/* Header */}
+      {/* Single scroll container for both axes. Vertical scrollbar stays
+          pinned to the FlowList's visible right edge (instead of sitting
+          beyond the wide content when columns overflow horizontally), so
+          the scrollbar stays usable when the inspector is open. */}
+      <div ref={parentRef} class="flex-1 min-h-0 overflow-auto scroll-thin" style={{ "scrollbar-gutter": "stable" }}>
+      <div class="flex flex-col" style={{ "min-width": `${totalWidth()}px` }}>
+      {/* Header — sticky so it stays visible while the rows scroll. */}
       <div
-        class="grid h-9 items-stretch text-[10px] uppercase tracking-[0.12em] bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 mono opacity-90 shrink-0"
+        class="sticky top-0 z-10 grid h-9 items-stretch text-[10px] uppercase tracking-[0.12em] bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 mono opacity-90 shrink-0 backdrop-blur"
         style={{ "grid-template-columns": gridTemplate() }}
       >
         {/* Indicator gutter — empty header to keep columns aligned. */}
@@ -435,14 +496,22 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
         }}</For>
       </div>
 
-      {/* Rows */}
-      <div ref={parentRef} class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-thin relative">
-        <div style={{ height: `${virt.getTotalSize()}px`, position: "relative", width: "100%" }}>
-          {virt.getVirtualItems().map((vi) => {
-            const f = rows()[vi.index];
-            const sel = flowsStore.isSelected(f.id);
-            const markColor = colorOf(marksStore.marks()[f.id]);
-            const findHit = findAllStore.active() && findAllStore.isMatch(f.id);
+      {/* Rows — virtualizer scrolls on the outer parentRef now. */}
+      <div class="relative">
+        <div
+          class="tcn-row-skeleton"
+          style={{ height: `${virt.getTotalSize()}px`, position: "relative", width: "100%" }}
+        >
+          <For each={visibleEntries()}>{(entry) => {
+            const f = entry.f;
+            // IMPORTANT: <For> only runs this child once per recycled entry —
+            // store reads MUST be functions called from JSX so Solid tracks
+            // them as fine-grained reactivity. If they were `const sel = ...`
+            // here, Cmd+A / Shift-click would update the Set but the visible
+            // rows would never re-paint.
+            const sel = () => flowsStore.isSelected(f.id);
+            const markColor = () => colorOf(marksStore.marks()[f.id]);
+            const findHit = () => findAllStore.active() && findAllStore.isMatch(f.id);
             const fullUrl = `${f.scheme}://${f.host}${
               (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80)
                 ? ""
@@ -456,32 +525,28 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                 title={fullUrl}
                 style={{
                   position: "absolute", top: 0, left: 0, right: 0,
-                  height: `${vi.size}px`, transform: `translateY(${vi.start}px)`,
-                  background: sel
+                  height: `${entry.size}px`, transform: `translateY(${entry.start}px)`,
+                  background: sel()
                     ? undefined
-                    : (markColor ? `${markColor}1f` : undefined),
-                  "border-left": markColor ? `3px solid ${markColor}` : "3px solid transparent",
-                  // Selection cue: a single indigo accent bar on the left,
-                  // no extra bottom rule — keeps the row flush with its
-                  // neighbors so the gradient does the rest of the work.
-                  "box-shadow": sel
+                    : (markColor() ? `${markColor()}1f` : undefined),
+                  "border-left": markColor() ? `3px solid ${markColor()}` : "3px solid transparent",
+                  "box-shadow": sel()
                     ? "inset 3px 0 0 0 rgb(99 102 241 / 0.95)"
                     : undefined,
                   "grid-template-columns": gridTemplate(),
                 }}
                 class={`grid items-center text-xs mono cursor-pointer select-none pr-3
-                  ${sel
+                  ${sel()
                     ? "bg-gradient-to-r from-indigo-500/10 via-indigo-500/5 to-transparent dark:from-indigo-400/20 dark:via-indigo-400/10 font-medium"
-                    : findHit
+                    : findHit()
                       ? "bg-yellow-300/10 hover:bg-yellow-300/20 dark:bg-yellow-200/5 dark:hover:bg-yellow-200/15"
                       : "hover:bg-ink-50 dark:hover:bg-ink-400/20"}
                   border-b border-ink-100/70 dark:border-ink-400/20`}
               >
-                {/* Indicator gutter cell — dot + selection crosshair + SSL shield. */}
                 <div class="h-full grid grid-cols-[6px_13px_11px] items-center justify-center gap-2 pl-2.5 pr-1">
                   <span class="grid place-items-center">
                     <Show
-                      when={findHit}
+                      when={findHit()}
                       fallback={
                         <span class="h-1.5 w-1.5 rounded-full bg-ink-200/40 dark:bg-ink-200/50" />
                       }
@@ -493,7 +558,7 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                     </Show>
                   </span>
                   <span class="grid place-items-center">
-                    <Show when={sel}>
+                    <Show when={sel()}>
                       <span class="text-indigo-500 dark:text-indigo-300" title={t("list.selectedRow")}>
                         <Crosshair size={13} stroke-width={2.25} />
                       </span>
@@ -504,7 +569,7 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                 <For each={visibleCols()}>{(c) => renderCell(f, c.id)}</For>
               </div>
             );
-          })}
+          }}</For>
         </div>
       </div>
       </div>

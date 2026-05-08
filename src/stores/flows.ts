@@ -47,6 +47,10 @@ export const flowsStore = {
     setSelectedIds(new Set(ids.slice(lo, hi + 1)));
   },
   isSelected(id: string) { return selectedIds().has(id); },
+  getById(id: string): Flow | null {
+    const i = _idx.get(id);
+    return i === undefined ? null : flows()[i] ?? null;
+  },
   selectAll(ids: string[]) {
     setSelectedIds(new Set(ids));
     // Preserve the previously inspected flow as the anchor — Cmd+A

@@ -26,9 +26,36 @@ html.dark body {
 
 .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
 
-.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
-.scroll-thin::-webkit-scrollbar-thumb { background: rgba(127,127,127,.3); border-radius: 4px; }
-.scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(127,127,127,.5); }
+.scroll-thin::-webkit-scrollbar { width: 10px; height: 10px; }
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+.scroll-thin::-webkit-scrollbar-thumb { background: rgba(127,127,127,.45); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+.scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(127,127,127,.7); background-clip: padding-box; border: 2px solid transparent; }
+html.dark .scroll-thin::-webkit-scrollbar-thumb { background: rgba(200,200,210,.28); background-clip: padding-box; border: 2px solid transparent; }
+html.dark .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(200,200,210,.5); background-clip: padding-box; border: 2px solid transparent; }
+
+/* Placeholder rows behind the virtualized row layer. When the virtualizer
+   hasn't mounted a row yet (fast scroll catch-up, top or bottom of viewport),
+   the user sees a stack of light gray bars at the same 32px row pitch instead
+   of a blank white area. Each "row" is a soft fill plus a slightly darker
+   1px divider so it reads as a real list waiting to load, not empty space. */
+.tcn-row-skeleton {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(15, 24, 46, 0.035) 0,
+    rgba(15, 24, 46, 0.035) 31px,
+    rgba(15, 24, 46, 0.12) 31px,
+    rgba(15, 24, 46, 0.12) 32px
+  );
+}
+html.dark .tcn-row-skeleton {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.035) 0,
+    rgba(255, 255, 255, 0.035) 31px,
+    rgba(255, 255, 255, 0.10) 31px,
+    rgba(255, 255, 255, 0.10) 32px
+  );
+}
 
 /* Find bar — single shared component rendered in a dedicated row above
    the source/preview viewport. No floating, no overlap with content. */

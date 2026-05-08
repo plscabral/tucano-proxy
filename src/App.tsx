@@ -1,4 +1,4 @@
-import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
 import TopBar from "./components/TopBar";
 import StatusBar from "./components/StatusBar";
 import FlowList from "./components/FlowList";
@@ -276,11 +276,24 @@ export default function App() {
       const ids = flowsStore.selectedIds();
       if (ids.size > 0) {
         e.preventDefault();
-        const arr = Array.from(ids);
-        const snapshot = flowsStore.flows().filter((f) => ids.has(f.id));
-        await ipc.deleteFlows(arr);
+        // Snapshot via O(m) id lookup instead of O(n) filter — with 3000
+        // selected and 3000 total this is the difference between scanning
+        // 9M comparisons and 3K hash lookups.
+        const snapshot: Flow[] = [];
+        const arr: string[] = [];
+        for (const id of ids) {
+          arr.push(id);
+          const f = flowsStore.getById(id);
+          if (f) snapshot.push(f);
+        }
+        // Optimistic UI: clear locally first so the user sees instant
+        // response. The backend delete fires in the background; if it
+        // fails we just log — undo can resurrect them anyway.
         flowsStore.removeMany(ids);
         undoStore.push(snapshot);
+        void ipc.deleteFlows(arr).catch((err) => {
+          console.warn("ipc.deleteFlows failed", err);
+        });
       }
     } else if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
       if (undoStore.canUndo()) {
@@ -310,16 +323,42 @@ export default function App() {
     (await unNew)(); (await unUp)(); (await unTrimmed)();
   });
 
+  // Throttled mirror of flowsStore.flows() — refreshes the visible list at ~6 fps
+  // while capture is running, so the filter+rules+sort+virtualizer pipeline
+  // doesn't re-run on every batchUpsert. Instant when the proxy is stopped.
+  const [flowsView, setFlowsView] = createSignal<Flow[]>(flowsStore.flows());
+  let viewTimer: number | null = null;
+  createEffect(() => {
+    const next = flowsStore.flows();
+    const running = flowsStore.status().running;
+    const cur = untrack(flowsView);
+    // Shrinks (delete, clear, undo, trim) bypass the throttle — they're
+    // direct user actions that must paint instantly. Without this, hitting
+    // Backspace on 3000 selected rows during active capture leaves the
+    // list visible for up to 180ms before clearing, which feels like lag.
+    if (!running || next.length < cur.length) {
+      if (viewTimer != null) { clearTimeout(viewTimer); viewTimer = null; }
+      setFlowsView(next);
+      return;
+    }
+    if (viewTimer != null) return;
+    viewTimer = window.setTimeout(() => {
+      viewTimer = null;
+      setFlowsView(flowsStore.flows());
+    }, 180);
+  });
+  onCleanup(() => { if (viewTimer != null) clearTimeout(viewTimer); });
+
   const filtered = createMemo(() => {
     const cat = flowsStore.category() as Category;
-    const byCat = flowsStore.flows().filter((f) => matchesCategory(f, cat));
+    const byCat = flowsView().filter((f) => matchesCategory(f, cat));
     const byRules = applyRules(byCat, rulesStore.rules());
     const s = sortStore.state();
     return sortFlows(byRules, s.by, s.dir);
   });
   const selected = createMemo(() => {
     const id = openedFlowId();
-    return id ? flowsStore.flows().find((f) => f.id === id) ?? null : null;
+    return id ? flowsStore.getById(id) : null;
   });
 
   const onDragRight = (cx: number, _cy: number, rect: DOMRect) => {

@@ -19,6 +19,9 @@ function key(f: Flow, by: ColId): string | number {
 
 export function sortFlows(flows: Flow[], by: ColId | null, dir: "asc" | "desc"): Flow[] {
   if (!by) return flows;
+  // Fast-path: chronological is the natural insertion order, so a 1000+ array
+  // doesn't need an O(n log n) sort on every batch during active capture.
+  if (by === "index" && dir === "asc") return flows;
   const sorted = flows.slice().sort((a, b) => {
     const ka = key(a, by);
     const kb = key(b, by);
