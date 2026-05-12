@@ -1,4 +1,4 @@
-use crate::{ca::CertAuthority, ssl_settings::SslSettings, storage::Storage};
+use crate::{ca::CertAuthority, mcp_settings::McpSettings, ssl_settings::SslSettings, storage::Storage};
 use parking_lot::Mutex;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicUsize};
@@ -18,6 +18,8 @@ pub struct AppState {
     pub app: AppHandle,
     /// Maximum number of flows to keep in storage. 0 = unlimited.
     pub keep_limit: AtomicUsize,
+    pub mcp_settings: Mutex<McpSettings>,
+    pub mcp_stop_tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
 
 impl AppState {
@@ -31,6 +33,7 @@ impl AppState {
         let mut storage = Storage::open(&data_dir.join("flows.db"))?;
         let _ = storage.clear();
         let ssl = SslSettings::load(&data_dir);
+        let mcp = McpSettings::load(&data_dir);
         Ok(Self {
             data_dir,
             ca,
@@ -42,6 +45,8 @@ impl AppState {
             ssl: Mutex::new(ssl),
             app,
             keep_limit: AtomicUsize::new(0),
+            mcp_settings: Mutex::new(mcp),
+            mcp_stop_tx: Mutex::new(None),
         })
     }
 }

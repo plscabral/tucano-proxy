@@ -2,7 +2,7 @@ import { createSignal, onMount, Show, For } from "solid-js";
 import {
   X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor,
   ChevronDown, Lock, RefreshCw, FileText, Film, Music, Database, Plug, FileType,
-  Braces, Type, FileCode2,
+  Braces, Type, FileCode2, Bot, Copy, RotateCw,
 } from "lucide-solid";
 import { SiJavascript, SiCss, SiHtml5, SiGraphql } from "solid-icons/si";
 import {
@@ -54,6 +54,12 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
   const [skipHosts, setSkipHosts] = createSignal("");
   const [sslSaved, setSslSaved] = createSignal(false);
   const [appVersion, setAppVersion] = createSignal("");
+  const [mcpEnabled, setMcpEnabled] = createSignal(false);
+  const [mcpPort, setMcpPort] = createSignal(7878);
+  const [mcpToken, setMcpToken] = createSignal("");
+  const [mcpSaved, setMcpSaved] = createSignal(false);
+  const [mcpCopied, setMcpCopied] = createSignal<"" | "token" | "config">("");
+  const [tokenVisible, setTokenVisible] = createSignal(false);
 
   onMount(async () => {
     try {
@@ -63,7 +69,41 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
       setSkipHosts((s.skipHosts || []).join("\n"));
     } catch {}
     try { setAppVersion(await getVersion()); } catch {}
+    try {
+      const m = await ipc.getMcpSettings();
+      setMcpEnabled(m.enabled); setMcpPort(m.port); setMcpToken(m.token);
+    } catch {}
   });
+
+  const saveMcp = async () => {
+    await ipc.setMcpSettings({ enabled: mcpEnabled(), port: mcpPort(), token: mcpToken() });
+    setMcpSaved(true);
+    setTimeout(() => setMcpSaved(false), 1500);
+  };
+  const rotateMcpToken = async () => {
+    if (!confirm("Rotate MCP token? Existing clients will need to be reconfigured.")) return;
+    const m = await ipc.rotateMcpToken();
+    setMcpToken(m.token);
+  };
+  const copyMcp = async (kind: "token" | "config") => {
+    // Copy always uses the real token — masking is just visual.
+    const text = kind === "token" ? mcpToken() : mcpConfigSnippet(true);
+    await navigator.clipboard.writeText(text);
+    setMcpCopied(kind);
+    setTimeout(() => setMcpCopied(""), 1500);
+  };
+  const mcpConfigSnippet = (real = false) => JSON.stringify({
+    mcpServers: {
+      tucano: {
+        command: "npx",
+        args: ["-y", "tucano-mcp"],
+        env: {
+          TUCANO_TOKEN: real || tokenVisible() ? mcpToken() : "•".repeat(mcpToken().length),
+          ...(mcpPort() !== 7878 ? { TUCANO_URL: `http://127.0.0.1:${mcpPort()}` } : {}),
+        },
+      },
+    },
+  }, null, 2);
 
   const saveSsl = async () => {
     const hosts = sslHosts().split("\n").map((s) => s.trim()).filter(Boolean);
@@ -92,12 +132,13 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
     a.href = url; a.download = "tucano-root.pem"; a.click();
     URL.revokeObjectURL(url);
   };
-  type Tab = "general" | "proxy" | "cert" | "about" | "shortcuts" | "icons";
+  type Tab = "general" | "proxy" | "cert" | "mcp" | "about" | "shortcuts" | "icons";
   const [tab, setTab] = createSignal<Tab>("general");
   const TABS: { id: Tab; icon: any; label: string }[] = [
     { id: "general",   icon: <Sun size={14} />,         label: t("set.appearance") },
     { id: "proxy",     icon: <Network size={14} />,     label: t("set.proxy") },
     { id: "cert",      icon: <ShieldCheck size={14} />, label: t("set.cert") },
+    { id: "mcp",       icon: <Bot size={14} />,         label: "MCP (LLM tools)" },
     { id: "icons",     icon: <Info size={14} />,        label: t("set.iconsTitle") },
     { id: "about",     icon: <RefreshCw size={14} />,   label: t("set.aboutTitle") },
     { id: "shortcuts", icon: <Keyboard size={14} />,    label: t("set.shortcuts") },
@@ -260,6 +301,82 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               <li>{t("set.why3")}</li>
               <li>{t("set.why4")}</li>
             </ul>
+          </Section>
+          </Show>
+
+          <Show when={tab() === "mcp"}>
+          <Section icon={<Bot size={14} />} title="MCP bridge">
+            <p class="text-xs opacity-70 leading-relaxed">
+              Exposes captured flows to LLM tools (Claude Desktop, Claude Code, Cursor) via a local-loopback HTTP API. Use the <code class="mono">tucano-mcp</code> npm package as the stdio bridge.
+            </p>
+            <Row title="Enable MCP bridge" hint="Off by default. Listens on 127.0.0.1 only, requires Bearer token.">
+              <button
+                onClick={() => setMcpEnabled(!mcpEnabled())}
+                class={`h-9 px-4 text-xs rounded-xl border transition
+                  ${mcpEnabled()
+                    ? "bg-toucan-400/15 border-toucan-400/60 text-toucan-400"
+                    : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}>
+                {mcpEnabled() ? t("set.enabled") : t("set.disabled")}
+              </button>
+            </Row>
+            <div class="flex items-center gap-3">
+              <label class="text-xs opacity-70 w-14">Port</label>
+              <input
+                type="number"
+                value={mcpPort()}
+                onInput={(e) => setMcpPort(Number(e.currentTarget.value) || 7878)}
+                class="w-28 h-9 px-3 mono text-sm rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
+              />
+            </div>
+            <div>
+              <div class="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">Token</div>
+              <div class="flex items-center gap-2">
+                <input
+                  type={tokenVisible() ? "text" : "password"}
+                  readonly
+                  value={mcpToken()}
+                  class="flex-1 h-9 px-3 mono text-xs rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 outline-none"
+                />
+                <button
+                  onClick={() => setTokenVisible(!tokenVisible())}
+                  class="h-9 px-3 text-xs rounded-xl border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"
+                >{tokenVisible() ? "Hide" : "Show"}</button>
+                <button
+                  onClick={() => copyMcp("token")}
+                  class={`h-9 px-3 text-xs rounded-xl border flex items-center gap-1.5 transition
+                    ${mcpCopied() === "token"
+                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500"
+                      : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}
+                ><Copy size={13} /> {mcpCopied() === "token" ? "Copied" : "Copy"}</button>
+                <button
+                  onClick={rotateMcpToken}
+                  class="h-9 px-3 text-xs rounded-xl border border-red-500/40 text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"
+                ><RotateCw size={13} /> Rotate</button>
+              </div>
+            </div>
+            <button
+              onClick={saveMcp}
+              class={`h-9 px-4 text-xs rounded-xl font-medium transition
+                ${mcpSaved()
+                  ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40"
+                  : "bg-toucan-400 text-ink-500 hover:bg-toucan-300"}`}
+            >{mcpSaved() ? "Saved" : "Save"}</button>
+          </Section>
+
+          <Section icon={<Info size={14} />} title="Client config">
+            <p class="text-xs opacity-70 leading-relaxed">
+              Paste into your LLM client's MCP config (Claude Desktop: <code class="mono">~/Library/Application Support/Claude/claude_desktop_config.json</code>). Save settings above first — the snippet uses the current port and token. The token is masked below; <strong>Copy</strong> always copies the real value.
+            </p>
+            <div class="relative">
+              <pre class="text-[11px] mono p-3 rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 overflow-auto whitespace-pre">{mcpConfigSnippet()}</pre>
+              <button
+                onClick={() => copyMcp("config")}
+                class={`absolute top-2 right-2 h-7 px-2 text-[11px] rounded-lg border flex items-center gap-1.5 transition
+                  ${mcpCopied() === "config"
+                    ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500"
+                    : "bg-white dark:bg-ink-600 border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}
+              ><Copy size={11} /> {mcpCopied() === "config" ? "Copied" : "Copy"}</button>
+            </div>
           </Section>
           </Show>
 

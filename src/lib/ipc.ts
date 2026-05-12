@@ -36,6 +36,12 @@ export const ipc = {
     invoke<void>("set_ssl_settings", { settings }),
   getKeepLimit: () => invoke<number>("get_keep_limit"),
   setKeepLimit: (limit: number) => invoke<void>("set_keep_limit", { limit }),
+  getMcpSettings: () =>
+    invoke<{ enabled: boolean; port: number; token: string }>("get_mcp_settings"),
+  setMcpSettings: (settings: { enabled: boolean; port: number; token: string }) =>
+    invoke<void>("set_mcp_settings", { settings }),
+  rotateMcpToken: () =>
+    invoke<{ enabled: boolean; port: number; token: string }>("rotate_mcp_token"),
 };
 
 export const onFlowNew = (cb: (f: Flow) => void): Promise<UnlistenFn> =>

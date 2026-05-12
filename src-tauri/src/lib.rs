@@ -2,6 +2,8 @@ mod ca;
 mod client_proc;
 mod commands;
 mod http_client;
+mod mcp_bridge;
+mod mcp_settings;
 mod proxy;
 mod ssl_settings;
 mod state;
@@ -38,6 +40,12 @@ pub fn run() {
             let handle = app.handle().clone();
             let state = Arc::new(AppState::new(handle.clone()).expect("init state"));
             app.manage(state.clone());
+
+            // Boot the MCP bridge if the user previously enabled it.
+            let mcp = state.mcp_settings.lock().clone();
+            if mcp.enabled {
+                mcp_bridge::spawn(state.clone(), mcp.port, mcp.token);
+            }
 
             // Replace the default macOS menu so Cmd+F isn't swallowed by a
             // built-in "Find" item — we route Cmd+F to the in-app body
@@ -132,6 +140,9 @@ pub fn run() {
             commands::get_keep_limit,
             commands::set_keep_limit,
             commands::compose_request,
+            commands::get_mcp_settings,
+            commands::set_mcp_settings,
+            commands::rotate_mcp_token,
         ])
         .build(tauri::generate_context!())
         .expect("error building Tucano");
@@ -171,6 +182,7 @@ pub fn cleanup_state(state: &Arc<AppState>) {
     let _ = system_proxy::set(false, port);
     state.system_proxy_on.store(false, Ordering::SeqCst);
     if let Some(tx) = state.stop_tx.lock().take() { let _ = tx.send(()); }
+    if let Some(tx) = state.mcp_stop_tx.lock().take() { let _ = tx.send(()); }
     state.running.store(false, Ordering::SeqCst);
     eprintln!("[tucano] cleanup done");
 }

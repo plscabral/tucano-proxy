@@ -1,3 +1,4 @@
+use crate::mcp_settings::{self, McpSettings};
 use crate::ssl_settings::SslSettings;
 use crate::state::AppState;
 use crate::storage::Flow;
@@ -71,13 +72,17 @@ pub fn stop_proxy(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> 
 /// Fiddler/Proxyman model — one click = ready to debug.
 #[tauri::command]
 pub async fn start_capture(state: tauri::State<'_, Arc<AppState>>, port: u16) -> Result<(), String> {
+    start_capture_internal(state.inner().clone(), port).await
+}
+
+pub(crate) async fn start_capture_internal(state: Arc<AppState>, port: u16) -> Result<(), String> {
     // Start the proxy server (idempotent if already running).
     if !state.running.load(Ordering::SeqCst) {
         state.port.store(port, Ordering::SeqCst);
         let (tx, rx) = tokio::sync::oneshot::channel();
         *state.stop_tx.lock() = Some(tx);
         state.running.store(true, Ordering::SeqCst);
-        let st: Arc<AppState> = state.inner().clone();
+        let st = state.clone();
         tokio::spawn(async move {
             if let Err(e) = proxy::run(st.clone(), port, rx).await {
                 tracing::error!("proxy error: {e}");
@@ -85,9 +90,6 @@ pub async fn start_capture(state: tauri::State<'_, Arc<AppState>>, port: u16) ->
             st.running.store(false, Ordering::SeqCst);
         });
     }
-    // Flip the OS proxy so traffic actually reaches us.
-    // system_proxy::set() spawns child processes (networksetup, reg) — run it
-    // in a blocking thread so the tokio runtime stays responsive.
     let active_port = state.port.load(Ordering::SeqCst);
     tokio::task::spawn_blocking(move || system_proxy::set(true, active_port))
         .await
@@ -101,9 +103,12 @@ pub async fn start_capture(state: tauri::State<'_, Arc<AppState>>, port: u16) ->
 /// internet is restored immediately) and then stops the local server.
 #[tauri::command]
 pub async fn stop_capture(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    stop_capture_internal(state.inner().clone()).await
+}
+
+pub(crate) async fn stop_capture_internal(state: Arc<AppState>) -> Result<(), String> {
     let port = state.port.load(Ordering::SeqCst);
     if state.system_proxy_on.load(Ordering::SeqCst) {
-        // system_proxy::set() spawns child processes — run off the async executor.
         tokio::task::spawn_blocking(move || system_proxy::set(false, port))
             .await
             .map_err(|e| format!("spawn_blocking: {e}"))?
@@ -187,6 +192,17 @@ pub async fn compose_request(
     body: Option<String>,
     log: bool,
 ) -> Result<Flow, String> {
+    compose_internal(state.inner().clone(), method, url, headers, body, log).await
+}
+
+pub(crate) async fn compose_internal(
+    state: Arc<AppState>,
+    method: String,
+    url: String,
+    headers: Vec<(String, String)>,
+    body: Option<String>,
+    log: bool,
+) -> Result<Flow, String> {
     // Parse URL into components for the Flow record.
     let uri: http::Uri = url.parse().map_err(|e| format!("invalid url: {e}"))?;
     let scheme = uri.scheme_str().unwrap_or("http").to_string();
@@ -225,7 +241,7 @@ pub async fn compose_request(
         note: None,
     };
 
-    let new_id = send_request(state.inner().clone(), template, headers, body, "Tucano Composer").await?;
+    let new_id = send_request(state.clone(), template, headers, body, "Tucano Composer").await?;
     let flow = state.storage.lock().get(&new_id).map_err(err)?.ok_or("flow not found after compose")?;
     if !log {
         // Remove from persistent storage but still return the result for inline display.
@@ -235,7 +251,7 @@ pub async fn compose_request(
 }
 
 /// Shared HTTP sender used by replay_flow and compose_request.
-async fn send_request(
+pub(crate) async fn send_request(
     state: Arc<AppState>,
     flow: Flow,
     header_overrides: Vec<(String, String)>,
@@ -412,4 +428,37 @@ pub fn set_ssl_settings(state: tauri::State<'_, Arc<AppState>>, settings: SslSet
     settings.save(&state.data_dir).map_err(err)?;
     *state.ssl.lock() = settings;
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_mcp_settings(state: tauri::State<'_, Arc<AppState>>) -> McpSettings {
+    state.mcp_settings.lock().clone()
+}
+
+#[tauri::command]
+pub async fn set_mcp_settings(state: tauri::State<'_, Arc<AppState>>, settings: McpSettings) -> Result<(), String> {
+    settings.save(&state.data_dir).map_err(err)?;
+    *state.mcp_settings.lock() = settings.clone();
+    // Stop existing bridge (if any). Idempotent.
+    if let Some(tx) = state.mcp_stop_tx.lock().take() { let _ = tx.send(()); }
+    if settings.enabled {
+        crate::mcp_bridge::spawn(state.inner().clone(), settings.port, settings.token);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn rotate_mcp_token(state: tauri::State<'_, Arc<AppState>>) -> Result<McpSettings, String> {
+    let new = {
+        let mut s = state.mcp_settings.lock();
+        s.token = mcp_settings::new_token();
+        s.clone()
+    };
+    new.save(&state.data_dir).map_err(err)?;
+    // Restart bridge with the new token so old clients are kicked.
+    if let Some(tx) = state.mcp_stop_tx.lock().take() { let _ = tx.send(()); }
+    if new.enabled {
+        crate::mcp_bridge::spawn(state.inner().clone(), new.port, new.token.clone());
+    }
+    Ok(new)
 }
