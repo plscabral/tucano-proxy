@@ -77,6 +77,29 @@ async function installAndRestart(): Promise<void> {
 
 async function installSilently(): Promise<void> {
   if (state() !== "ready" || !pendingUpdate) return;
+  // Re-check before applying. The staged `pendingUpdate` was frozen at download
+  // time — if a newer release has been published since, install-on-quit would
+  // otherwise apply the stale version and force the user through a second
+  // upgrade cycle on the next launch (e.g. v0.1.10 → v0.1.11 → v0.1.12).
+  // Bounded with a short timeout so we don't hang the quit path on a flaky
+  // network.
+  try {
+    const latest = await Promise.race<Update | null>([
+      check(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
+    if (latest && latest.version !== pendingUpdate.version) {
+      console.info(
+        `[updater] newer version ${latest.version} found at quit, replacing staged ${pendingUpdate.version}`,
+      );
+      pendingUpdate = latest;
+      setVersion(latest.version);
+      setNotes(latest.body ?? null);
+      await latest.download();
+    }
+  } catch (e) {
+    console.warn("[updater] re-check on quit failed, installing staged version", e);
+  }
   try {
     await pendingUpdate.install();
   } catch (e) {

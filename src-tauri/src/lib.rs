@@ -3,6 +3,7 @@ mod client_proc;
 mod commands;
 mod http_client;
 mod mcp_bridge;
+mod mcp_install;
 mod mcp_settings;
 mod proxy;
 mod ssl_settings;
@@ -143,6 +144,9 @@ pub fn run() {
             commands::get_mcp_settings,
             commands::set_mcp_settings,
             commands::rotate_mcp_token,
+            mcp_install::list_mcp_clients,
+            mcp_install::install_mcp_client,
+            mcp_install::uninstall_mcp_client,
         ])
         .build(tauri::generate_context!())
         .expect("error building Tucano");

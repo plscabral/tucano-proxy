@@ -42,6 +42,19 @@ export const ipc = {
     invoke<void>("set_mcp_settings", { settings }),
   rotateMcpToken: () =>
     invoke<{ enabled: boolean; port: number; token: string }>("rotate_mcp_token"),
+  listMcpClients: () => invoke<McpClientStatus[]>("list_mcp_clients"),
+  installMcpClient: (client: McpClient) =>
+    invoke<McpClientStatus[]>("install_mcp_client", { client }),
+  uninstallMcpClient: (client: McpClient) =>
+    invoke<McpClientStatus[]>("uninstall_mcp_client", { client }),
+};
+
+export type McpClient = "claudeDesktop" | "claudeCode" | "codex" | "opencode";
+export type McpClientStatus = {
+  id: McpClient;
+  label: string;
+  path: string;
+  installed: boolean;
 };
 
 export const onFlowNew = (cb: (f: Flow) => void): Promise<UnlistenFn> =>

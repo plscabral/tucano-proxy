@@ -13,7 +13,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { flowsStore } from "../stores/flows";
 import { updaterStore } from "../stores/updater";
 import { prefsStore } from "../stores/prefs";
-import { ipc } from "../lib/ipc";
+import { ipc, type McpClient, type McpClientStatus } from "../lib/ipc";
 import { t, LOCALES, currentLocale, setLocale, type Locale } from "../lib/i18n";
 import { themeMode, setTheme, type ThemeMode } from "../stores/theme";
 
@@ -60,6 +60,8 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
   const [mcpSaved, setMcpSaved] = createSignal(false);
   const [mcpCopied, setMcpCopied] = createSignal<"" | "token" | "config">("");
   const [tokenVisible, setTokenVisible] = createSignal(false);
+  const [mcpClients, setMcpClients] = createSignal<McpClientStatus[]>([]);
+  const [mcpClientBusy, setMcpClientBusy] = createSignal<McpClient | "">("");
 
   onMount(async () => {
     try {
@@ -73,7 +75,25 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
       const m = await ipc.getMcpSettings();
       setMcpEnabled(m.enabled); setMcpPort(m.port); setMcpToken(m.token);
     } catch {}
+    try { setMcpClients(await ipc.listMcpClients()); } catch {}
   });
+
+  const refreshMcpClients = async () => {
+    try { setMcpClients(await ipc.listMcpClients()); } catch {}
+  };
+  const installMcpClient = async (c: McpClient) => {
+    if (!mcpToken()) { alert("Save the MCP settings first so a token exists."); return; }
+    setMcpClientBusy(c);
+    try { setMcpClients(await ipc.installMcpClient(c)); }
+    catch (e) { alert(String(e)); }
+    finally { setMcpClientBusy(""); }
+  };
+  const uninstallMcpClient = async (c: McpClient) => {
+    setMcpClientBusy(c);
+    try { setMcpClients(await ipc.uninstallMcpClient(c)); }
+    catch (e) { alert(String(e)); }
+    finally { setMcpClientBusy(""); }
+  };
 
   const saveMcp = async () => {
     await ipc.setMcpSettings({ enabled: mcpEnabled(), port: mcpPort(), token: mcpToken() });
@@ -361,6 +381,44 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                   ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40"
                   : "bg-toucan-400 text-ink-500 hover:bg-toucan-300"}`}
             >{mcpSaved() ? "Saved" : "Save"}</button>
+          </Section>
+
+          <Section icon={<Plug size={14} />} title="Install in clients">
+            <p class="text-xs opacity-70 leading-relaxed">
+              One-click install of the <code class="mono">tucano</code> MCP entry into your client's config file. Uses the current port and token — save above first if you just changed them. Restart the client after installing.
+            </p>
+            <div class="space-y-2">
+              <For each={mcpClients()}>{(c) => (
+                <div class="flex items-center gap-3 p-3 rounded-xl border border-ink-100 dark:border-ink-400/40">
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium flex items-center gap-2">
+                      {c.label}
+                      <Show when={c.installed}>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500 border border-emerald-500/40">Installed</span>
+                      </Show>
+                    </div>
+                    <div class="text-[11px] mono opacity-60 truncate">{c.path}</div>
+                  </div>
+                  <Show when={!c.installed} fallback={
+                    <button
+                      disabled={mcpClientBusy() === c.id}
+                      onClick={() => uninstallMcpClient(c.id)}
+                      class="h-8 px-3 text-xs rounded-lg border border-red-500/40 text-red-500 hover:bg-red-500/10 disabled:opacity-50"
+                    >Remove</button>
+                  }>
+                    <button
+                      disabled={mcpClientBusy() === c.id}
+                      onClick={() => installMcpClient(c.id)}
+                      class="h-8 px-3 text-xs rounded-lg bg-toucan-400 text-ink-500 hover:bg-toucan-300 disabled:opacity-50"
+                    >Install</button>
+                  </Show>
+                </div>
+              )}</For>
+            </div>
+            <button
+              onClick={refreshMcpClients}
+              class="h-8 px-3 text-xs rounded-lg border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 flex items-center gap-1.5"
+            ><RefreshCw size={12} /> Refresh</button>
           </Section>
 
           <Section icon={<Info size={14} />} title="Client config">
