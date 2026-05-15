@@ -34,6 +34,14 @@ function statusColor(s: number | null) {
   if (s >= 200) return "text-emerald-400";
   return "text-ink-200";
 }
+function statusChipClass(s: number | null) {
+  if (s == null) return "bg-ink-100/70 dark:bg-white/[0.04] text-ink-300 backdrop-blur-sm";
+  if (s >= 500) return "bg-red-50 text-red-700 dark:bg-red-500/[0.08] dark:text-red-300 dark:ring-1 dark:ring-inset dark:ring-red-400/20 backdrop-blur-sm";
+  if (s >= 400) return "bg-amber-50 text-amber-800 dark:bg-amber-500/[0.08] dark:text-amber-300 dark:ring-1 dark:ring-inset dark:ring-amber-400/20 backdrop-blur-sm";
+  if (s >= 300) return "bg-cyan-50 text-cyan-800 dark:bg-cyan-500/[0.08] dark:text-cyan-300 dark:ring-1 dark:ring-inset dark:ring-cyan-400/20 backdrop-blur-sm";
+  if (s >= 200) return "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/[0.08] dark:text-emerald-300 dark:ring-1 dark:ring-inset dark:ring-emerald-400/20 backdrop-blur-sm";
+  return "bg-ink-100/70 dark:bg-white/[0.04] text-ink-200 backdrop-blur-sm";
+}
 function methodColor(m: string) {
   switch (m.toUpperCase()) {
     case "GET":     return "text-emerald-400";
@@ -44,6 +52,20 @@ function methodColor(m: string) {
     case "HEAD":    return "text-violet-400";
     case "OPTIONS": return "text-teal-400";
     default:        return "text-ink-200";
+  }
+}
+function methodChipClass(m: string) {
+  const base = "backdrop-blur-sm";
+  switch (m.toUpperCase()) {
+    case "GET":     return `${base} bg-emerald-50 text-emerald-800 dark:bg-emerald-500/[0.08] dark:text-emerald-300 dark:ring-1 dark:ring-inset dark:ring-emerald-400/20`;
+    case "POST":    return `${base} bg-cyan-50 text-cyan-800 dark:bg-cyan-500/[0.08] dark:text-cyan-300 dark:ring-1 dark:ring-inset dark:ring-cyan-400/20`;
+    case "PUT":     return `${base} bg-amber-50 text-amber-800 dark:bg-amber-500/[0.08] dark:text-amber-300 dark:ring-1 dark:ring-inset dark:ring-amber-400/20`;
+    case "PATCH":   return `${base} bg-fuchsia-50 text-fuchsia-800 dark:bg-fuchsia-500/[0.08] dark:text-fuchsia-300 dark:ring-1 dark:ring-inset dark:ring-fuchsia-400/20`;
+    case "DELETE":  return `${base} bg-red-50 text-red-700 dark:bg-red-500/[0.08] dark:text-red-300 dark:ring-1 dark:ring-inset dark:ring-red-400/20`;
+    case "HEAD":    return `${base} bg-violet-50 text-violet-800 dark:bg-violet-500/[0.08] dark:text-violet-300 dark:ring-1 dark:ring-inset dark:ring-violet-400/20`;
+    case "OPTIONS": return `${base} bg-teal-50 text-teal-800 dark:bg-teal-500/[0.08] dark:text-teal-300 dark:ring-1 dark:ring-inset dark:ring-teal-400/20`;
+    case "CONNECT": return `${base} bg-indigo-50 text-indigo-800 dark:bg-indigo-500/[0.08] dark:text-indigo-300 dark:ring-1 dark:ring-inset dark:ring-indigo-400/20`;
+    default:        return `${base} bg-ink-100/70 dark:bg-white/[0.04] text-ink-300`;
   }
 }
 // Maps a flow to a Fiddler-style icon. Primary distinction is the HTTP method
@@ -154,8 +176,16 @@ function renderCell(f: Flow, id: ColId) {
         <span class="opacity-50 truncate">{f.index}</span>
       </div>
     );
-    case "method":   return <div class={`truncate pl-3 pr-2 font-semibold ${methodColor(f.method)}`}>{f.method}</div>;
-    case "status":   return <div class={`truncate pl-3 pr-2 font-semibold ${statusColor(f.status)}`}>{f.status ?? "—"}</div>;
+    case "method":   return (
+      <div class="pl-2 pr-2 flex items-center">
+        <span class={`px-1.5 py-[1px] rounded text-[10px] font-bold mono tracking-[0.06em] ${methodChipClass(f.method)}`}>{f.method}</span>
+      </div>
+    );
+    case "status":   return (
+      <div class="pl-2 pr-2 flex items-center">
+        <span class={`px-1.5 py-[1px] rounded text-[10px] font-bold mono tracking-[0.06em] ${statusChipClass(f.status)}`}>{f.status ?? "—"}</span>
+      </div>
+    );
     case "host":     return <div class="truncate pl-3 pr-2">{f.host}</div>;
     case "path":     return <div class="truncate pl-3 pr-2 opacity-80">{f.path}</div>;
     case "size":     return <div class="truncate pl-3 pr-2 opacity-70">{fmtSize(f.resSize || f.reqSize)}</div>;
@@ -462,16 +492,16 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
   };
 
   return (
-    <div class="h-full flex flex-col relative" onClick={closeCtx}>
+    <div class="h-full flex flex-col relative bg-white dark:bg-[#080D1B]" onClick={closeCtx}>
       {/* Single scroll container for both axes. Vertical scrollbar stays
           pinned to the FlowList's visible right edge (instead of sitting
           beyond the wide content when columns overflow horizontally), so
           the scrollbar stays usable when the inspector is open. */}
-      <div ref={parentRef} class="flex-1 min-h-0 overflow-auto scroll-thin" style={{ "scrollbar-gutter": "stable" }}>
+      <div ref={parentRef} class="flex-1 min-h-0 overflow-auto scroll-thin bg-white dark:bg-[#080D1B]" style={{ "scrollbar-gutter": "stable" }}>
       <div class="flex flex-col" style={{ "min-width": `${totalWidth()}px` }}>
       {/* Header — sticky so it stays visible while the rows scroll. */}
       <div
-        class="sticky top-0 z-10 grid h-9 items-stretch text-[10px] uppercase tracking-[0.12em] bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30 mono opacity-90 shrink-0 backdrop-blur"
+        class="sticky top-0 z-10 grid h-9 items-stretch text-[10px] uppercase tracking-[0.14em] tcn-glass border-b border-ink-100/60 dark:border-white/10 mono text-ink-400 dark:text-ink-200/80 font-medium shrink-0"
         style={{ "grid-template-columns": gridTemplate() }}
       >
         {/* Indicator gutter — empty header to keep columns aligned. */}
@@ -547,23 +577,25 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                   background: markColor()
                     ? `${markColor()}${sel() ? "40" : "1f"}`
                     : undefined,
-                  "border-left": markColor() ? `3px solid ${markColor()}` : "3px solid transparent",
-                  "box-shadow": sel()
-                    ? "inset 3px 0 0 0 rgb(99 102 241 / 0.95)"
-                    : undefined,
+                  // Mark + selection both render as a 3px inset bar (no
+                  // border-left — that would shift content right when toggled).
+                  // Mark color wins when both are present.
+                  "box-shadow": markColor()
+                    ? `inset 2px 0 0 0 ${markColor()}`
+                    : (sel() ? "inset 2px 0 0 0 rgb(56 189 248 / 1)" : undefined),
                   "grid-template-columns": gridTemplate(),
                 }}
                 class={`grid items-center text-xs mono cursor-pointer select-none pr-3
                   ${sel()
                     ? (markColor()
                         ? "font-medium"
-                        : "bg-gradient-to-r from-indigo-500/10 via-indigo-500/5 to-transparent dark:from-indigo-400/20 dark:via-indigo-400/10 font-medium")
+                        : "bg-gradient-to-r from-sky-500/25 via-sky-500/10 to-sky-500/[0.03] dark:from-sky-400/25 dark:via-sky-400/10 dark:to-sky-400/[0.02] font-medium")
                     : findHit()
                       ? "bg-yellow-300/10 hover:bg-yellow-300/20 dark:bg-yellow-200/5 dark:hover:bg-yellow-200/15"
-                      : "hover:bg-ink-50 dark:hover:bg-ink-400/20"}
-                  border-b border-ink-100/70 dark:border-ink-400/20`}
+                      : "hover:bg-ink-100/40 dark:hover:bg-white/[0.03]"}
+                  border-b border-ink-100/40 dark:border-white/[0.04]`}
               >
-                <div class="h-full grid grid-cols-[6px_13px_11px] items-center justify-center gap-2 pl-2.5 pr-1">
+                <div class="h-full grid grid-cols-[6px_13px_11px] items-center justify-center gap-2 pl-4 pr-1">
                   <span class="grid place-items-center">
                     <Show
                       when={findHit()}
@@ -579,7 +611,7 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                   </span>
                   <span class="grid place-items-center">
                     <Show when={sel()}>
-                      <span class="text-indigo-500 dark:text-indigo-300" title={t("list.selectedRow")}>
+                      <span class="text-sky-500 dark:text-sky-400" title={t("list.selectedRow")}>
                         <Crosshair size={13} stroke-width={2.25} />
                       </span>
                     </Show>
@@ -629,7 +661,7 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
       <Show when={ctx()}>
         {(c) => (
           <div
-            class="fixed z-40 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-2xl py-1.5 min-w-[200px] text-xs"
+            class="fixed z-40 tcn-glass rounded-2xl shadow-elev py-1.5 min-w-[200px] text-xs"
             style={{ left: `${c().x}px`, top: `${c().y}px` }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -689,7 +721,7 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
               </button>
               <Show when={exportOpen()}>
                 <div
-                  class="absolute left-full top-0 -ml-px bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-2xl py-1.5 min-w-[200px] text-xs"
+                  class="absolute left-full top-0 -ml-px tcn-glass rounded-2xl shadow-elev py-1.5 min-w-[200px] text-xs"
                 >
                   <For each={EXPORT_FORMATS}>{(fmt) => (
                     <button

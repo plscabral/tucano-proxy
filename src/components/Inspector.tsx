@@ -68,7 +68,7 @@ export default function Inspector(props: { flow: Flow | null; onClose?: () => vo
   };
 
   return (
-    <div data-inspector="true" class="h-full flex flex-col relative">
+    <div data-inspector="true" class="h-full flex flex-col relative bg-white dark:bg-[#080D1B]">
       <Show when={props.flow} fallback={
         <div class="h-full grid place-items-center opacity-50 text-sm">{t("ins.placeholder")}</div>
       }>
@@ -161,7 +161,7 @@ export default function Inspector(props: { flow: Flow | null; onClose?: () => vo
             <Show
               when={!showTiming()}
               fallback={
-                <div class="flex-1 overflow-auto scroll-thin bg-ink-50/40 dark:bg-ink-600">
+                <div class="flex-1 overflow-auto scroll-thin bg-white dark:bg-[#080D1B]">
                   <TimingView flow={f()} />
                 </div>
               }
@@ -223,7 +223,7 @@ function Pane(props: {
   const ctrlBtn = "h-7 w-7 grid place-items-center rounded-md opacity-50 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20 hover:text-toucan-400 transition shrink-0";
   return (
     <div class="flex-1 flex flex-col min-w-0 min-h-0">
-      <div class="flex items-center gap-1 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-white dark:bg-ink-500 shrink-0">
+      <div class="flex items-center gap-1 px-3 h-9 border-b border-ink-100 dark:border-white/[0.05] tcn-glass shrink-0">
         <span class={`text-[10px] uppercase tracking-wider font-semibold mr-2 ${props.accent}`}>{props.label}</span>
         <SubTabBtn active={props.tab === "headers"} onClick={() => props.onTab("headers")}>Headers</SubTabBtn>
         <SubTabBtn active={props.tab === "body"} onClick={() => props.onTab("body")}>Body</SubTabBtn>
@@ -243,7 +243,7 @@ function Pane(props: {
           </Show>
         </div>
       </div>
-      <div class="flex-1 min-h-0 overflow-auto scroll-thin bg-ink-50/40 dark:bg-ink-600">
+      <div class="flex-1 min-h-0 overflow-auto scroll-thin bg-white dark:bg-[#080D1B]">
         {props.children}
       </div>
     </div>

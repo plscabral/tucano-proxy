@@ -21,6 +21,7 @@ const [width, setWidthSignal] = createSignal(init.width);
 // resets between sessions and doesn't quietly hide flows on a fresh start.
 const [selectedApps, setSelectedApps] = createSignal<Set<string>>(new Set());
 const [selectedDomains, setSelectedDomains] = createSignal<Set<string>>(new Set());
+const [selectedCategories, setSelectedCategories] = createSignal<Set<string>>(new Set());
 
 createEffect(() => {
   localStorage.setItem(KEY, JSON.stringify({ open: open(), width: width() }));
@@ -41,14 +42,22 @@ export const sidebarStore = {
   setWidth: (n: number) => setWidthSignal(clamp(n, 160, 480)),
   selectedApps,
   selectedDomains,
+  selectedCategories,
   toggleApp(name: string, additive: boolean) {
     setSelectedApps((s) => toggleIn(s, name, additive));
   },
   toggleDomain(host: string, additive: boolean) {
     setSelectedDomains((s) => toggleIn(s, host, additive));
   },
+  toggleCategory(id: string, additive: boolean) {
+    setSelectedCategories((s) => toggleIn(s, id, additive));
+  },
+  setCategories(ids: Set<string>) {
+    setSelectedCategories(ids);
+  },
   clear() {
-    setSelectedApps(new Set());
-    setSelectedDomains(new Set());
+    setSelectedApps(new Set<string>());
+    setSelectedDomains(new Set<string>());
+    setSelectedCategories(new Set<string>());
   },
 };

@@ -7,13 +7,14 @@ export default function StatusBar() {
   const s = flowsStore.status;
   const u = updaterStore;
   return (
-    <footer class="h-8 px-5 flex items-center gap-5 text-[11px] bg-ink-50/80 dark:bg-ink-600 text-ink-400 dark:text-ink-100 border-t border-ink-100 dark:border-ink-400/30">
-      <span class={`mono ${s().running ? "text-toucan-400" : "opacity-60"}`}>
-        ● {s().running ? `127.0.0.1:${s().port}` : t("sb.proxyStopped")}
+    <footer class="h-8 px-5 flex items-center gap-5 text-[11px] tcn-glass text-ink-400 dark:text-ink-100 border-t border-ink-100/60 dark:border-white/10 relative">
+      <span class={`mono flex items-center gap-1.5 ${s().running ? "text-toucan-400" : "opacity-60"}`}>
+        <span class={`h-1.5 w-1.5 rounded-full ${s().running ? "bg-toucan-400 shadow-[0_0_8px_rgb(251_142_55_/_0.7)]" : "bg-ink-200/60"}`} />
+        {s().running ? `127.0.0.1:${s().port}` : t("sb.proxyStopped")}
       </span>
-      <span class="opacity-60">{t("sb.flows")}: {flowsStore.flows().length}</span>
-      <span class="opacity-60">{t("sb.ca")}: {s().caInstalled ? t("sb.caTrusted") : t("sb.caNotInstalled")}</span>
-      <span class="opacity-60">{t("sb.sysProxy")}: {s().systemProxyOn ? t("sb.on") : t("sb.off")}</span>
+      <span class="opacity-75 mono">{t("sb.flows")}: <span class="text-cobalt-400 font-medium">{flowsStore.flows().length}</span></span>
+      <span class="opacity-75 mono">{t("sb.ca")}: <span class={s().caInstalled ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>{s().caInstalled ? t("sb.caTrusted") : t("sb.caNotInstalled")}</span></span>
+      <span class="opacity-75 mono">{t("sb.sysProxy")}: <span class={s().systemProxyOn ? "text-emerald-400 font-medium" : "opacity-60"}>{s().systemProxyOn ? t("sb.on") : t("sb.off")}</span></span>
       <div class="flex-1" />
 
       <Show when={u.state() === "downloading"}>

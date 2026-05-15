@@ -256,15 +256,15 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
     );
   }
 
-  const Sep = () => <div class="w-px h-5 bg-ink-100 dark:bg-ink-400/30 mx-0.5 shrink-0" />;
+  const Sep = () => <div class="w-px h-5 bg-ink-100/60 dark:bg-white/10 mx-0.5 shrink-0" />;
   const tbBtn = (active = false) =>
     `h-8 px-2.5 rounded-xl text-xs flex items-center gap-1.5 transition shrink-0
      ${active
-       ? "bg-toucan-400/15 text-toucan-400"
-       : "opacity-70 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20"}`;
+       ? "bg-toucan-400/15 text-toucan-400 shadow-[inset_0_0_0_1px_rgba(251,142,55,0.18)]"
+       : "opacity-70 hover:opacity-100 hover:bg-ink-100/60 dark:hover:bg-white/[0.05]"}`;
 
   return (
-    <div class="h-11 flex items-stretch bg-ink-50/60 dark:bg-ink-600 border-b border-ink-100 dark:border-ink-400/30">
+    <div class="h-11 flex items-stretch tcn-glass border-b border-ink-100/40 dark:border-white/[0.05]">
 
       {/* ── Esquerda: Keep · Replay · Remove · Compare · Mark · Colunas ── */}
       <div class="flex items-center gap-1 pl-2 shrink-0">
@@ -282,7 +282,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
             <Layers size={13} /> Keep: {keepLabel()} <ChevronDown size={11} class="opacity-60" />
           </button>
           <Show when={openKeep()}>
-            <div class="absolute z-30 top-10 left-0 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl py-1 min-w-[180px] text-xs">
+            <div class="absolute z-30 top-10 left-0 tcn-glass-strong rounded-2xl shadow-elev py-1 min-w-[180px] text-xs">
               <div class="px-3 py-1 text-[10px] uppercase tracking-wider opacity-50">Max sessions to keep</div>
               <For each={KEEP_OPTIONS}>{(opt) => (
                 <button
@@ -316,7 +316,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
             <Trash2 size={13} /> Remove <ChevronDown size={11} class="opacity-60" />
           </button>
           <Show when={openRemove()}>
-            <div class="absolute z-30 top-10 left-0 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl py-1 min-w-[210px] text-xs">
+            <div class="absolute z-30 top-10 left-0 tcn-glass-strong rounded-2xl shadow-elev py-1 min-w-[210px] text-xs">
               <button onClick={() => removeByType("all")}
                 class="w-full px-3 py-1.5 text-left font-medium hover:bg-red-500/10 hover:text-red-500 transition">
                 Remove all
@@ -384,7 +384,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
             <Tag size={13} /> {t("tb.mark")}
           </button>
           <Show when={openMark() && hasSelection()}>
-            <div class="absolute z-30 top-10 left-0 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl p-1.5 flex gap-1">
+            <div class="absolute z-30 top-10 left-0 tcn-glass-strong rounded-2xl shadow-elev p-1.5 flex gap-1">
               <For each={MARK_COLORS}>{(c) => (
                 <button
                   onClick={() => setMark(c.id)}
@@ -406,7 +406,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
             <Share2 size={13} /> {t("tb.export")}
           </button>
           <Show when={openExport()}>
-            <div class="absolute z-30 top-10 left-0 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl py-1 min-w-[240px] text-xs">
+            <div class="absolute z-30 top-10 left-0 tcn-glass-strong rounded-2xl shadow-elev py-1 min-w-[240px] text-xs">
               <div class="px-3 py-1.5 text-[10px] uppercase tracking-wider opacity-50">
                 {flowsStore.selectedIds().size > 0
                   ? t("tb.exportSelected", { n: flowsForExport().length })

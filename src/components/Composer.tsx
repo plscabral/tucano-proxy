@@ -87,9 +87,9 @@ export default function Composer(props: { onClose: () => void; initialFlow?: Flo
       : "opacity-65 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20"}`;
 
   return (
-    <div data-inspector="true" class="h-full flex flex-col bg-white dark:bg-ink-500 text-ink-500 dark:text-ink-50">
+    <div data-inspector="true" class="h-full flex flex-col bg-white dark:bg-[#080D1B] text-ink-500 dark:text-ink-50">
       {/* Header */}
-      <div class="flex items-center gap-2 px-4 h-11 border-b border-ink-100 dark:border-ink-400/30 bg-ink-50/60 dark:bg-ink-600 shrink-0">
+      <div class="flex items-center gap-2 px-4 h-11 border-b border-ink-100 dark:border-ink-400/30 bg-ink-50 dark:bg-[#080D1B] shrink-0">
         <span class="text-xs font-semibold text-toucan-400 uppercase tracking-wider">Composer</span>
         <div class="flex-1" />
         <label class="flex items-center gap-1.5 text-xs opacity-70 hover:opacity-100 cursor-pointer">
@@ -138,7 +138,7 @@ export default function Composer(props: { onClose: () => void; initialFlow?: Flo
           </div>
 
           {/* Tab bar */}
-          <div class="flex items-center gap-1 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-white dark:bg-ink-500 shrink-0">
+          <div class="flex items-center gap-1 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-white dark:bg-[#080D1B] shrink-0">
             <button class={btnCls(tab() === "parsed")} onClick={() => setTab("parsed")}>Parsed</button>
             <button class={btnCls(tab() === "raw")} onClick={() => setTab("raw")}>Raw</button>
           </div>
@@ -152,7 +152,7 @@ export default function Composer(props: { onClose: () => void; initialFlow?: Flo
                   value={headersRaw()}
                   onInput={(e) => setHeadersRaw(e.currentTarget.value)}
                   placeholder="Content-Type: application/json&#10;Authorization: Bearer token"
-                  class="flex-1 px-3 py-2 mono text-xs bg-ink-50/40 dark:bg-ink-600 resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
+                  class="flex-1 px-3 py-2 mono text-xs bg-white dark:bg-[#080D1B] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
                 />
               </div>
               {/* Body */}
@@ -162,7 +162,7 @@ export default function Composer(props: { onClose: () => void; initialFlow?: Flo
                   value={bodyText()}
                   onInput={(e) => setBodyText(e.currentTarget.value)}
                   placeholder='{"key": "value"}'
-                  class="flex-1 px-3 py-2 mono text-xs bg-ink-50/40 dark:bg-ink-600 resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
+                  class="flex-1 px-3 py-2 mono text-xs bg-white dark:bg-[#080D1B] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
                 />
               </div>
             </div>
@@ -183,7 +183,7 @@ export default function Composer(props: { onClose: () => void; initialFlow?: Flo
                   setHeadersRaw(headerLines);
                   if (emptyLine > 0) setBodyText(lines.slice(emptyLine + 1).join("\n"));
                 }}
-                class="flex-1 px-3 py-2 mono text-xs bg-ink-50/40 dark:bg-ink-600 resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
+                class="flex-1 px-3 py-2 mono text-xs bg-white dark:bg-[#080D1B] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
               />
             </div>
           </Show>
@@ -197,7 +197,7 @@ export default function Composer(props: { onClose: () => void; initialFlow?: Flo
               <Show when={response()}>
                 {(f) => (
                   <>
-                    <div class="flex items-center gap-2 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-white dark:bg-ink-500 shrink-0">
+                    <div class="flex items-center gap-2 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-white dark:bg-[#080D1B] shrink-0">
                       <span class={`text-xs font-semibold mono ${(f().status ?? 0) >= 400 ? "text-red-400" : (f().status ?? 0) >= 300 ? "text-cyan-300" : "text-emerald-400"}`}>
                         {f().status} {f().statusText}
                       </span>

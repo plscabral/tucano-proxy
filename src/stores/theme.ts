@@ -34,7 +34,7 @@ createEffect(() => {
   const dark = effectiveTheme() === "dark";
   // Match the CSS body backgrounds in styles.css so the title bar blends
   // perfectly with the rest of the app (no seam between OS chrome and TopBar).
-  const color = dark ? "#0F182E" : "#FFFFFF";
+  const color = dark ? "#080D1B" : "#F4F5F7";
   try {
     getCurrentWindow().setBackgroundColor(color).catch((e) => {
       console.warn("[theme] setBackgroundColor failed", e);

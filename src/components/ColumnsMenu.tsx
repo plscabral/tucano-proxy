@@ -29,7 +29,7 @@ export default function ColumnsMenu() {
       </button>
       <Show when={open()}>
         <div class="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-        <div class="absolute z-40 top-10 right-0 w-60 bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-2xl shadow-xl p-2 text-xs">
+        <div class="absolute z-40 top-10 right-0 w-60 tcn-glass-strong rounded-2xl shadow-elev p-2 text-xs">
           <div class="px-2 py-1 text-[10px] uppercase tracking-wider opacity-50">{t("cols.visible")}</div>
           <For each={columnsStore.cols()}>{(c) => (
             <label

@@ -6,7 +6,6 @@ import Inspector from "./components/Inspector";
 import FilterBar from "./components/FilterBar";
 import Sidebar from "./components/Sidebar";
 import { sidebarStore } from "./stores/sidebar";
-import CategoryTabs from "./components/CategoryTabs";
 import FlowToolbar from "./components/FlowToolbar";
 import Settings from "./components/Settings";
 import Splitter from "./components/Splitter";
@@ -242,6 +241,9 @@ export default function App() {
       e.preventDefault();
       const list = rulesStore.rules();
       if (list.length > 0) rulesStore.remove(list[list.length - 1].id);
+    } else if (meta && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      sidebarStore.toggleOpen();
     } else if (meta && e.key.toLowerCase() === "d") {
       if (compareFlows()) { e.preventDefault(); setCompareOpen(true); }
     } else if (meta && e.key === ",") {
@@ -328,8 +330,11 @@ export default function App() {
       const id = flowsStore.selectedId();
       if (id) { e.preventDefault(); noteStore.open(id); }
     } else if (!inField && /^[1-9]$/.test(e.key)) {
+      // Number-key category shortcut now drives the sidebar Types group.
+      // Pressing the same number twice clears it (toggle off).
       const idx = parseInt(e.key, 10) - 1;
-      if (CATEGORIES[idx]) flowsStore.setCategory(CATEGORIES[idx].id);
+      const cat = CATEGORIES[idx];
+      if (cat && cat.id !== "all") sidebarStore.toggleCategory(cat.id, false);
     }
   };
   window.addEventListener("keydown", onKey);
@@ -366,19 +371,19 @@ export default function App() {
   onCleanup(() => { if (viewTimer != null) clearTimeout(viewTimer); });
 
   const filtered = createMemo(() => {
-    const cat = flowsStore.category() as Category;
     const apps = sidebarStore.selectedApps();
     const domains = sidebarStore.selectedDomains();
-    const hasSidebarFilter = apps.size > 0 || domains.size > 0;
+    const cats = sidebarStore.selectedCategories();
+    const hasSidebarFilter = apps.size > 0 || domains.size > 0 || cats.size > 0;
     const byCat = flowsView().filter((f) => {
-      if (!matchesCategory(f, cat)) return false;
       if (hasSidebarFilter) {
         // Sidebar selection acts as OR within each group, AND across groups
-        // when both have selections — same as Proxyman. The common case is
-        // selecting one or the other, where the empty-group check short-circuits.
+        // when multiple have selections — same as Proxyman. The common case
+        // is selecting one or two, where the empty-group check short-circuits.
         const appOk = apps.size === 0 || apps.has(f.clientApp ?? "");
         const domOk = domains.size === 0 || domains.has(f.host);
-        if (!appOk || !domOk) return false;
+        const catOk = cats.size === 0 || [...cats].some((c) => matchesCategory(f, c as Category));
+        if (!appOk || !domOk || !catOk) return false;
       }
       return true;
     });
@@ -406,9 +411,8 @@ export default function App() {
   };
 
   return (
-    <div class="h-full flex flex-col bg-white dark:bg-ink-500 text-ink-500 dark:text-ink-50">
+    <div class="h-full flex flex-col bg-[#FAFAF8] dark:bg-[#080D1B] text-ink-500 dark:text-ink-50">
       <TopBar onOpenSettings={() => setSettingsOpen(true)} />
-      <CategoryTabs />
       <FilterBar />
       <FlowToolbar count={filtered().length} flows={filtered} onCompare={openCompare} />
       <FindAllBar />

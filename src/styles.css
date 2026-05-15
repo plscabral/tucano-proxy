@@ -4,8 +4,8 @@
 
 
 :root {
-  --ink: #0C142E;
-  --toucan: #F99245;
+  --ink: #080D1B;
+  --toucan: #FB8E37;
 }
 
 html, body, #root {
@@ -14,24 +14,73 @@ html, body, #root {
 }
 
 body {
-  font-family: Manrope, system-ui, sans-serif;
-  background: #FFFFFF;
-  color: #0F182E;
+  font-family: Geist, Manrope, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  /* Warm, paper-like off-white. Panels above use pure white so content
+     surfaces visibly pop against the page tone. */
+  background: #FAFAF8;
+  color: #080D1B;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html.dark body {
-  background: #0F182E;
-  color: #E6E8F0;
+  /* Deep, uniform near-black with a faint blue undertone. No radials so
+     the canvas reads as a single deep tone instead of patchy lighter spots. */
+  background: #080D1B;
+  color: #EDEEF3;
 }
 
-.mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.mono {
+  font-family: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-feature-settings: "ss01", "ss02";
+  letter-spacing: -0.005em;
+}
 
-.scroll-thin::-webkit-scrollbar { width: 10px; height: 10px; }
+/* Reusable glass surface — frosted card / overlay base. */
+.tcn-glass {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid rgba(15, 24, 46, 0.08);
+}
+html.dark .tcn-glass {
+  /* Solid #080D1B (no alpha, no blur color shift) so chrome reads as the
+     exact same tone as the body. */
+  background: #080D1B;
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Stronger glass — for dropdowns and modals where the surface needs to
+   feel like a distinct floating layer. More opaque + heavier blur. */
+.tcn-glass-strong {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border: 1px solid rgba(15, 24, 46, 0.10);
+}
+html.dark .tcn-glass-strong {
+  background: #080D1B;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Subtle elevated card for sidebars / panels. */
+.tcn-surface {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0.4));
+}
+html.dark .tcn-surface {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.005));
+}
+
+
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
 .scroll-thin::-webkit-scrollbar-track { background: transparent; }
-.scroll-thin::-webkit-scrollbar-thumb { background: rgba(127,127,127,.45); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
-.scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(127,127,127,.7); background-clip: padding-box; border: 2px solid transparent; }
-html.dark .scroll-thin::-webkit-scrollbar-thumb { background: rgba(200,200,210,.28); background-clip: padding-box; border: 2px solid transparent; }
-html.dark .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(200,200,210,.5); background-clip: padding-box; border: 2px solid transparent; }
+.scroll-thin::-webkit-scrollbar-thumb { background: rgba(60,65,85,.55); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+.scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(60,65,85,.8); background-clip: padding-box; border: 2px solid transparent; }
+html.dark .scroll-thin::-webkit-scrollbar-thumb { background: rgba(200,200,210,.18); background-clip: padding-box; border: 2px solid transparent; }
+html.dark .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(200,200,210,.4); background-clip: padding-box; border: 2px solid transparent; }
 
 /* Placeholder rows behind the virtualized row layer. When the virtualizer
    hasn't mounted a row yet (fast scroll catch-up, top or bottom of viewport),
@@ -50,10 +99,10 @@ html.dark .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(200,200
 html.dark .tcn-row-skeleton {
   background-image: repeating-linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.035) 0,
-    rgba(255, 255, 255, 0.035) 31px,
-    rgba(255, 255, 255, 0.10) 31px,
-    rgba(255, 255, 255, 0.10) 32px
+    transparent 0,
+    transparent 31px,
+    rgba(255, 255, 255, 0.04) 31px,
+    rgba(255, 255, 255, 0.04) 32px
   );
 }
 

@@ -37,10 +37,10 @@ export default function TopBar(props: { onOpenSettings: () => void }) {
   };
 
   return (
-    <header class="h-14 px-5 flex items-center gap-3 bg-white dark:bg-ink-500 border-b border-ink-100 dark:border-ink-400/30">
+    <header class="h-14 px-5 flex items-center gap-3 tcn-glass border-b border-ink-100/40 dark:border-white/[0.06] relative">
       <img src={logo} alt="Tucano Proxy" class="h-9 w-9 object-contain shrink-0" />
-      <div class="font-semibold text-[15px] tracking-tight">Tucano <span class="opacity-70">Proxy</span></div>
-      <span class="text-[10px] uppercase tracking-[0.18em] text-toucan-400/90 mt-0.5">v0.1</span>
+      <div class="font-semibold text-[15px] tracking-tight">Tucano <span class="opacity-60">Proxy</span></div>
+      <span class="text-[10px] uppercase tracking-[0.22em] text-toucan-400 mt-0.5 font-medium">v0.1</span>
 
       <div class="flex-1" />
 
@@ -50,9 +50,11 @@ export default function TopBar(props: { onOpenSettings: () => void }) {
         title={busy()
           ? t("topbar.busyTitle")
           : s().running ? t("topbar.stopTitle") : t("topbar.startTitle")}
-        class={`h-9 w-9 grid place-items-center rounded-xl transition hover:bg-ink-50 dark:hover:bg-ink-400/20
+        class={`h-9 w-9 grid place-items-center rounded-xl transition
           ${busy() ? "opacity-60 cursor-not-allowed" : ""}
-          ${s().running ? "text-red-500" : "text-emerald-500"}`}
+          ${s().running
+            ? "text-red-500 hover:bg-red-500/10 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.15)]"
+            : "text-emerald-500 hover:bg-emerald-500/10 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)]"}`}
       >
         {busy()
           ? <Loader2 size={15} class="animate-spin" />

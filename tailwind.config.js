@@ -5,36 +5,56 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Deeper, warmer ink palette — slight blue-purple tilt at the
+        // darkest end so the dark mode reads as cinematic instead of flat
+        // navy. Lighter shades stay neutral so text remains crisp.
         ink: {
-          DEFAULT: "#0F182E",
-          50: "#E6E8F0",
-          100: "#BFC6D9",
-          200: "#828DAE",
-          300: "#414C72",
-          400: "#1F2848",
-          500: "#0F182E",
-          600: "#0B1426",
-          700: "#080F1D",
-          800: "#050A14",
-          900: "#02050A",
+          DEFAULT: "#080D1B",
+          50:  "#EDEEF3",
+          100: "#C7C9D6",
+          200: "#7A8099",
+          300: "#373C56",
+          400: "#141A2E",
+          500: "#080D1B",
+          600: "#080D1B",
+          700: "#080D1B",
+          800: "#03050A",
+          900: "#010205",
         },
+        // Slightly richer toucan — same brand identity, more saturated mid
+        // tones so it pops against the deeper ink without losing warmth.
         toucan: {
-          DEFAULT: "#F99245",
-          50: "#FEF1E5",
-          100: "#FDE0C2",
-          200: "#FCC489",
-          300: "#FAA85F",
-          400: "#F99245",
-          500: "#F77A1E",
-          600: "#D7610A",
-          700: "#A24808",
-          800: "#6E3105",
-          900: "#3A1A03",
+          DEFAULT: "#FB8E37",
+          50:  "#FEF1E5",
+          100: "#FDDFC0",
+          200: "#FCC287",
+          300: "#FBA659",
+          400: "#FB8E37",
+          500: "#F47410",
+          600: "#D55D06",
+          700: "#A04606",
+          800: "#6C2F04",
+          900: "#391902",
+        },
+        // Companion accent (cool counterweight to toucan). Used sparingly
+        // for active selection states / subtle gradients.
+        cobalt: {
+          400: "#7AA2FF",
+          500: "#5B86FF",
+          600: "#3D6BE6",
         },
       },
       fontFamily: {
-        sans: ["Manrope", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "monospace"],
+        sans: ["Geist", "Manrope", "system-ui", "sans-serif"],
+        mono: ["Geist Mono", "JetBrains Mono", "ui-monospace", "monospace"],
+      },
+      boxShadow: {
+        glow: "0 0 24px -6px rgb(251 142 55 / 0.55)",
+        soft: "0 1px 0 rgb(255 255 255 / 0.04) inset, 0 1px 3px rgb(0 0 0 / 0.20)",
+        elev: "0 12px 40px -12px rgb(0 0 0 / 0.55), 0 1px 0 rgb(255 255 255 / 0.04) inset",
+      },
+      backdropBlur: {
+        xs: "2px",
       },
     },
   },

@@ -28,10 +28,11 @@ export default function Splitter(props: {
     <div
       onMouseDown={start}
       class={`group relative shrink-0 z-10
-        ${isVertical ? "w-1 cursor-col-resize" : "h-1 cursor-row-resize"}
-        bg-ink-100 dark:bg-ink-400/30 hover:bg-toucan-400 transition-colors`}
+        ${isVertical ? "w-px cursor-col-resize" : "h-px cursor-row-resize"}
+        bg-ink-100 dark:bg-white/[0.06] hover:bg-ink-300 dark:hover:bg-white/20 transition-colors`}
     >
-      <div class={`absolute ${isVertical ? "inset-y-0 -inset-x-1" : "inset-x-0 -inset-y-1"}`} />
+      {/* Larger invisible hit-area so the 1px line is still grabbable. */}
+      <div class={`absolute ${isVertical ? "inset-y-0 -inset-x-1.5" : "inset-x-0 -inset-y-1.5"}`} />
     </div>
   );
 }

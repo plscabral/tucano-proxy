@@ -28,9 +28,9 @@ export default function HeadersView(props: { headers: [string, string][] }) {
           const keyId = `k${i()}`;
           const item = "w-full text-left px-2.5 py-1.5 text-[11px] flex items-center gap-1.5 hover:bg-toucan-400/10 hover:text-toucan-400";
           return (
-            <tr class="group border-b border-ink-100/40 dark:border-ink-400/20 hover:bg-toucan-400/5">
-              <td class="px-3 py-2 align-top text-toucan-400 w-1/3 [overflow-wrap:anywhere] whitespace-pre-wrap">{k}</td>
-              <td class="px-3 py-2 align-top [overflow-wrap:anywhere] whitespace-pre-wrap relative">
+            <tr class="group border-b border-ink-100/30 dark:border-white/[0.04] hover:bg-toucan-400/[0.04]">
+              <td class="px-3 py-2 align-top w-1/3 [overflow-wrap:anywhere] whitespace-pre-wrap text-ink-400 dark:text-ink-200/70 group-hover:text-toucan-500 dark:group-hover:text-toucan-400 transition-colors">{k}</td>
+              <td class="px-3 py-2 align-top [overflow-wrap:anywhere] whitespace-pre-wrap relative text-ink-500 dark:text-ink-50">
                 <div class="flex gap-2">
                   <span class="flex-1 min-w-0 [overflow-wrap:anywhere]">{v}</span>
                   <div class="relative shrink-0 self-start">
@@ -41,7 +41,7 @@ export default function HeadersView(props: { headers: [string, string][] }) {
                     ><MoreHorizontal size={13} /></button>
                     <Show when={openRow() === i()}>
                       <div class="fixed inset-0 z-30" onClick={() => setOpenRow(null)} />
-                      <div class="absolute z-40 right-0 top-7 min-w-[140px] bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-xl shadow-xl py-1">
+                      <div class="absolute z-40 right-0 top-7 min-w-[140px] tcn-glass-strong rounded-xl shadow-elev py-1">
                         <button onClick={() => copy(keyId, k)} class={item}>
                           {copied() === keyId ? <Check size={11} /> : <Copy size={11} />} Copy key
                         </button>

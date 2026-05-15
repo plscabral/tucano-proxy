@@ -168,8 +168,8 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
       <div class="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm" onClick={props.onClose}>
         <div
           class="w-[880px] max-w-[92vw] h-[640px] max-h-[86vh] flex flex-col rounded-2xl
-                 bg-white dark:bg-ink-600 text-ink-500 dark:text-ink-50
-                 border border-ink-100 dark:border-ink-400/40 shadow-2xl overflow-hidden"
+                 bg-white dark:bg-[#080D1B] text-ink-500 dark:text-ink-50
+                 border border-ink-100 dark:border-white/10 shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           <div class="flex items-center justify-between px-5 h-14 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
@@ -194,7 +194,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
           <Show when={tab() === "general"}>
           <Section icon={<Sun size={14} />} title={t("set.appearance")}>
             <Row title={t("set.theme")}>
-              <div class="flex gap-1 p-1 rounded-xl bg-ink-50 dark:bg-ink-500 w-[320px]">
+              <div class="flex gap-1 p-1 rounded-xl bg-ink-50 dark:bg-white/[0.04] w-[320px]">
                 <ThemeOpt mode="light"  icon={<Sun size={13} />}     label={t("set.themeLight")} />
                 <ThemeOpt mode="dark"   icon={<Moon size={13} />}    label={t("set.themeDark")} />
                 <ThemeOpt mode="system" icon={<Monitor size={13} />} label={t("set.themeSystem")} />
@@ -205,7 +205,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                 <select
                   value={currentLocale()}
                   onChange={(e) => setLocale(e.currentTarget.value as Locale)}
-                  class="appearance-none w-full h-10 pl-3.5 pr-9 text-xs rounded-xl bg-ink-50 dark:bg-ink-500
+                  class="appearance-none w-full h-10 pl-3.5 pr-9 text-xs rounded-xl bg-ink-50 dark:bg-white/[0.04]
                          border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60
                          focus:border-toucan-400 outline-none cursor-pointer"
                 >
@@ -227,7 +227,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                 type="number"
                 value={port()}
                 onInput={(e) => setPort(Number(e.currentTarget.value) || 8888)}
-                class="w-28 h-9 px-3 mono text-sm rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
+                class="w-28 h-9 px-3 mono text-sm rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
               />
               <span class={`mono text-xs ${flowsStore.status().running ? "text-toucan-400" : "opacity-50"}`}>
                 ● {flowsStore.status().running ? t("set.running", { port: flowsStore.status().port }) : t("set.stopped")}
@@ -275,7 +275,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
             <p class="text-xs opacity-70 leading-relaxed">
               By default, HTTPS traffic is tunneled (not decrypted). Add domains to the SSL Proxying List to inspect their content. Use the "Enable SSL Proxying" button inside any HTTPS capture to add domains quickly.
             </p>
-            <div class="flex gap-1 p-1 rounded-xl bg-ink-50 dark:bg-ink-500 w-full">
+            <div class="flex gap-1 p-1 rounded-xl bg-ink-50 dark:bg-white/[0.04] w-full">
               <SslOpt mode="allowlist" label="Allow List (default)" current={sslMode} setCurrent={setSslMode} />
               <SslOpt mode="all"       label="Decrypt All"           current={sslMode} setCurrent={setSslMode} />
               <SslOpt mode="blocklist" label="Block List"            current={sslMode} setCurrent={setSslMode} />
@@ -289,7 +289,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                   value={sslHosts()}
                   onInput={(e) => setSslHosts(e.currentTarget.value)}
                   placeholder={"api.example.com\n*.foo.com"}
-                  class="w-full h-28 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
+                  class="w-full h-28 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
                 />
               </div>
             </Show>
@@ -300,7 +300,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                   value={skipHosts()}
                   onInput={(e) => setSkipHosts(e.currentTarget.value)}
                   placeholder={"*.example.com\napi.pinned-app.com"}
-                  class="w-full h-24 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
+                  class="w-full h-24 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
                 />
                 <div class="text-[10px] opacity-50 mt-1">Supports wildcards: *.example.com</div>
               </div>
@@ -345,7 +345,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                 type="number"
                 value={mcpPort()}
                 onInput={(e) => setMcpPort(Number(e.currentTarget.value) || 7878)}
-                class="w-28 h-9 px-3 mono text-sm rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
+                class="w-28 h-9 px-3 mono text-sm rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
               />
             </div>
             <div>
@@ -355,7 +355,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                   type={tokenVisible() ? "text" : "password"}
                   readonly
                   value={mcpToken()}
-                  class="flex-1 h-9 px-3 mono text-xs rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 outline-none"
+                  class="flex-1 h-9 px-3 mono text-xs rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 outline-none"
                 />
                 <button
                   onClick={() => setTokenVisible(!tokenVisible())}
@@ -426,13 +426,13 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               Paste into your LLM client's MCP config (Claude Desktop: <code class="mono">~/Library/Application Support/Claude/claude_desktop_config.json</code>). Save settings above first — the snippet uses the current port and token. The token is masked below; <strong>Copy</strong> always copies the real value.
             </p>
             <div class="relative">
-              <pre class="text-[11px] mono p-3 rounded-xl bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 overflow-auto whitespace-pre">{mcpConfigSnippet()}</pre>
+              <pre class="text-[11px] mono p-3 rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 overflow-auto whitespace-pre">{mcpConfigSnippet()}</pre>
               <button
                 onClick={() => copyMcp("config")}
                 class={`absolute top-2 right-2 h-7 px-2 text-[11px] rounded-lg border flex items-center gap-1.5 transition
                   ${mcpCopied() === "config"
                     ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500"
-                    : "bg-white dark:bg-ink-600 border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}
+                    : "bg-white dark:bg-[#080D1B] border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}
               ><Copy size={11} /> {mcpCopied() === "config" ? "Copied" : "Copy"}</button>
             </div>
           </Section>
@@ -515,7 +515,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                     <button
                       onClick={() => updaterStore.check()}
                       disabled={updaterStore.state() === "checking" || updaterStore.state() === "downloading"}
-                      class="h-8 px-3 rounded-lg text-xs bg-ink-50 dark:bg-ink-500 hover:bg-ink-100 dark:hover:bg-ink-400/40 disabled:opacity-50"
+                      class="h-8 px-3 rounded-lg text-xs bg-ink-50 dark:bg-white/[0.04] hover:bg-ink-100 dark:hover:bg-ink-400/40 disabled:opacity-50"
                     >{t("set.checkUpdates")}</button>
                   }
                 >
@@ -546,7 +546,7 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               {SHORTCUTS.map(([k, v]) => (
                 <div class="flex items-center justify-between gap-3">
                   <span class="opacity-70">{t(v)}</span>
-                  <kbd class="mono text-[11px] px-1.5 py-0.5 rounded bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40">{k}</kbd>
+                  <kbd class="mono text-[11px] px-1.5 py-0.5 rounded bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40">{k}</kbd>
                 </div>
               ))}
             </div>
@@ -588,7 +588,7 @@ function SslOpt(props: { mode: SslMode; label: string; current: () => SslMode; s
     <button
       onClick={() => props.setCurrent(props.mode)}
       class={`flex-1 h-8 rounded-lg flex items-center justify-center text-xs transition truncate px-2
-        ${active() ? "bg-white dark:bg-ink-600 text-toucan-400 shadow-sm font-medium" : "opacity-70 hover:opacity-100"}`}
+        ${active() ? "bg-white dark:bg-[#080D1B] text-toucan-400 shadow-sm font-medium" : "opacity-70 hover:opacity-100"}`}
     >{props.label}</button>
   );
 }
@@ -599,7 +599,7 @@ function ThemeOpt(props: { mode: ThemeMode; icon: any; label: string }) {
     <button
       onClick={() => setTheme(props.mode)}
       class={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-xs transition
-        ${active() ? "bg-white dark:bg-ink-600 text-toucan-400 shadow-sm" : "opacity-70 hover:opacity-100"}`}
+        ${active() ? "bg-white dark:bg-[#080D1B] text-toucan-400 shadow-sm" : "opacity-70 hover:opacity-100"}`}
     >{props.icon} {props.label}</button>
   );
 }
