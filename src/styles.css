@@ -14,8 +14,8 @@ html, body, #root {
 }
 
 body {
-  font-family: Geist, Manrope, system-ui, sans-serif;
-  font-feature-settings: "ss01", "cv11";
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-feature-settings: "kern", "liga";
   /* Warm, paper-like off-white. Panels above use pure white so content
      surfaces visibly pop against the page tone. */
   background: #FAFAF8;
@@ -32,8 +32,8 @@ html.dark body {
 }
 
 .mono {
-  font-family: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
-  font-feature-settings: "ss01", "ss02";
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-feature-settings: "kern";
   letter-spacing: -0.005em;
 }
 

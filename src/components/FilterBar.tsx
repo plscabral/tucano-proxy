@@ -116,16 +116,16 @@ export default function FilterBar() {
             <button
               onClick={() => rulesStore.setCaptureMode(!rulesStore.captureMode())}
               title={t("filter.captureModeHint")}
-              class={`h-8 px-3 text-[11px] rounded-xl flex items-center gap-1.5 transition font-medium
+              class={`h-9 px-3.5 text-[11px] rounded-xl flex items-center gap-1.5 transition font-medium
                 ${rulesStore.captureMode()
                   ? "bg-toucan-400 text-ink-500 shadow-glow"
                   : "bg-white/40 dark:bg-white/[0.04] ring-1 ring-inset ring-ink-200/40 dark:ring-white/10 hover:ring-toucan-400/50 hover:text-toucan-400"}`}
             ><Zap size={12} /> {t("filter.captureMode")}</button>
             <button
               onClick={() => rulesStore.clear()}
-              class="h-8 w-8 grid place-items-center rounded-xl text-ink-300 dark:text-ink-200/60 hover:bg-red-500/10 hover:text-red-500 transition"
+              class="h-9 w-9 grid place-items-center rounded-xl text-ink-400 dark:text-ink-100 hover:bg-red-500/15 hover:text-red-500 dark:hover:text-red-400 transition"
               title={t("filter.clearAll")}
-            ><Trash2 size={13} /></button>
+            ><Trash2 size={14} /></button>
           </div>
         </Show>
       </div>

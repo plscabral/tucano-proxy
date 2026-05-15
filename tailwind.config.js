@@ -45,8 +45,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Geist", "Manrope", "system-ui", "sans-serif"],
-        mono: ["Geist Mono", "JetBrains Mono", "ui-monospace", "monospace"],
+        sans: ["IBM Plex Sans", "system-ui", "sans-serif"],
+        mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
       },
       boxShadow: {
         glow: "0 0 24px -6px rgb(251 142 55 / 0.55)",
