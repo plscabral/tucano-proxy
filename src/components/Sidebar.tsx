@@ -1,10 +1,26 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { ChevronRight, ChevronDown, Globe, AppWindow, X, PanelLeftClose, Layers } from "lucide-solid";
+import { ChevronRight, ChevronDown, Globe, AppWindow, X, PanelLeftClose, Layers, EyeOff } from "lucide-solid";
 import { flowsStore } from "../stores/flows";
 import { sidebarStore } from "../stores/sidebar";
+import { ignoredStore } from "../stores/ignored";
+import { ipc } from "../lib/ipc";
 import { t } from "../lib/i18n";
 import { CATEGORIES, matchesCategory, type Category } from "../lib/category";
 import type { Flow } from "../lib/types";
+
+// Drop all flows currently in the list that match a predicate, both from
+// the UI store and from Rust storage. Used when the user adds something to
+// the ignore list — without this retroactive pass, existing rows would
+// stick around until the user reloads.
+function purgeMatching(predicate: (f: Flow) => boolean) {
+  const ids: string[] = [];
+  for (const f of flowsStore.flows()) {
+    if (predicate(f)) ids.push(f.id);
+  }
+  if (ids.length === 0) return;
+  flowsStore.removeMany(new Set(ids));
+  ipc.deleteFlows(ids).catch(() => {});
+}
 
 const CAT_DOT: Record<Category, string> = {
   all:       "bg-toucan-400",
@@ -98,6 +114,14 @@ export default function Sidebar() {
               count={a.count}
               selected={sidebarStore.selectedApps().has(a.name)}
               onClick={(additive) => sidebarStore.toggleApp(a.name, additive)}
+              hoverAction={{
+                icon: <EyeOff size={11} />,
+                title: t("sidebar.ignoreApp"),
+                onClick: () => {
+                  ignoredStore.addApp(a.name);
+                  purgeMatching((f) => (f.clientApp ?? "") === a.name);
+                },
+              }}
             />
           )}</For>
         </Section>
@@ -116,6 +140,14 @@ export default function Sidebar() {
               count={d.count}
               selected={sidebarStore.selectedDomains().has(d.host)}
               onClick={(additive) => sidebarStore.toggleDomain(d.host, additive)}
+              hoverAction={{
+                icon: <EyeOff size={11} />,
+                title: t("sidebar.ignoreHost"),
+                onClick: () => {
+                  ignoredStore.addHost(d.host);
+                  purgeMatching((f) => f.host === d.host);
+                },
+              }}
             />
           )}</For>
         </Section>
@@ -137,27 +169,82 @@ export default function Sidebar() {
             />
           )}</For>
         </Section>
+
+        <Show when={ignoredStore.apps().size + ignoredStore.hosts().size > 0}>
+          <Section
+            icon={<EyeOff size={12} class="text-red-400" />}
+            label={t("sidebar.ignored")}
+            count={ignoredStore.apps().size + ignoredStore.hosts().size}
+            storeKey="ignored"
+            accent="text-red-400"
+            headerAction={{
+              icon: <X size={10} />,
+              title: t("sidebar.ignoredClearAll"),
+              onClick: () => ignoredStore.clear(),
+            }}
+          >
+            <For each={[...ignoredStore.apps()]}>{(name) => (
+              <Row
+                icon={<AppWindow size={12} class="opacity-40" />}
+                label={name}
+                selected={false}
+                onClick={() => ignoredStore.removeApp(name)}
+                hoverAction={{
+                  icon: <X size={11} />,
+                  title: t("sidebar.unignore"),
+                  onClick: () => ignoredStore.removeApp(name),
+                }}
+              />
+            )}</For>
+            <For each={[...ignoredStore.hosts()]}>{(host) => (
+              <Row
+                icon={<Globe size={12} class="opacity-40" />}
+                label={host}
+                selected={false}
+                onClick={() => ignoredStore.removeHost(host)}
+                hoverAction={{
+                  icon: <X size={11} />,
+                  title: t("sidebar.unignore"),
+                  onClick: () => ignoredStore.removeHost(host),
+                }}
+              />
+            )}</For>
+          </Section>
+        </Show>
       </div>
     </aside>
   );
 }
 
+type SectionAction = { icon: any; title: string; onClick: () => void };
+
 // Per-section open/closed state lives in localStorage so user collapses stick.
-function Section(props: { icon: any; label: string; count: number; storeKey: string; accent?: string; children: any }) {
+function Section(props: {
+  icon: any; label: string; count: number; storeKey: string; accent?: string; children: any;
+  headerAction?: SectionAction;
+}) {
   const KEY = `tucano:sidebar:section:${props.storeKey}`;
   const [openSig, setOpenSig] = createSignal(localStorage.getItem(KEY) !== "0");
   const open = openSig;
   const setOpen = (v: boolean) => { setOpenSig(v); localStorage.setItem(KEY, v ? "1" : "0"); };
   return (
-    <div class="mb-1">
-      <button
-        onClick={() => setOpen(!open())}
-        class="w-full px-3 py-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-wider hover:bg-white/[0.03] transition"
-      >
-        {open() ? <ChevronDown size={11} class="opacity-60" /> : <ChevronRight size={11} class="opacity-60" />}
-        <span class={`flex items-center gap-1.5 font-semibold ${props.accent ?? ""}`}>{props.icon} {props.label}</span>
-        <span class="ml-auto opacity-50 normal-case tracking-normal mono">{props.count}</span>
-      </button>
+    <div class="mb-1 group/sec">
+      <div class="w-full px-3 py-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-wider hover:bg-white/[0.03] transition">
+        <button onClick={() => setOpen(!open())} class="flex-1 flex items-center gap-1.5 text-left">
+          {open() ? <ChevronDown size={11} class="opacity-60" /> : <ChevronRight size={11} class="opacity-60" />}
+          <span class={`flex items-center gap-1.5 font-semibold ${props.accent ?? ""}`}>{props.icon} {props.label}</span>
+        </button>
+        <Show when={props.headerAction}>
+          {(a) => (
+            <button
+              onClick={(e) => { e.stopPropagation(); a().onClick(); }}
+              title={a().title}
+              class="h-5 w-5 grid place-items-center rounded-md opacity-0 group-hover/sec:opacity-60 hover:opacity-100 hover:bg-red-500/15 hover:text-red-400 transition"
+            >{a().icon}</button>
+          )}
+        </Show>
+        <span class="opacity-50 normal-case tracking-normal mono">{props.count}</span>
+      </div>
       <Show when={open()}>
         <div>{props.children}</div>
       </Show>
@@ -165,25 +252,39 @@ function Section(props: { icon: any; label: string; count: number; storeKey: str
   );
 }
 
+type RowAction = { icon: any; title: string; onClick: () => void };
+
 function Row(props: {
   icon: any;
   label: string;
-  count: number;
+  count?: number;
   selected: boolean;
   onClick: (additive: boolean) => void;
+  hoverAction?: RowAction;
 }) {
   return (
-    <button
-      onClick={(e) => props.onClick(e.metaKey || e.ctrlKey || e.shiftKey)}
-      class={`w-full px-3 py-1 pl-6 flex items-center gap-2 text-xs text-left transition relative
+    <div
+      class={`group/row w-full px-3 py-1 pl-6 flex items-center gap-2 text-xs transition relative cursor-pointer
         ${props.selected
           ? "bg-gradient-to-r from-toucan-400/25 via-toucan-400/12 to-transparent text-toucan-600 dark:text-toucan-400 font-semibold"
           : "hover:bg-ink-100/50 dark:hover:bg-white/[0.04] text-ink-500 dark:text-ink-50"}`}
       title={props.label}
+      onClick={(e) => props.onClick(e.metaKey || e.ctrlKey || e.shiftKey)}
     >
       {props.icon}
       <span class="flex-1 truncate mono">{props.label}</span>
-      <span class="text-[10px] opacity-50 mono">{props.count}</span>
-    </button>
+      <Show when={props.hoverAction}>
+        {(a) => (
+          <button
+            onClick={(e) => { e.stopPropagation(); a().onClick(); }}
+            title={a().title}
+            class="h-5 w-5 grid place-items-center rounded-md opacity-0 group-hover/row:opacity-60 hover:opacity-100 hover:bg-red-500/15 hover:text-red-400 transition"
+          >{a().icon}</button>
+        )}
+      </Show>
+      <Show when={props.count !== undefined}>
+        <span class="text-[10px] opacity-50 mono">{props.count}</span>
+      </Show>
+    </div>
   );
 }

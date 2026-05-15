@@ -27,6 +27,19 @@ pub(crate) fn now_ms() -> i64 {
     SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
 }
 
+/// Hostname suffix that gets rewritten to 127.0.0.1 when forwarding upstream.
+/// Used to bypass the loopback shortcut every browser/HTTP client uses for
+/// `localhost`/`127.0.0.1` — the user points their tool at `tucano.local:3000`
+/// (or any `*.tucano.local`) and we transparently connect to the local port.
+/// `.local` is mDNS-claimed; `.test` is the RFC 6761 reservation we prefer.
+const LOCALHOST_ALIAS_SUFFIXES: &[&str] = &["tucano.local", "tucano.test"];
+
+/// Returns true if `host` is one of our localhost aliases (exact or subdomain).
+pub(crate) fn is_localhost_alias(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    LOCALHOST_ALIAS_SUFFIXES.iter().any(|a| host == *a || host.ends_with(&format!(".{a}")))
+}
+
 pub(crate) fn headers_to_vec(h: &http::HeaderMap) -> Vec<(String, String)> {
     h.iter().map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string())).collect()
 }
@@ -290,6 +303,31 @@ impl HttpHandler for TucanoHandler {
             }
 
             self.pending.lock().entry(client).or_default().push_back(flow);
+
+            // Localhost alias: rewrite the upstream authority from
+            // `tucano.local[:port]` to `127.0.0.1[:port]` so hudsucker's
+            // hyper client connects to the local dev server. The Host
+            // header is preserved (parts.headers unchanged) so vhost-based
+            // dev setups still route correctly. The Flow stored above keeps
+            // the alias hostname for display.
+            let mut parts = parts;
+            let original_host_for_rewrite = parts.uri.host().map(|s| s.to_string());
+            if let Some(orig_host) = original_host_for_rewrite {
+                if is_localhost_alias(&orig_host) {
+                    let mut up = parts.uri.clone().into_parts();
+                    let port = parts.uri.port_u16();
+                    let auth_str = match port {
+                        Some(p) => format!("127.0.0.1:{p}"),
+                        None => "127.0.0.1".to_string(),
+                    };
+                    if let Ok(a) = auth_str.parse::<http::uri::Authority>() {
+                        up.authority = Some(a);
+                        if let Ok(new_uri) = http::Uri::from_parts(up) {
+                            parts.uri = new_uri;
+                        }
+                    }
+                }
+            }
 
             RequestOrResponse::Request(Request::from_parts(parts, body_from_bytes(bytes)))
         }

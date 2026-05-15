@@ -152,11 +152,12 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
     a.href = url; a.download = "tucano-root.pem"; a.click();
     URL.revokeObjectURL(url);
   };
-  type Tab = "general" | "proxy" | "cert" | "mcp" | "about" | "shortcuts" | "icons";
+  type Tab = "general" | "proxy" | "localhost" | "cert" | "mcp" | "about" | "shortcuts" | "icons";
   const [tab, setTab] = createSignal<Tab>("general");
   const TABS: { id: Tab; icon: any; label: string }[] = [
     { id: "general",   icon: <Sun size={14} />,         label: t("set.appearance") },
     { id: "proxy",     icon: <Network size={14} />,     label: t("set.proxy") },
+    { id: "localhost", icon: <Globe size={14} />,       label: t("set.localhost") },
     { id: "cert",      icon: <ShieldCheck size={14} />, label: t("set.cert") },
     { id: "mcp",       icon: <Bot size={14} />,         label: "MCP (LLM tools)" },
     { id: "icons",     icon: <Info size={14} />,        label: t("set.iconsTitle") },
@@ -243,6 +244,13 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
                 {prefsStore.prefs().autoCapture ? t("set.enabled") : t("set.disabled")}
               </button>
             </Row>
+          </Section>
+          </Show>
+
+          <Show when={tab() === "localhost"}>
+          <Section icon={<Globe size={14} />} title={t("set.localhost")}>
+            <p class="text-xs opacity-70 leading-relaxed">{t("set.localhostHint")}</p>
+            <LocalhostBlock />
           </Section>
           </Show>
 
@@ -624,6 +632,55 @@ function Row(props: { icon?: any; title: string; hint?: string; children: any })
         {props.hint && <div class="text-xs opacity-60 mt-0.5 leading-relaxed">{props.hint}</div>}
       </div>
       <div class="shrink-0">{props.children}</div>
+    </div>
+  );
+}
+
+function CopyLine(props: { value: string; hint?: string }) {
+  const [copied, setCopied] = createSignal(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(props.value); } catch {}
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+  return (
+    <div class="flex items-center gap-2">
+      <code class="flex-1 min-w-0 truncate mono text-xs px-3 h-9 grid items-center rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40">
+        {props.value}
+      </code>
+      <button
+        onClick={copy}
+        title={props.hint}
+        class="h-9 px-3 rounded-xl border text-xs flex items-center gap-1.5 border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 hover:text-toucan-400 transition"
+      >
+        <Copy size={12} /> {copied() ? t("set.copied") : t("set.copy")}
+      </button>
+    </div>
+  );
+}
+
+function LocalhostBlock() {
+  const port = () => flowsStore.status().port;
+  const alias = "tucano.local";
+  return (
+    <div class="space-y-5">
+      <div class="space-y-1.5">
+        <div class="text-[11px] uppercase tracking-wider opacity-60 mono font-medium">{t("set.localhost.aliasLabel")}</div>
+        <CopyLine value={`http://${alias}:3000`} />
+        <div class="text-[11px] opacity-60 leading-relaxed">{t("set.localhost.aliasHelp")}</div>
+      </div>
+
+      <div class="space-y-1.5">
+        <div class="text-[11px] uppercase tracking-wider opacity-60 mono font-medium">{t("set.localhost.cliLabel")}</div>
+        <CopyLine value={`export HTTPS_PROXY=http://127.0.0.1:${port()} HTTP_PROXY=http://127.0.0.1:${port()}`} />
+        <div class="text-[11px] opacity-60 leading-relaxed">{t("set.localhost.cliHelp")}</div>
+      </div>
+
+      <div class="space-y-1.5">
+        <div class="text-[11px] uppercase tracking-wider opacity-60 mono font-medium">{t("set.localhost.chromeLabel")}</div>
+        <CopyLine value={`open -na "Google Chrome" --args --proxy-server=http://127.0.0.1:${port()} --proxy-bypass-list='<-loopback>'`} />
+        <div class="text-[11px] opacity-60 leading-relaxed">{t("set.localhost.chromeHelp")}</div>
+      </div>
     </div>
   );
 }

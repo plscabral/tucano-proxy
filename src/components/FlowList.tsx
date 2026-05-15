@@ -13,8 +13,9 @@ import { t } from "../lib/i18n";
 import {
   ArrowUp, ArrowDown, AppWindow, Radio, WifiOff, ChevronRight, StickyNote, GripVertical,
   FileText, Film, Music, Database, Plug, FileType, Network, Braces, Type, FileCode2,
-  GitCompareArrows, Crosshair,
+  GitCompareArrows, Crosshair, EyeOff,
 } from "lucide-solid";
+import { ignoredStore } from "../stores/ignored";
 import {
   SiJavascript, SiCss, SiHtml5, SiGraphql,
 } from "solid-icons/si";
@@ -694,6 +695,42 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                 <GitCompareArrows size={11} class="opacity-60" />
               </button>
             </Show>
+            <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
+            <button
+              onClick={() => {
+                const f = ctxFlow();
+                if (!f || !f.clientApp) return;
+                const app = f.clientApp;
+                ignoredStore.addApp(app);
+                const matchIds: string[] = [];
+                for (const x of flowsStore.flows()) if ((x.clientApp ?? "") === app) matchIds.push(x.id);
+                flowsStore.removeMany(new Set(matchIds));
+                ipc.deleteFlows(matchIds).catch(() => {});
+                closeCtx();
+              }}
+              disabled={!ctxFlow()?.clientApp}
+              class="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-red-500/10 hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <span>{t("list.ignoreApp", { app: ctxFlow()?.clientApp ?? "—" })}</span>
+              <EyeOff size={11} class="opacity-60" />
+            </button>
+            <button
+              onClick={() => {
+                const f = ctxFlow();
+                if (!f) return;
+                const host = f.host;
+                ignoredStore.addHost(host);
+                const matchIds: string[] = [];
+                for (const x of flowsStore.flows()) if (x.host === host) matchIds.push(x.id);
+                flowsStore.removeMany(new Set(matchIds));
+                ipc.deleteFlows(matchIds).catch(() => {});
+                closeCtx();
+              }}
+              class="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-red-500/10 hover:text-red-500"
+            >
+              <span>{t("list.ignoreHost", { host: ctxFlow()?.host ?? "—" })}</span>
+              <EyeOff size={11} class="opacity-60" />
+            </button>
             <div class="my-1 border-t border-ink-100 dark:border-ink-400/30" />
             <button
               onClick={() => { const f = ctxFlow(); if (f) copyText(fullUrlOf(f)); }}

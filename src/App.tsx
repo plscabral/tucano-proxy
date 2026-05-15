@@ -20,6 +20,7 @@ import { ipc, onFlowNew, onFlowUpdate, onFlowsTrimmed } from "./lib/ipc";
 import type { Flow } from "./lib/types";
 import { applyRules } from "./lib/rules";
 import { rulesStore } from "./stores/rules";
+import { ignoredStore } from "./stores/ignored";
 import { matchesCategory, CATEGORIES, type Category } from "./lib/category";
 import { layoutStore } from "./stores/layout";
 import { sortStore } from "./stores/sort";
@@ -154,8 +155,18 @@ export default function App() {
       });
     }
   };
-  const unNew = onFlowNew(scheduleFlush);
+  const dropFlow = (id: string) => {
+    flowsStore.removeMany(new Set([id]));
+    ipc.deleteFlows([id]).catch(() => {});
+  };
+  const unNew = onFlowNew((f) => {
+    // Ignore list runs even on `flow:new` so the row never appears in the
+    // list — host is always known here; clientApp usually is too.
+    if (ignoredStore.matches(f)) { dropFlow(f.id); return; }
+    scheduleFlush(f);
+  });
   const unUp = onFlowUpdate((f) => {
+    if (ignoredStore.matches(f)) { dropFlow(f.id); return; }
     // Capture-filter mode: if the user toggled "drop non-matching at capture
     // time", evaluate the active rules against the now-complete flow and
     // delete it from both UI and Rust storage. Keeps the MCP storage small.
