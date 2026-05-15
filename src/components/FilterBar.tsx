@@ -9,7 +9,7 @@ export default function FilterBar() {
   const add = () => rulesStore.add(newRule());
 
   return (
-    <div class="tcn-glass border-b border-ink-100/40 dark:border-white/[0.05]">
+    <div class="relative z-20 tcn-glass border-b border-ink-100/40 dark:border-white/[0.05]">
       <div class="px-5 py-3 flex items-start gap-4">
         <div class="h-8 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] opacity-70 mono font-medium shrink-0 pt-0.5">
           <FilterIcon size={12} class="text-toucan-400" /> {t("filter.title")}

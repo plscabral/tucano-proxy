@@ -264,7 +264,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
        : "opacity-70 hover:opacity-100 hover:bg-ink-100/60 dark:hover:bg-white/[0.05]"}`;
 
   return (
-    <div class="h-11 flex items-stretch tcn-glass border-b border-ink-100/40 dark:border-white/[0.05]">
+    <div class="relative z-20 h-11 flex items-stretch tcn-glass border-b border-ink-100/40 dark:border-white/[0.05]">
 
       {/* ── Esquerda: Keep · Replay · Remove · Compare · Mark · Colunas ── */}
       <div class="flex items-center gap-1 pl-2 shrink-0">
