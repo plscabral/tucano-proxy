@@ -1,6 +1,6 @@
 import { createStore, produce } from "solid-js/store";
 
-export type ColId = "index" | "method" | "status" | "host" | "path" | "size" | "duration" | "client" | "scheme" | "mime" | "note";
+export type ColId = "index" | "method" | "status" | "host" | "path" | "size" | "duration" | "client" | "scheme" | "mime" | "charset" | "note";
 
 export type Col = { id: ColId; label: string; width: number; visible: boolean };
 
@@ -18,6 +18,7 @@ export const MIN_COL_WIDTH: Record<ColId, number> = {
   client:   120,
   scheme:   116,
   mime:     108,
+  charset:  108,
   note:     160,
 };
 
@@ -32,6 +33,7 @@ export const ALL_COLUMNS: Record<ColId, { label: string; width: number }> = {
   client:   { label: "Client",   width: 140 },
   scheme:   { label: "Scheme",   width: 116 },
   mime:     { label: "MIME",     width: 140 },
+  charset:  { label: "Charset",  width: 120 },
   note:     { label: "Note",     width: 240 },
 };
 
@@ -45,11 +47,15 @@ const DEFAULT: Col[] = [
   { id: "size",     label: "Size",   width: 108, visible: true },
   { id: "duration", label: "Time",   width: 100, visible: true },
   { id: "note",     label: "Note",   width: 240, visible: true },
-  { id: "scheme",   label: "Scheme", width: 116, visible: false },
-  { id: "mime",     label: "MIME",   width: 140, visible: false },
+  { id: "scheme",   label: "Scheme", width: 116, visible: true },
+  { id: "mime",     label: "MIME",   width: 140, visible: true },
+  { id: "charset",  label: "Charset",width: 120, visible: true },
 ];
 
-const KEY = "tucano:columns";
+// Bumped to v2 to drop pre-charset cached prefs (where scheme/mime were
+// hidden by default). Users get the new "all visible" defaults; they can
+// still hide what they don't want from the columns menu.
+const KEY = "tucano:columns:v2";
 
 function load(): Col[] {
   try {

@@ -127,6 +127,18 @@ function numOp(op: Op, a: number, b: number): boolean {
   }
 }
 
+// Multi-value support: a rule value like "pje, localhost" matches if ANY
+// substring matches (positive ops) or NONE match (negative ops). Splitting
+// is skipped for `matches` (regex can legitimately contain commas) and for
+// the `header` field (its own "Name: value" syntax owns the colon/comma).
+function splitValues(value: string, op: Op, field: Field): string[] {
+  if (op === "matches" || field === "header") return [value];
+  const parts = value.split(",").map((s) => s.trim()).filter((s) => s !== "");
+  return parts.length > 0 ? parts : [value];
+}
+
+const NEGATIVE_OPS = new Set<Op>(["not_contains", "not_equals"]);
+
 export function evalRule(f: Flow, r: Rule): boolean {
   const meta = FIELDS.find((x) => x.id === r.field)!;
   if (meta.kind === "number") {
@@ -141,17 +153,25 @@ export function evalRule(f: Flow, r: Rule): boolean {
     if (!name.trim()) return false;
     const all = [...f.reqHeaders, ...f.resHeaders];
     const found = all.filter(([k]) => k.toLowerCase() === name.trim().toLowerCase());
-    if (found.length === 0) return r.op === "not_contains" || r.op === "not_equals";
-    if (!want) return r.op !== "not_contains" && r.op !== "not_equals";
+    if (found.length === 0) return NEGATIVE_OPS.has(r.op);
+    if (!want) return !NEGATIVE_OPS.has(r.op);
     return found.some(([, v]) => strOp(r.op, v, want));
   }
-  return strOp(r.op, fieldString(f, r.field, r.value), r.value);
+  const hay = fieldString(f, r.field, r.value);
+  const needles = splitValues(r.value, r.op, r.field);
+  // Negative ops compose with AND (must NOT contain ANY of the values),
+  // positive ops compose with OR (must contain at least ONE).
+  return NEGATIVE_OPS.has(r.op)
+    ? needles.every((n) => strOp(r.op, hay, n))
+    : needles.some((n) => strOp(r.op, hay, n));
 }
 
-export function applyRules(flows: Flow[], rules: Rule[]): Flow[] {
+export function applyRules(flows: Flow[], rules: Rule[], mode: "all" | "any" = "all"): Flow[] {
   const active = rules.filter((r) => r.enabled && r.value.trim() !== "");
   if (active.length === 0) return flows;
-  return flows.filter((f) => active.every((r) => evalRule(f, r)));
+  return mode === "any"
+    ? flows.filter((f) => active.some((r) => evalRule(f, r)))
+    : flows.filter((f) => active.every((r) => evalRule(f, r)));
 }
 
 export function newRule(): Rule {

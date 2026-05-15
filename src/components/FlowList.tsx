@@ -53,6 +53,18 @@ function methodColor(m: string) {
 // that affect it. typeIcon runs for every visible row on every list refresh,
 // and each call does ~12 regex tests + brand-icon allocations. With 50+ visible
 // rows during active capture this dominates row render time.
+// Splits a Content-Type header into mime + charset parts. The charset can
+// also live in other params (e.g. `application/json; charset=utf-8`); we only
+// pull `charset=` since that's what users actually inspect.
+function splitCt(f: Flow): { mime: string; charset: string } {
+  const raw = f.resContentType ?? f.reqContentType ?? "";
+  if (!raw) return { mime: "—", charset: "—" };
+  const [mimePart, ...params] = raw.split(";").map((s) => s.trim());
+  const charsetParam = params.find((p) => /^charset=/i.test(p));
+  const charset = charsetParam ? charsetParam.split("=")[1].trim().replace(/^"|"$/g, "") : "—";
+  return { mime: mimePart || "—", charset };
+}
+
 const _iconCache = new Map<string, { sig: string; node: any }>();
 function typeIcon(f: Flow) {
   const ct = (f.resContentType || f.reqContentType || "").toLowerCase();
@@ -149,7 +161,8 @@ function renderCell(f: Flow, id: ColId) {
     case "size":     return <div class="truncate pl-3 pr-2 opacity-70">{fmtSize(f.resSize || f.reqSize)}</div>;
     case "duration": return <div class="truncate pl-3 pr-2 opacity-70">{f.durationMs != null ? `${f.durationMs}ms` : "…"}</div>;
     case "scheme":   return <div class="truncate pl-3 pr-2 opacity-70 uppercase">{f.scheme}</div>;
-    case "mime":     return <div class="truncate pl-3 pr-2 opacity-70">{f.resContentType ?? f.reqContentType ?? "—"}</div>;
+    case "mime":     return <div class="truncate pl-3 pr-2 opacity-70">{splitCt(f).mime}</div>;
+    case "charset":  return <div class="truncate pl-3 pr-2 opacity-70">{splitCt(f).charset}</div>;
     case "client":   return (
       <div class={`flex items-center gap-1.5 truncate pl-3 pr-2 ${f.clientApp ? "" : "opacity-40"}`}>
         {f.clientIcon
@@ -372,7 +385,8 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
       case "size":     return fmtSize(f.resSize || f.reqSize);
       case "duration": return f.durationMs != null ? `${f.durationMs}ms` : "…";
       case "scheme":   return f.scheme.toUpperCase();
-      case "mime":     return f.resContentType ?? f.reqContentType ?? "—";
+      case "mime":     return splitCt(f).mime;
+      case "charset":  return splitCt(f).charset;
       case "client":   return f.clientApp ?? "—";
       case "note":     return f.note ?? "";
     }
@@ -526,9 +540,13 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                 style={{
                   position: "absolute", top: 0, left: 0, right: 0,
                   height: `${entry.size}px`, transform: `translateY(${entry.start}px)`,
-                  background: sel()
-                    ? undefined
-                    : (markColor() ? `${markColor()}1f` : undefined),
+                  // Mark tint is preserved when the row is selected — selected
+                  // gets a stronger opacity so it still reads as "selected"
+                  // without losing the user's color coding. The indigo
+                  // crosshair + left bar still signal selection.
+                  background: markColor()
+                    ? `${markColor()}${sel() ? "40" : "1f"}`
+                    : undefined,
                   "border-left": markColor() ? `3px solid ${markColor()}` : "3px solid transparent",
                   "box-shadow": sel()
                     ? "inset 3px 0 0 0 rgb(99 102 241 / 0.95)"
@@ -537,7 +555,9 @@ export default function FlowList(props: { flows: Flow[]; onCompare?: () => void;
                 }}
                 class={`grid items-center text-xs mono cursor-pointer select-none pr-3
                   ${sel()
-                    ? "bg-gradient-to-r from-indigo-500/10 via-indigo-500/5 to-transparent dark:from-indigo-400/20 dark:via-indigo-400/10 font-medium"
+                    ? (markColor()
+                        ? "font-medium"
+                        : "bg-gradient-to-r from-indigo-500/10 via-indigo-500/5 to-transparent dark:from-indigo-400/20 dark:via-indigo-400/10 font-medium")
                     : findHit()
                       ? "bg-yellow-300/10 hover:bg-yellow-300/20 dark:bg-yellow-200/5 dark:hover:bg-yellow-200/15"
                       : "hover:bg-ink-50 dark:hover:bg-ink-400/20"}

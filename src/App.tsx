@@ -4,6 +4,8 @@ import StatusBar from "./components/StatusBar";
 import FlowList from "./components/FlowList";
 import Inspector from "./components/Inspector";
 import FilterBar from "./components/FilterBar";
+import Sidebar from "./components/Sidebar";
+import { sidebarStore } from "./stores/sidebar";
 import CategoryTabs from "./components/CategoryTabs";
 import FlowToolbar from "./components/FlowToolbar";
 import Settings from "./components/Settings";
@@ -57,6 +59,7 @@ export default function App() {
     if (compareFlows()) setCompareOpen(true);
   };
   let splitRef!: HTMLDivElement;
+  let sidebarSplitRef!: HTMLDivElement;
 
   onMount(async () => {
     try {
@@ -153,7 +156,20 @@ export default function App() {
     }
   };
   const unNew = onFlowNew(scheduleFlush);
-  const unUp = onFlowUpdate(scheduleFlush);
+  const unUp = onFlowUpdate((f) => {
+    // Capture-filter mode: if the user toggled "drop non-matching at capture
+    // time", evaluate the active rules against the now-complete flow and
+    // delete it from both UI and Rust storage. Keeps the MCP storage small.
+    if (rulesStore.captureMode()) {
+      const active = rulesStore.rules().filter((r) => r.enabled && r.value.trim() !== "");
+      if (active.length > 0 && applyRules([f], active, rulesStore.matchMode()).length === 0) {
+        flowsStore.removeMany(new Set([f.id]));
+        ipc.deleteFlows([f.id]).catch(() => {});
+        return;
+      }
+    }
+    scheduleFlush(f);
+  });
   const unTrimmed = onFlowsTrimmed((ids) => flowsStore.removeMany(new Set(ids)));
 
   const onKey = async (e: KeyboardEvent) => {
@@ -351,8 +367,22 @@ export default function App() {
 
   const filtered = createMemo(() => {
     const cat = flowsStore.category() as Category;
-    const byCat = flowsView().filter((f) => matchesCategory(f, cat));
-    const byRules = applyRules(byCat, rulesStore.rules());
+    const apps = sidebarStore.selectedApps();
+    const domains = sidebarStore.selectedDomains();
+    const hasSidebarFilter = apps.size > 0 || domains.size > 0;
+    const byCat = flowsView().filter((f) => {
+      if (!matchesCategory(f, cat)) return false;
+      if (hasSidebarFilter) {
+        // Sidebar selection acts as OR within each group, AND across groups
+        // when both have selections — same as Proxyman. The common case is
+        // selecting one or the other, where the empty-group check short-circuits.
+        const appOk = apps.size === 0 || apps.has(f.clientApp ?? "");
+        const domOk = domains.size === 0 || domains.has(f.host);
+        if (!appOk || !domOk) return false;
+      }
+      return true;
+    });
+    const byRules = applyRules(byCat, rulesStore.rules(), rulesStore.matchMode());
     const s = sortStore.state();
     return sortFlows(byRules, s.by, s.dir);
   });
@@ -382,6 +412,17 @@ export default function App() {
       <FilterBar />
       <FlowToolbar count={filtered().length} flows={filtered} onCompare={openCompare} />
       <FindAllBar />
+
+      <div ref={sidebarSplitRef} class="flex-1 flex overflow-hidden min-h-0">
+        <Show when={sidebarStore.open()}>
+          <Sidebar />
+          <Splitter
+            orientation="vertical"
+            containerRef={() => sidebarSplitRef}
+            onDrag={(cx, _cy, rect) => sidebarStore.setWidth(cx - rect.left)}
+          />
+        </Show>
+        <div class="flex-1 flex flex-col overflow-hidden min-w-0">
 
       <Show when={layoutStore.pos() === "right"}>
         <div ref={splitRef} class="flex-1 flex overflow-hidden">
@@ -430,6 +471,9 @@ export default function App() {
           <FlowList flows={filtered()} onCompare={openCompare} onOpen={(id) => { setComposerOpen(false); setOpenedFlowId(id); }} />
         </div>
       </Show>
+
+        </div>
+      </div>
 
       <StatusBar />
       <Settings open={settingsOpen()} onClose={() => setSettingsOpen(false)} />

@@ -1,5 +1,6 @@
-import { Trash2, Save, FileDown, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2, GitCompareArrows, ChevronDown, Layers, RotateCcw } from "lucide-solid";
+import { Trash2, Save, FileDown, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2, GitCompareArrows, ChevronDown, Layers, RotateCcw, PanelLeft } from "lucide-solid";
 import { layoutStore, type InspectorPos } from "../stores/layout";
+import { sidebarStore } from "../stores/sidebar";
 import ColumnsMenu from "./ColumnsMenu";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { flowsStore } from "../stores/flows";
@@ -267,6 +268,13 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
 
       {/* ── Esquerda: Keep · Replay · Remove · Compare · Mark · Colunas ── */}
       <div class="flex items-center gap-1 pl-2 shrink-0">
+
+        {/* Sidebar toggle */}
+        <button
+          onClick={() => sidebarStore.toggleOpen()}
+          class={tbBtn(sidebarStore.open())}
+          title={t("sidebar.toggle")}
+        ><PanelLeft size={13} /></button>
 
         {/* Keep */}
         <div class="relative" ref={keepRef}>

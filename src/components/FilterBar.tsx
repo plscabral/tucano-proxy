@@ -1,4 +1,4 @@
-import { Plus, Minus, Filter as FilterIcon, ChevronDown, X } from "lucide-solid";
+import { Plus, Minus, Filter as FilterIcon, ChevronDown, X, Zap } from "lucide-solid";
 import { For, Show } from "solid-js";
 import { rulesStore } from "../stores/rules";
 import { FIELDS, opsFor, newRule, type Field, type Op } from "../lib/rules";
@@ -24,17 +24,26 @@ export default function FilterBar() {
             </button>
           </Show>
 
-          <For each={rules()}>{(r) => (
+          <For each={rules()}>{(r, i) => (<>
+            <Show when={i() > 0}>
+              <button
+                onClick={() => rulesStore.setMatchMode(rulesStore.matchMode() === "all" ? "any" : "all")}
+                title={t("filter.matchModeHint")}
+                class="-my-1 ml-0.5 px-2 py-0.5 text-[10px] font-semibold mono rounded self-start text-center tracking-wide
+                       bg-toucan-400/15 text-toucan-400
+                       hover:bg-toucan-400 hover:text-ink-500 transition"
+              >{rulesStore.matchMode() === "all" ? t("filter.matchAll") : t("filter.matchAny")}</button>
+            </Show>
             <div class="flex items-center gap-2">
               <button
                 onClick={() => rulesStore.update(r.id, { enabled: !r.enabled })}
-                class={`h-8 w-8 grid place-items-center rounded-xl border transition shrink-0
+                class={`h-5 w-5 mx-1.5 grid place-items-center rounded-md border transition shrink-0
                   ${r.enabled
                     ? "bg-toucan-400 border-toucan-400 text-ink-500"
-                    : "border-ink-200 dark:border-ink-400/40 opacity-50"}`}
+                    : "bg-transparent border-ink-300 dark:border-ink-200/50 hover:border-toucan-400"}`}
               >
                 {r.enabled && (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 )}
@@ -62,6 +71,7 @@ export default function FilterBar() {
                 value={r.value}
                 onInput={(e) => rulesStore.update(r.id, { value: e.currentTarget.value })}
                 placeholder={r.field === "header" ? t("filter.headerPlaceholder") : t("filter.placeholder")}
+                title={r.field !== "header" && r.op !== "matches" ? t("filter.multiValueHint") : undefined}
                 autocomplete="off"
                 autocapitalize="off"
                 autocorrect="off"
@@ -81,10 +91,18 @@ export default function FilterBar() {
                 title={t("filter.add")}
               ><Plus size={14} /></button>
             </div>
-          )}</For>
+          </>)}</For>
         </div>
 
         <Show when={rules().length > 0}>
+          <button
+            onClick={() => rulesStore.setCaptureMode(!rulesStore.captureMode())}
+            title={t("filter.captureModeHint")}
+            class={`h-8 px-3 text-[11px] rounded-xl flex items-center gap-1.5 shrink-0 transition border
+              ${rulesStore.captureMode()
+                ? "bg-toucan-400 border-toucan-400 text-ink-500"
+                : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400 hover:text-toucan-400"}`}
+          ><Zap size={12} /> {t("filter.captureMode")}</button>
           <button
             onClick={() => rulesStore.clear()}
             class="h-8 px-3 text-[11px] rounded-xl hover:bg-red-500/10 hover:text-red-500 flex items-center gap-1.5 shrink-0"

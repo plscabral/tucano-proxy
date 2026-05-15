@@ -12,7 +12,12 @@ function key(f: Flow, by: ColId): string | number {
     case "duration": return f.durationMs ?? -1;
     case "client":   return f.clientApp ?? "";
     case "scheme":   return f.scheme;
-    case "mime":     return (f.resContentType || f.reqContentType || "");
+    case "mime":     return (f.resContentType || f.reqContentType || "").split(";")[0].trim();
+    case "charset": {
+      const raw = f.resContentType || f.reqContentType || "";
+      const m = raw.match(/charset=([^;]+)/i);
+      return m ? m[1].trim().replace(/^"|"$/g, "") : "";
+    }
     case "note":     return f.note ?? "";
   }
 }
