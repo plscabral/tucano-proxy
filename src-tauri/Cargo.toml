@@ -1,6 +1,6 @@
 [package]
 name = "tucano"
-version = "0.1.16"
+version = "0.1.17"
 description = "Tucano — open source HTTP/HTTPS debugging proxy"
 authors = ["Paulo Cabral"]
 license = "MIT"

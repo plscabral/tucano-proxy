@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Index, Show } from "solid-js";
 import { ChevronRight, ChevronDown, Globe, AppWindow, X, PanelLeftClose, Layers, EyeOff } from "lucide-solid";
 import { flowsStore } from "../stores/flows";
 import { sidebarStore } from "../stores/sidebar";
@@ -106,23 +106,24 @@ export default function Sidebar() {
           storeKey="apps"
           accent="text-sky-400"
         >
-          <For each={groups().apps}>{(a) => (
+          <Index each={groups().apps}>{(a) => (
             <Row
-              icon={a.icon ? <img src={a.icon} alt="" class="w-3.5 h-3.5 rounded-sm" /> : <AppWindow size={12} class="opacity-40" />}
-              label={a.name}
-              count={a.count}
-              selected={sidebarStore.selectedApps().has(a.name)}
-              onClick={(additive) => sidebarStore.toggleApp(a.name, additive)}
+              icon={a().icon ? <img src={a().icon!} alt="" class="w-3.5 h-3.5 rounded-sm" /> : <AppWindow size={12} class="opacity-40" />}
+              label={a().name}
+              count={a().count}
+              selected={sidebarStore.selectedApps().has(a().name)}
+              onClick={(additive) => sidebarStore.toggleApp(a().name, additive)}
               hoverAction={{
                 icon: <EyeOff size={11} />,
                 title: t("sidebar.ignoreApp"),
                 onClick: () => {
-                  ignoredStore.addApp(a.name);
-                  purgeMatching((f) => (f.clientApp ?? "") === a.name);
+                  const name = a().name;
+                  ignoredStore.addApp(name);
+                  purgeMatching((f) => (f.clientApp ?? "") === name);
                 },
               }}
             />
-          )}</For>
+          )}</Index>
         </Section>
 
         <Section
@@ -132,23 +133,24 @@ export default function Sidebar() {
           storeKey="domains"
           accent="text-emerald-400"
         >
-          <For each={groups().domains}>{(d) => (
+          <Index each={groups().domains}>{(d) => (
             <Row
               icon={<Globe size={12} class="opacity-40" />}
-              label={d.host}
-              count={d.count}
-              selected={sidebarStore.selectedDomains().has(d.host)}
-              onClick={(additive) => sidebarStore.toggleDomain(d.host, additive)}
+              label={d().host}
+              count={d().count}
+              selected={sidebarStore.selectedDomains().has(d().host)}
+              onClick={(additive) => sidebarStore.toggleDomain(d().host, additive)}
               hoverAction={{
                 icon: <EyeOff size={11} />,
                 title: t("sidebar.ignoreHost"),
                 onClick: () => {
-                  ignoredStore.addHost(d.host);
-                  purgeMatching((f) => f.host === d.host);
+                  const host = d().host;
+                  ignoredStore.addHost(host);
+                  purgeMatching((f) => f.host === host);
                 },
               }}
             />
-          )}</For>
+          )}</Index>
         </Section>
 
         <Section
@@ -158,15 +160,15 @@ export default function Sidebar() {
           storeKey="cats"
           accent="text-amber-400"
         >
-          <For each={groups().cats}>{(c) => (
+          <Index each={groups().cats}>{(c) => (
             <Row
-              icon={<span class={`h-1.5 w-1.5 rounded-full ${CAT_DOT[c.id]}`} />}
-              label={t(`cat.${c.id}`)}
-              count={c.count}
-              selected={sidebarStore.selectedCategories().has(c.id)}
-              onClick={(additive) => sidebarStore.toggleCategory(c.id, additive)}
+              icon={<span class={`h-1.5 w-1.5 rounded-full ${CAT_DOT[c().id]}`} />}
+              label={t(`cat.${c().id}`)}
+              count={c().count}
+              selected={sidebarStore.selectedCategories().has(c().id)}
+              onClick={(additive) => sidebarStore.toggleCategory(c().id, additive)}
             />
-          )}</For>
+          )}</Index>
         </Section>
 
         <Show when={ignoredStore.apps().size + ignoredStore.hosts().size > 0}>
