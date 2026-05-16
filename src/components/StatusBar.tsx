@@ -12,7 +12,7 @@ export default function StatusBar() {
         <span class={`h-1.5 w-1.5 rounded-full ${s().running ? "bg-toucan-400 shadow-[0_0_8px_rgb(251_142_55_/_0.7)]" : "bg-ink-200/60"}`} />
         {s().running ? `127.0.0.1:${s().port}` : t("sb.proxyStopped")}
       </span>
-      <span class="opacity-75 mono">{t("sb.flows")}: <span class="text-cobalt-400 font-medium">{flowsStore.flows().length}</span></span>
+      <span class="opacity-75 mono">{t("sb.flows")}: <span class="text-cobalt-400 font-medium">{flowsStore.flowsView().length}</span></span>
       <span class="opacity-75 mono">{t("sb.ca")}: <span class={s().caInstalled ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>{s().caInstalled ? t("sb.caTrusted") : t("sb.caNotInstalled")}</span></span>
       <span class="opacity-75 mono">{t("sb.sysProxy")}: <span class={s().systemProxyOn ? "text-emerald-400 font-medium" : "opacity-60"}>{s().systemProxyOn ? t("sb.on") : t("sb.off")}</span></span>
       <div class="flex-1" />

@@ -455,7 +455,7 @@ export default function FlowToolbar(props: { count: number; flows: () => Flow[];
 
       {/* ── Count + layout ── */}
       <div class="flex items-center gap-1 px-2 shrink-0 border-l border-ink-100 dark:border-ink-400/30">
-        <span class="text-[11px] opacity-50 mono px-1 whitespace-nowrap">{t("tb.countOf", { count: props.count, total: flowsStore.flows().length })}</span>
+        <span class="text-[11px] opacity-50 mono px-1 whitespace-nowrap">{t("tb.countOf", { count: props.count, total: flowsStore.flowsView().length })}</span>
         <Sep />
         <LayoutBtn pos="right"  titleKey="tb.inspectorRight"  icon={<PanelRight size={14} />} />
         <LayoutBtn pos="bottom" titleKey="tb.inspectorBottom" icon={<PanelBottom size={14} />} />

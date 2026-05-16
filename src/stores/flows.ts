@@ -2,6 +2,28 @@ import { createSignal } from "solid-js";
 import type { Flow, ProxyStatus } from "../lib/types";
 
 const [flows, setFlows] = createSignal<Flow[]>([]);
+// Throttled mirror of `flows`. Heavy consumers (FlowList filter pipeline,
+// Sidebar groups, FlowToolbar count) read this one instead of the raw signal
+// so they re-run at ~6 fps during active capture rather than once per
+// batchUpsert. Shrinks (delete, clear, undo, trim) bypass the throttle —
+// see `_publishView` below.
+const [flowsView, setFlowsView] = createSignal<Flow[]>([]);
+let _viewTimer: number | null = null;
+const VIEW_INTERVAL_MS = 180;
+function _publishView(next: Flow[], force: boolean) {
+  const cur = flowsView();
+  if (force || next.length < cur.length) {
+    if (_viewTimer != null) { clearTimeout(_viewTimer); _viewTimer = null; }
+    setFlowsView(next);
+    return;
+  }
+  if (_viewTimer != null) return;
+  _viewTimer = window.setTimeout(() => {
+    _viewTimer = null;
+    setFlowsView(flows());
+  }, VIEW_INTERVAL_MS);
+}
+
 const [selectedIds, setSelectedIds] = createSignal<Set<string>>(new Set());
 const [anchorId, setAnchorId] = createSignal<string | null>(null);
 const [filter, setFilter] = createSignal("");
@@ -15,7 +37,12 @@ const [status, setStatus] = createSignal<ProxyStatus>({
 const _idx = new Map<string, number>();
 
 export const flowsStore = {
-  flows, setFlows,
+  flows,
+  flowsView,
+  setFlows(next: Flow[]) {
+    setFlows(next);
+    _publishView(next, true);
+  },
   selectedIds,
   anchorId,
   filter, setFilter,
@@ -61,47 +88,70 @@ export const flowsStore = {
   clearSelection() { setSelectedIds(new Set<string>()); setAnchorId(null); },
 
   upsert(f: Flow) {
+    let updated!: Flow[];
     setFlows((prev) => {
       const idx = _idx.get(f.id);
       if (idx === undefined) {
         _idx.set(f.id, prev.length);
-        return [...prev, f];
+        updated = [...prev, f];
+      } else {
+        updated = prev.slice();
+        updated[idx] = f;
       }
-      const next = prev.slice();
-      next[idx] = f;
-      return next;
+      return updated;
     });
+    _publishView(updated, false);
   },
   batchUpsert(batch: Flow[]) {
     if (batch.length === 0) return;
+    let updated!: Flow[];
     setFlows((prev) => {
-      const next = prev.slice();
+      updated = prev.slice();
       for (const f of batch) {
         const idx = _idx.get(f.id);
         if (idx === undefined) {
-          _idx.set(f.id, next.length);
-          next.push(f);
+          _idx.set(f.id, updated.length);
+          updated.push(f);
         } else {
-          next[idx] = f;
+          updated[idx] = f;
         }
       }
-      return next;
+      return updated;
     });
+    _publishView(updated, false);
+  },
+  // Fast path: drop a single id without touching selection state. Used by the
+  // ignored-list pipeline, which would otherwise wipe selection on every
+  // incoming ignored flow (and pay a full setFlows + publishView each time).
+  removeOneIfPresent(id: string): boolean {
+    if (!_idx.has(id)) return false;
+    let updated!: Flow[];
+    setFlows((prev) => {
+      updated = prev.filter((f) => f.id !== id);
+      _idx.clear();
+      updated.forEach((f, i) => _idx.set(f.id, i));
+      return updated;
+    });
+    _publishView(updated, true);
+    return true;
   },
   removeMany(ids: Set<string>) {
+    let updated!: Flow[];
     setFlows((prev) => {
-      const next = prev.filter((f) => !ids.has(f.id));
+      updated = prev.filter((f) => !ids.has(f.id));
       // Rebuild index after removal since positions shift.
       _idx.clear();
-      next.forEach((f, i) => _idx.set(f.id, i));
-      return next;
+      updated.forEach((f, i) => _idx.set(f.id, i));
+      return updated;
     });
+    _publishView(updated, true);
     setSelectedIds(new Set<string>());
     setAnchorId(null);
   },
   clear() {
     _idx.clear();
     setFlows([]);
+    _publishView([], true);
     setSelectedIds(new Set<string>());
     setAnchorId(null);
   },

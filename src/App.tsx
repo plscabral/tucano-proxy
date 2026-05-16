@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import TopBar from "./components/TopBar";
 import StatusBar from "./components/StatusBar";
 import FlowList from "./components/FlowList";
@@ -50,9 +50,8 @@ export default function App() {
   const compareFlows = createMemo(() => {
     const ids = Array.from(flowsStore.selectedIds());
     if (ids.length !== 2) return null;
-    const all = flowsStore.flows();
-    const a = all.find((f) => f.id === ids[0]);
-    const b = all.find((f) => f.id === ids[1]);
+    const a = flowsStore.getById(ids[0]);
+    const b = flowsStore.getById(ids[1]);
     return a && b ? { a, b } : null;
   });
   const openCompare = () => {
@@ -155,18 +154,34 @@ export default function App() {
       });
     }
   };
-  const dropFlow = (id: string) => {
-    flowsStore.removeMany(new Set([id]));
-    ipc.deleteFlows([id]).catch(() => {});
+  // Batched backend delete for ignored flows. With a noisy app (JetBrains
+  // polling every few ms), firing a separate `ipc.deleteFlows([id])` on
+  // every flow:new + flow:update doubled the IPC pressure and kept the
+  // event loop saturated. We coalesce to one round-trip per ~120 ms.
+  let _ignoredPending: string[] = [];
+  let _ignoredTimer: number | null = null;
+  const dropIgnored = (id: string) => {
+    // The flow usually isn't in the UI store yet (we drop on flow:new before
+    // it ever lands). `removeOneIfPresent` is a no-op in that case — no
+    // setFlows, no selection wipe. Falls back to clearing if it slipped in.
+    flowsStore.removeOneIfPresent(id);
+    _ignoredPending.push(id);
+    if (_ignoredTimer == null) {
+      _ignoredTimer = window.setTimeout(() => {
+        _ignoredTimer = null;
+        const batch = _ignoredPending.splice(0);
+        if (batch.length > 0) ipc.deleteFlows(batch).catch(() => {});
+      }, 120);
+    }
   };
   const unNew = onFlowNew((f) => {
     // Ignore list runs even on `flow:new` so the row never appears in the
     // list — host is always known here; clientApp usually is too.
-    if (ignoredStore.matches(f)) { dropFlow(f.id); return; }
+    if (ignoredStore.matches(f)) { dropIgnored(f.id); return; }
     scheduleFlush(f);
   });
   const unUp = onFlowUpdate((f) => {
-    if (ignoredStore.matches(f)) { dropFlow(f.id); return; }
+    if (ignoredStore.matches(f)) { dropIgnored(f.id); return; }
     // Capture-filter mode: if the user toggled "drop non-matching at capture
     // time", evaluate the active rules against the now-complete flow and
     // delete it from both UI and Rust storage. Keeps the MCP storage small.
@@ -355,31 +370,10 @@ export default function App() {
     (await unNew)(); (await unUp)(); (await unTrimmed)();
   });
 
-  // Throttled mirror of flowsStore.flows() — refreshes the visible list at ~6 fps
-  // while capture is running, so the filter+rules+sort+virtualizer pipeline
-  // doesn't re-run on every batchUpsert. Instant when the proxy is stopped.
-  const [flowsView, setFlowsView] = createSignal<Flow[]>(flowsStore.flows());
-  let viewTimer: number | null = null;
-  createEffect(() => {
-    const next = flowsStore.flows();
-    const running = flowsStore.status().running;
-    const cur = untrack(flowsView);
-    // Shrinks (delete, clear, undo, trim) bypass the throttle — they're
-    // direct user actions that must paint instantly. Without this, hitting
-    // Backspace on 3000 selected rows during active capture leaves the
-    // list visible for up to 180ms before clearing, which feels like lag.
-    if (!running || next.length < cur.length) {
-      if (viewTimer != null) { clearTimeout(viewTimer); viewTimer = null; }
-      setFlowsView(next);
-      return;
-    }
-    if (viewTimer != null) return;
-    viewTimer = window.setTimeout(() => {
-      viewTimer = null;
-      setFlowsView(flowsStore.flows());
-    }, 180);
-  });
-  onCleanup(() => { if (viewTimer != null) clearTimeout(viewTimer); });
+  // `flowsView` lives in flowsStore — throttled at ~6 fps during capture so
+  // the filter+rules+sort+virtualizer pipeline doesn't re-run on every
+  // batchUpsert. Shrinks (delete, clear, trim) bypass the throttle there.
+  const flowsView = flowsStore.flowsView;
 
   const filtered = createMemo(() => {
     const apps = sidebarStore.selectedApps();
