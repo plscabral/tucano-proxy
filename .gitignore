@@ -4,6 +4,9 @@ dist/
 dist-ssr/
 .vite/
 *.local
+# Local-only: holds the pnpm 11 esbuild build approval. Tracking it makes pnpm
+# treat the repo as a workspace (requires a `packages:` field) and breaks CI.
+pnpm-workspace.yaml
 
 # --- Rust / Cargo / Tauri --------------------------------------------------
 src-tauri/target/
