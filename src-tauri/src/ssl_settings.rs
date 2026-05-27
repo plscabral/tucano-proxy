@@ -84,6 +84,12 @@ const PINNED_HOSTS: &[&str] = &[
     "*.chatgpt.com",
     "*.oaiusercontent.com",
     "*.oaidynamic.com",
+    // Anthropic / Claude — Node/Electron clients use their own CA bundle and
+    // reject the Tucano cert, which breaks Claude Desktop's API traffic (and the
+    // MCP integration Tucano itself ships). Always tunnel.
+    "*.anthropic.com",
+    "*.claude.ai",
+    "*.claude.com",
     // Misc known-pinned
     "*.twitter.com",
     "*.x.com",
