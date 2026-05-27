@@ -235,14 +235,11 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               </span>
             </div>
             <Row icon={<Globe size={14} />} title={t("set.autoCapture")} hint={t("set.autoCaptureHint")}>
-              <button
-                onClick={() => prefsStore.setAutoCapture(!prefsStore.prefs().autoCapture)}
-                class={`h-9 px-4 text-xs rounded-xl border transition
-                  ${prefsStore.prefs().autoCapture
-                    ? "bg-toucan-400/15 border-toucan-400/60 text-toucan-400"
-                    : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}>
-                {prefsStore.prefs().autoCapture ? t("set.enabled") : t("set.disabled")}
-              </button>
+              <Toggle
+                checked={prefsStore.prefs().autoCapture}
+                onChange={(v) => prefsStore.setAutoCapture(v)}
+                label={t("set.autoCapture")}
+              />
             </Row>
           </Section>
           </Show>
@@ -338,14 +335,11 @@ export default function Settings(props: { open: boolean; onClose: () => void }) 
               Exposes captured flows to LLM tools (Claude Desktop, Claude Code, Cursor) via a local-loopback HTTP API. Use the <code class="mono">tucano-mcp</code> npm package as the stdio bridge.
             </p>
             <Row title="Enable MCP bridge" hint="Off by default. Listens on 127.0.0.1 only, requires Bearer token.">
-              <button
-                onClick={() => setMcpEnabled(!mcpEnabled())}
-                class={`h-9 px-4 text-xs rounded-xl border transition
-                  ${mcpEnabled()
-                    ? "bg-toucan-400/15 border-toucan-400/60 text-toucan-400"
-                    : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}>
-                {mcpEnabled() ? t("set.enabled") : t("set.disabled")}
-              </button>
+              <Toggle
+                checked={mcpEnabled()}
+                onChange={(v) => setMcpEnabled(v)}
+                label="Enable MCP bridge"
+              />
             </Row>
             <div class="flex items-center gap-3">
               <label class="text-xs opacity-70 w-14">Port</label>
@@ -587,6 +581,28 @@ function IconRow(props: { icon: any; label: string; hint: string }) {
       <div class="font-medium mono text-[11px] w-24 shrink-0">{props.label}</div>
       <div class="opacity-70 leading-relaxed">{props.hint}</div>
     </div>
+  );
+}
+
+// iOS-style sliding switch. The knob position + track color show the state
+// unambiguously, so there's no "does the label mean current state or action?"
+// confusion that a text pill ("Enabled"/"Disabled") creates.
+function Toggle(props: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={props.checked}
+      aria-label={props.label}
+      onClick={() => props.onChange(!props.checked)}
+      class={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors shrink-0 outline-none
+        focus-visible:ring-2 focus-visible:ring-toucan-400/60
+        ${props.checked ? "bg-toucan-400" : "bg-ink-200 dark:bg-ink-400/40"}`}
+    >
+      <span
+        class={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform
+          ${props.checked ? "translate-x-[22px]" : "translate-x-0.5"}`}
+      />
+    </button>
   );
 }
 

@@ -22,10 +22,18 @@ pub fn new_token() -> String {
 impl McpSettings {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("mcp-settings.json");
+        let existed = path.exists();
         let mut s: Self = std::fs::read_to_string(&path).ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
-        if s.token.is_empty() { s.token = new_token(); }
+        let mut dirty = false;
+        if s.token.is_empty() { s.token = new_token(); dirty = true; }
+        // Persist a freshly generated token on first run so it stays stable
+        // across restarts. Otherwise a new token is minted every launch and any
+        // client config written by "Install" silently drifts out of sync (401).
+        if !existed || dirty {
+            let _ = s.save(dir);
+        }
         s
     }
 

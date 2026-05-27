@@ -113,7 +113,7 @@ fn write_toml(path: &PathBuf, doc: &DocumentMut) -> Result<(), String> {
     std::fs::write(path, doc.to_string()).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
-fn env_object(settings: &McpSettings) -> serde_json::Map<String, Value> {
+fn env_object(settings: &McpSettings, node_bin: Option<&str>) -> serde_json::Map<String, Value> {
     let mut env = serde_json::Map::new();
     env.insert("TUCANO_TOKEN".to_string(), Value::String(settings.token.clone()));
     if settings.port != 7878 {
@@ -122,7 +122,65 @@ fn env_object(settings: &McpSettings) -> serde_json::Map<String, Value> {
             Value::String(format!("http://127.0.0.1:{}", settings.port)),
         );
     }
+    // GUI-launched clients run with a minimal PATH that excludes nvm/homebrew
+    // node. Inject the resolved node bin dir so the spawned npx can find `node`
+    // (its shebang is `#!/usr/bin/env node`).
+    if let Some(bin) = node_bin {
+        env.insert(
+            "PATH".to_string(),
+            Value::String(format!("{bin}:/usr/local/bin:/usr/bin:/bin")),
+        );
+    }
     env
+}
+
+/// Resolve an absolute path to `npx`. GUI apps on macOS/Linux don't inherit the
+/// shell PATH, so a bare "npx" command in a client config fails with ENOENT when
+/// the client is opened from the Dock/Finder (the classic "works in the terminal
+/// but not in the app" bug). We resolve the real path so the written config works
+/// regardless of how the client is launched. Falls back to "npx".
+fn resolve_npx() -> String {
+    if let Some(p) = which_in_path("npx") {
+        return p;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Ask the user's login shell — it sources ~/.zshrc / ~/.bashrc where
+        // nvm and other version managers put node on PATH.
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        if let Ok(out) = std::process::Command::new(&shell)
+            .args(["-ilc", "command -v npx"])
+            .output()
+        {
+            if out.status.success() {
+                let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !p.is_empty() && std::path::Path::new(&p).exists() {
+                    return p;
+                }
+            }
+        }
+    }
+    "npx".to_string()
+}
+
+fn which_in_path(bin: &str) -> Option<String> {
+    let path = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path) {
+        let cand = dir.join(bin);
+        if cand.is_file() {
+            return Some(cand.to_string_lossy().to_string());
+        }
+    }
+    None
+}
+
+/// The dir holding `node`/`npx`, used to repair PATH for GUI clients.
+/// Empty when npx couldn't be resolved to an absolute path.
+fn node_bin_dir(npx: &str) -> Option<String> {
+    std::path::Path::new(npx)
+        .parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 fn is_installed(c: McpClient, path: &PathBuf) -> bool {
@@ -152,6 +210,9 @@ fn is_installed(c: McpClient, path: &PathBuf) -> bool {
 
 pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
     let path = client_path(c)?;
+    let npx = resolve_npx();
+    let node_bin_owned = node_bin_dir(&npx);
+    let node_bin = node_bin_owned.as_deref();
     match c {
         McpClient::ClaudeDesktop | McpClient::ClaudeCode => {
             let mut root = read_json(&path)?;
@@ -168,9 +229,9 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
             servers.as_object_mut().unwrap().insert(
                 ENTRY_NAME.to_string(),
                 json!({
-                    "command": "npx",
+                    "command": npx,
                     "args": ["-y", "tucano-mcp"],
-                    "env": env_object(settings),
+                    "env": env_object(settings, node_bin),
                 }),
             );
             write_json(&path, &root)
@@ -191,9 +252,9 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
                 ENTRY_NAME.to_string(),
                 json!({
                     "type": "local",
-                    "command": ["npx", "-y", "tucano-mcp"],
+                    "command": [npx, "-y", "tucano-mcp"],
                     "enabled": true,
-                    "environment": env_object(settings),
+                    "environment": env_object(settings, node_bin),
                 }),
             );
             write_json(&path, &root)
@@ -208,7 +269,7 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
                 .ok_or_else(|| "mcp_servers is not a table".to_string())?;
             servers.set_implicit(true);
             let mut entry = Table::new();
-            entry["command"] = value("npx");
+            entry["command"] = value(npx.as_str());
             let mut args = Array::new();
             args.push("-y");
             args.push("tucano-mcp");
@@ -219,6 +280,12 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
                 env_tbl.insert(
                     "TUCANO_URL",
                     format!("http://127.0.0.1:{}", settings.port).into(),
+                );
+            }
+            if let Some(bin) = node_bin {
+                env_tbl.insert(
+                    "PATH",
+                    format!("{bin}:/usr/local/bin:/usr/bin:/bin").into(),
                 );
             }
             entry["env"] = value(env_tbl);
