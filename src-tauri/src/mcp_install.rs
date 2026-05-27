@@ -134,17 +134,27 @@ fn env_object(settings: &McpSettings, node_bin: Option<&str>) -> serde_json::Map
     env
 }
 
-/// Resolve an absolute path to `npx`. GUI apps on macOS/Linux don't inherit the
-/// shell PATH, so a bare "npx" command in a client config fails with ENOENT when
-/// the client is opened from the Dock/Finder (the classic "works in the terminal
-/// but not in the app" bug). We resolve the real path so the written config works
-/// regardless of how the client is launched. Falls back to "npx".
+/// Resolve the `npx` command to write into a client config.
+///
+/// On macOS/Linux, GUI apps don't inherit the shell PATH, so a bare "npx" fails
+/// with ENOENT when the client is opened from the Dock/Finder (the classic
+/// "works in the terminal but not in the app" bug). We resolve the absolute path
+/// so the config works regardless of how the client is launched.
+///
+/// On Windows we deliberately keep the bare "npx": the client resolves it to
+/// `npx.cmd` and runs it via `cmd.exe` correctly, and GUI apps inherit the
+/// system PATH (node's installer adds it). An absolute path to the extensionless
+/// `npx` (a POSIX shell script) instead breaks with "'node' is not recognized".
 fn resolve_npx() -> String {
-    if let Some(p) = which_in_path("npx") {
-        return p;
+    #[cfg(target_os = "windows")]
+    {
+        "npx".to_string()
     }
     #[cfg(not(target_os = "windows"))]
     {
+        if let Some(p) = which_in_path("npx") {
+            return p;
+        }
         // Ask the user's login shell — it sources ~/.zshrc / ~/.bashrc where
         // nvm and other version managers put node on PATH.
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
@@ -159,10 +169,11 @@ fn resolve_npx() -> String {
                 }
             }
         }
+        "npx".to_string()
     }
-    "npx".to_string()
 }
 
+#[cfg(not(target_os = "windows"))]
 fn which_in_path(bin: &str) -> Option<String> {
     let path = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path) {
