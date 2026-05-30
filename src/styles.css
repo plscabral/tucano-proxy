@@ -28,26 +28,27 @@
   }
 
   .dark {
-    /* shadcn tokens — dark. Deep blue-black canvas matching the brand. */
-    --background: 224 54% 7%;
-    --foreground: 230 20% 94%;
-    --card: 224 48% 8%;
-    --card-foreground: 230 20% 94%;
-    --popover: 224 42% 9%;
-    --popover-foreground: 230 20% 94%;
-    --primary: 248 70% 61%;
+    /* shadcn tokens — dark. True-black canvas with neutral (slightly cool)
+       elevated surfaces, so the violet brand accent reads cleanly on black. */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 96%;
+    --card: 240 6% 6%;
+    --card-foreground: 0 0% 96%;
+    --popover: 240 6% 7%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 248 70% 64%;
     --primary-foreground: 252 60% 98%;
-    --secondary: 224 30% 14%;
-    --secondary-foreground: 230 18% 90%;
-    --muted: 224 30% 13%;
-    --muted-foreground: 230 12% 64%;
-    --accent: 224 30% 16%;
-    --accent-foreground: 230 18% 90%;
+    --secondary: 240 5% 12%;
+    --secondary-foreground: 0 0% 92%;
+    --muted: 240 5% 11%;
+    --muted-foreground: 240 5% 62%;
+    --accent: 240 5% 14%;
+    --accent-foreground: 0 0% 92%;
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 224 26% 16%;
-    --input: 224 26% 16%;
-    --ring: 248 72% 64%;
+    --border: 240 5% 14%;
+    --input: 240 5% 14%;
+    --ring: 248 72% 66%;
   }
 }
 
@@ -73,10 +74,25 @@ body {
 }
 
 html.dark body {
-  /* Deep, uniform near-black with a faint blue undertone. No radials so
-     the canvas reads as a single deep tone instead of patchy lighter spots. */
-  background: #080D1B;
+  /* True black canvas to make the violet brand accent sing. */
+  background: #000000;
   color: #EDEEF3;
+}
+
+/* Faint engineering-grid texture — the brand's "graph paper" ornament. Sits
+   on the page tone; opaque panels above cover it, so it reads as a subtle
+   backdrop in chrome gaps and empty states rather than behind dense data. */
+.tcn-grid {
+  background-image:
+    linear-gradient(to right, rgba(15, 24, 46, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 24, 46, 0.045) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+html.dark .tcn-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 30px 30px;
 }
 
 .mono {
@@ -100,10 +116,9 @@ html.dark body {
   border: 1px solid rgba(15, 24, 46, 0.08);
 }
 html.dark .tcn-glass {
-  /* Solid #080D1B (no alpha, no blur color shift) so chrome reads as the
-     exact same tone as the body. */
-  background: #080D1B;
-  border-color: rgba(255, 255, 255, 0.05);
+  /* Solid black so the chrome reads as the exact same tone as the body. */
+  background: #000000;
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 /* Stronger glass — for dropdowns and modals where the surface needs to
@@ -115,8 +130,9 @@ html.dark .tcn-glass {
   border: 1px solid rgba(15, 24, 46, 0.10);
 }
 html.dark .tcn-glass-strong {
-  background: #080D1B;
-  border-color: rgba(255, 255, 255, 0.06);
+  /* Slightly lifted off pure black so floating menus/modals separate. */
+  background: #0c0c0f;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Subtle elevated card for sidebars / panels. */

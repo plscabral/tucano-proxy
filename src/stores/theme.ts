@@ -45,7 +45,7 @@ if (window.matchMedia) {
 function applyTheme() {
   const dark = effectiveTheme() === "dark";
   document.documentElement.classList.toggle("dark", dark);
-  const color = dark ? "#080D1B" : "#FBFBF8";
+  const color = dark ? "#000000" : "#FBFBF8";
   try {
     getCurrentWindow().setBackgroundColor(color).catch((e) => {
       console.warn("[theme] setBackgroundColor failed", e);

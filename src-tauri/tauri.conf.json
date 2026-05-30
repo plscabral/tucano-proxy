@@ -22,7 +22,7 @@
         "titleBarStyle": "Transparent",
         "hiddenTitle": true,
         "transparent": false,
-        "backgroundColor": "#080D1B",
+        "backgroundColor": "#000000",
         "dragDropEnabled": false
       }
     ],

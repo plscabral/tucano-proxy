@@ -482,8 +482,8 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className="h-full flex flex-col relative bg-white dark:bg-[#080D1B]" onClick={closeCtx}>
-      <div ref={parentRef} className="flex-1 min-h-0 overflow-auto scroll-thin bg-white dark:bg-[#080D1B]" style={{ scrollbarGutter: "stable" }}>
+    <div className="h-full flex flex-col relative bg-white dark:bg-[#000000]" onClick={closeCtx}>
+      <div ref={parentRef} className="flex-1 min-h-0 overflow-auto scroll-thin bg-white dark:bg-[#000000]" style={{ scrollbarGutter: "stable" }}>
         <div className="flex flex-col" style={{ minWidth: `${totalWidth}px` }}>
           {/* Header — sticky so it stays visible while the rows scroll. */}
           <div

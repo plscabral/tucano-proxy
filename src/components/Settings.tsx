@@ -154,7 +154,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-[880px] max-w-[92vw] h-[640px] max-h-[86vh] flex flex-col rounded-2xl bg-white dark:bg-[#080D1B] text-ink-500 dark:text-ink-50 border border-ink-100 dark:border-white/10 shadow-2xl overflow-hidden"
+        className="w-[880px] max-w-[92vw] h-[640px] max-h-[86vh] flex flex-col rounded-2xl bg-white dark:bg-[#000000] text-ink-500 dark:text-ink-50 border border-ink-100 dark:border-white/10 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 h-14 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
@@ -350,7 +350,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                   </p>
                   <div className="relative">
                     <pre className="text-[11px] mono p-3 rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 overflow-auto whitespace-pre">{mcpConfigSnippet()}</pre>
-                    <button onClick={() => copyMcp("config")} className={`absolute top-2 right-2 h-7 px-2 text-[11px] rounded-lg border flex items-center gap-1.5 transition ${mcpCopied === "config" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "bg-white dark:bg-[#080D1B] border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}><Copy size={11} /> {mcpCopied === "config" ? "Copied" : "Copy"}</button>
+                    <button onClick={() => copyMcp("config")} className={`absolute top-2 right-2 h-7 px-2 text-[11px] rounded-lg border flex items-center gap-1.5 transition ${mcpCopied === "config" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "bg-white dark:bg-[#000000] border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}><Copy size={11} /> {mcpCopied === "config" ? "Copied" : "Copy"}</button>
                   </div>
                 </Section>
               </>
@@ -500,14 +500,14 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 function SslOpt({ mode, label, current, setCurrent }: { mode: SslMode; label: string; current: SslMode; setCurrent: (m: SslMode) => void }) {
   const active = current === mode;
   return (
-    <button onClick={() => setCurrent(mode)} className={`flex-1 h-8 rounded-lg flex items-center justify-center text-xs transition truncate px-2 ${active ? "bg-white dark:bg-[#080D1B] text-toucan-400 shadow-sm font-medium" : "opacity-70 hover:opacity-100"}`}>{label}</button>
+    <button onClick={() => setCurrent(mode)} className={`flex-1 h-8 rounded-lg flex items-center justify-center text-xs transition truncate px-2 ${active ? "bg-white dark:bg-[#000000] text-toucan-400 shadow-sm font-medium" : "opacity-70 hover:opacity-100"}`}>{label}</button>
   );
 }
 
 function ThemeOpt({ mode, icon, label }: { mode: ThemeMode; icon: React.ReactNode; label: string }) {
   const active = useTheme((s) => s.mode) === mode;
   return (
-    <button onClick={() => setTheme(mode)} className={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-xs transition ${active ? "bg-white dark:bg-[#080D1B] text-toucan-400 shadow-sm" : "opacity-70 hover:opacity-100"}`}>{icon} {label}</button>
+    <button onClick={() => setTheme(mode)} className={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-xs transition ${active ? "bg-white dark:bg-[#000000] text-toucan-400 shadow-sm" : "opacity-70 hover:opacity-100"}`}>{icon} {label}</button>
   );
 }
 
