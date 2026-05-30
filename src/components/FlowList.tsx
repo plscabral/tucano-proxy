@@ -223,14 +223,14 @@ const Row = React.memo(function Row({
         background: markColor ? `${markColor}${sel ? "40" : "1f"}` : undefined,
         boxShadow: markColor
           ? `inset 2px 0 0 0 ${markColor}`
-          : sel ? "inset 2px 0 0 0 rgb(56 189 248 / 1)" : undefined,
+          : sel ? "inset 2px 0 0 0 rgb(106 87 224 / 1)" : undefined,
         gridTemplateColumns: gridTemplate,
       }}
       className={`grid items-center text-xs mono cursor-pointer select-none pr-3
         ${sel
           ? (markColor
               ? "font-medium"
-              : "bg-gradient-to-r from-sky-500/25 via-sky-500/10 to-sky-500/[0.03] dark:from-sky-400/25 dark:via-sky-400/10 dark:to-sky-400/[0.02] font-medium")
+              : "bg-gradient-to-r from-toucan-400/25 via-toucan-400/10 to-toucan-400/[0.03] dark:from-toucan-400/25 dark:via-toucan-400/10 dark:to-toucan-400/[0.02] font-medium")
           : findHit
             ? "bg-yellow-300/10 hover:bg-yellow-300/20 dark:bg-yellow-200/5 dark:hover:bg-yellow-200/15"
             : "hover:bg-ink-100/40 dark:hover:bg-white/[0.03]"}
@@ -249,7 +249,7 @@ const Row = React.memo(function Row({
         </span>
         <span className="grid place-items-center">
           {sel && (
-            <span className="text-sky-500 dark:text-sky-400" title={t("list.selectedRow")}>
+            <span className="text-toucan-500 dark:text-toucan-400" title={t("list.selectedRow")}>
               <Crosshair size={13} strokeWidth={2.25} />
             </span>
           )}
@@ -484,8 +484,8 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className="h-full flex flex-col relative bg-white dark:bg-[#000000] tcn-grid" onClick={closeCtx}>
-      <div ref={parentRef} className="flex-1 min-h-0 overflow-auto scroll-thin" style={{ scrollbarGutter: "stable" }}>
+    <div className="h-full flex flex-col relative bg-white dark:bg-[#000000]" onClick={closeCtx}>
+      <div ref={parentRef} className="flex-1 min-h-0 overflow-auto scroll-thin bg-white dark:bg-[#000000]" style={{ scrollbarGutter: "stable" }}>
         <div className="flex flex-col" style={{ minWidth: `${totalWidth}px` }}>
           {/* Header — sticky so it stays visible while the rows scroll. */}
           <div
@@ -554,41 +554,61 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
 
       {rows.length === 0 && (
         <div className="absolute inset-0 top-9 tcn-grid flex items-center justify-center px-6 text-center pointer-events-none select-none overflow-hidden">
-          {/* Radial vignette so the grid fades toward the edges. */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(0,0,0,0.04)_100%)] dark:bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(0,0,0,0.55)_100%)]" />
+          {/* Vignette so the grid fades toward the edges. */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(0,0,0,0.05)_100%)] dark:bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(0,0,0,0.6)_100%)]" />
+          {/* Big soft brand glow, only while listening. */}
+          {running && <div className="absolute w-[460px] h-[460px] rounded-full bg-toucan-400/10 blur-[90px]" />}
 
-          <div className="relative flex flex-col items-center gap-7 max-w-md">
-            {/* Brand mark with a live violet glow while capturing. */}
+          <div className="relative flex flex-col items-center gap-6 max-w-md">
+            {/* Brand mark — concentric rings + violet glow while capturing. */}
             <div className="relative grid place-items-center">
-              <span
-                className={`absolute rounded-full blur-2xl transition-all duration-500 ${
-                  running ? "w-28 h-28 bg-toucan-400/30" : "w-20 h-20 bg-toucan-400/0"
-                }`}
-              />
-              {running && <span className="absolute w-24 h-24 rounded-full ring-1 ring-toucan-400/30 animate-ping" />}
-              <div className="relative w-[68px] h-[68px] grid place-items-center rounded-[20px] bg-gradient-to-b from-white/[0.06] to-transparent ring-1 ring-inset ring-white/[0.07] shadow-elev">
-                <img src={proxyMark} alt="" className={`w-9 h-9 object-contain transition-opacity ${running ? "opacity-100" : "opacity-40 grayscale"}`} />
+              {running && (
+                <>
+                  <span className="absolute w-44 h-44 rounded-full ring-1 ring-toucan-400/15" />
+                  <span className="absolute w-32 h-32 rounded-full ring-1 ring-toucan-400/25" />
+                  <span className="absolute w-32 h-32 rounded-full ring-1 ring-toucan-400/30 animate-ping" />
+                </>
+              )}
+              <div
+                className={`relative w-[76px] h-[76px] grid place-items-center rounded-[24px] tcn-sheen ring-1 ring-inset transition-all duration-500
+                  ${running
+                    ? "ring-toucan-400/30 shadow-[0_10px_44px_-10px_rgba(106,87,224,0.6)]"
+                    : "ring-ink-200/60 dark:ring-white/[0.08] shadow-soft"}`}
+              >
+                <img
+                  src={proxyMark}
+                  alt=""
+                  className={`w-10 h-10 object-contain transition-all duration-500 ${running ? "opacity-100" : "opacity-60 saturate-[0.4]"}`}
+                />
               </div>
             </div>
 
             {/* Display wordmark — Manrope extrabold + Newsreader italic accent. */}
-            <div className="flex flex-col items-center gap-3">
-              <Display className="text-[34px]">
-                Tucano <Accent className="text-[36px]">Proxy</Accent>
-              </Display>
+            <Display className="text-[34px] leading-none">
+              Tucano <Accent className="text-[37px]">Proxy</Accent>
+            </Display>
 
-              <div className="flex flex-col items-center gap-1.5">
-                <div className={`text-sm font-semibold ${running ? "text-foreground dark:text-ink-50" : "text-foreground/70 dark:text-ink-200/80"}`}>
-                  {running ? t("list.emptyTitle") : t("list.emptyTitleOff")}
-                </div>
-                <div className="text-xs opacity-55 leading-relaxed max-w-xs">
-                  {running ? t("list.empty", { port }) : t("list.emptyOff")}
-                </div>
+            {/* Status pill + helper line. */}
+            <div className="flex flex-col items-center gap-2.5 -mt-1">
+              <div
+                className={`inline-flex items-center gap-2 h-7 pl-2.5 pr-3 rounded-full text-xs font-semibold ring-1 ring-inset transition-colors
+                  ${running
+                    ? "tcn-accent-soft text-toucan-500 dark:text-toucan-300 ring-toucan-400/25"
+                    : "bg-ink-100/60 dark:bg-white/[0.04] text-foreground/70 dark:text-ink-200/80 ring-ink-200/50 dark:ring-white/10"}`}
+              >
+                <span className="relative grid place-items-center h-1.5 w-1.5">
+                  {running && <span className="absolute inset-0 rounded-full bg-toucan-400/70 animate-ping" />}
+                  <span className={`relative h-1.5 w-1.5 rounded-full ${running ? "bg-toucan-400" : "bg-ink-300/70 dark:bg-ink-200/50"}`} />
+                </span>
+                {running ? t("list.emptyTitle") : t("list.emptyTitleOff")}
               </div>
+              <p className="text-xs opacity-55 leading-relaxed max-w-[18rem]">
+                {running ? t("list.empty", { port }) : t("list.emptyOff")}
+              </p>
             </div>
 
-            {/* Keyboard hint chip. */}
-            <div className="flex items-center gap-2 text-[11px] opacity-60">
+            {/* Keyboard hint. */}
+            <div className="flex items-center gap-2 text-[11px] opacity-50 mt-1">
               <kbd className="mono px-1.5 py-0.5 rounded-md bg-ink-100/70 dark:bg-white/[0.06] border border-ink-200/60 dark:border-white/10 text-[10px]">Space</kbd>
               <span>{running ? t("topbar.stopTitle") : t("topbar.startTitle")}</span>
             </div>

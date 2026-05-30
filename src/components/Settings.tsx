@@ -15,6 +15,7 @@ import { usePrefs } from "@/stores/prefs";
 import { ipc, type McpClient, type McpClientStatus } from "@/lib/ipc";
 import { t, LOCALES, useLocale, setLocale, type Locale } from "@/lib/i18n";
 import { useTheme, setTheme, type ThemeMode } from "@/stores/theme";
+import proxyMark from "@/assets/tucano-proxy-mark.svg";
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 const MOD = IS_MAC ? "⌘" : "Ctrl";
@@ -91,6 +92,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   };
   const saveMcp = async () => {
     await ipc.setMcpSettings({ enabled: mcpEnabled, port: mcpPort, token: mcpToken });
+    window.dispatchEvent(new Event("tucano:mcp-changed")); // refresh StatusBar MCP indicator
     setMcpSaved(true); setTimeout(() => setMcpSaved(false), 1500);
   };
   const rotateMcpToken = async () => {
@@ -157,18 +159,30 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
         className="w-[880px] max-w-[92vw] h-[640px] max-h-[86vh] flex flex-col rounded-2xl bg-white dark:bg-[#000000] text-ink-500 dark:text-ink-50 border border-ink-100 dark:border-white/10 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 h-14 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
-          <div className="font-semibold text-base">{t("set.title")}</div>
-          <button onClick={onClose} className="opacity-70 hover:opacity-100"><X size={18} /></button>
+        <div className="relative shrink-0 border-b border-ink-100 dark:border-white/10 overflow-hidden">
+          <div className="absolute inset-0 tcn-grid opacity-50 pointer-events-none" />
+          <div className="absolute inset-0 tcn-glow-radial pointer-events-none" />
+          <div className="relative flex items-center justify-between px-5 h-16">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 grid place-items-center rounded-xl tcn-sheen ring-1 ring-inset ring-ink-200/50 dark:ring-white/10 shadow-soft">
+                <img src={proxyMark} alt="" className="w-5 h-5 object-contain" />
+              </div>
+              <div className="leading-none">
+                <div className="font-bold tracking-tight text-base">{t("set.title")}</div>
+                <div className="text-[11px] opacity-50 mt-1.5">Tucano <span className="font-accent">Proxy</span></div>
+              </div>
+            </div>
+            <button onClick={onClose} className="h-8 w-8 grid place-items-center rounded-lg opacity-70 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-white/10 transition"><X size={18} /></button>
+          </div>
         </div>
 
         <div className="flex flex-1 min-h-0">
-          <nav className="w-52 shrink-0 border-r border-ink-100 dark:border-ink-400/30 py-3 px-2 flex flex-col gap-0.5 overflow-auto scroll-thin">
+          <nav className="w-52 shrink-0 border-r border-ink-100 dark:border-white/[0.07] py-3 px-2 flex flex-col gap-0.5 overflow-auto scroll-thin">
             {TABS.map((tb) => (
               <button
                 key={tb.id}
                 onClick={() => setTab(tb.id)}
-                className={`w-full flex items-center gap-2 px-3 h-9 rounded-xl text-xs transition text-left ${tab === tb.id ? "bg-toucan-400/15 text-toucan-400 font-medium" : "opacity-75 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-ink-500"}`}
+                className={`w-full flex items-center gap-2.5 px-3 h-9 rounded-xl text-xs transition text-left ${tab === tb.id ? "tcn-accent-soft text-toucan-500 dark:text-toucan-300 ring-1 ring-inset ring-toucan-400/25 font-semibold shadow-[0_0_20px_-12px_rgba(106,87,224,0.8)]" : "opacity-75 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-white/[0.04]"}`}
               >{tb.icon}<span className="truncate">{tb.label}</span></button>
             ))}
           </nav>
@@ -278,7 +292,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                       <div className="text-[10px] opacity-50 mt-1">Supports wildcards: *.example.com</div>
                     </div>
                   )}
-                  <button onClick={saveSsl} className={`h-9 px-4 text-xs rounded-xl font-medium transition ${sslSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "bg-toucan-400 text-white hover:bg-toucan-300"}`}>
+                  <button onClick={saveSsl} className={`h-9 px-4 text-xs rounded-xl font-medium transition ${sslSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>
                     {sslSaved ? t("set.sslSaved") : t("set.sslSave")}
                   </button>
                 </Section>
@@ -316,7 +330,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                       <button onClick={rotateMcpToken} className="h-9 px-3 text-xs rounded-xl border border-red-500/40 text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"><RotateCw size={13} /> Rotate</button>
                     </div>
                   </div>
-                  <button onClick={saveMcp} className={`h-9 px-4 text-xs rounded-xl font-medium transition ${mcpSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "bg-toucan-400 text-white hover:bg-toucan-300"}`}>{mcpSaved ? "Saved" : "Save"}</button>
+                  <button onClick={saveMcp} className={`h-9 px-4 text-xs rounded-xl font-medium transition ${mcpSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>{mcpSaved ? "Saved" : "Save"}</button>
                 </Section>
 
                 <Section icon={<Plug size={14} />} title="Install in clients">
@@ -336,7 +350,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                         {c.installed ? (
                           <button disabled={mcpClientBusy === c.id} onClick={() => uninstallMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg border border-red-500/40 text-red-500 hover:bg-red-500/10 disabled:opacity-50">Remove</button>
                         ) : (
-                          <button disabled={mcpClientBusy === c.id} onClick={() => installMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg bg-toucan-400 text-white hover:bg-toucan-300 disabled:opacity-50">Install</button>
+                          <button disabled={mcpClientBusy === c.id} onClick={() => installMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg tcn-accent tcn-accent-glow disabled:opacity-50">Install</button>
                         )}
                       </div>
                     ))}
@@ -451,9 +465,9 @@ function AboutSection({ appVersion }: { appVersion: string }) {
         {state === "error" && error && <div className="text-[11px] opacity-60 mono break-all">{error}</div>}
         <div className="flex gap-2 pt-1">
           {state === "available" ? (
-            <button onClick={() => up.download()} className="h-8 px-3 rounded-lg text-xs bg-toucan-400 text-white hover:bg-toucan-300">{t("set.downloadUpdate")}</button>
+            <button onClick={() => up.download()} className="h-8 px-3 rounded-lg text-xs tcn-accent tcn-accent-glow">{t("set.downloadUpdate")}</button>
           ) : state === "ready" ? (
-            <button onClick={() => up.restart()} className="h-8 px-3 rounded-lg text-xs bg-toucan-400 text-white hover:bg-toucan-300">{t("updater.restart")}</button>
+            <button onClick={() => up.restart()} className="h-8 px-3 rounded-lg text-xs tcn-accent tcn-accent-glow">{t("updater.restart")}</button>
           ) : (
             <button onClick={() => up.check()} disabled={state === "checking" || state === "downloading"} className="h-8 px-3 rounded-lg text-xs bg-ink-50 dark:bg-white/[0.04] hover:bg-ink-100 dark:hover:bg-ink-400/40 disabled:opacity-50">{t("set.checkUpdates")}</button>
           )}

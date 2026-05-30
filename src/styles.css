@@ -108,11 +108,39 @@ html.dark .tcn-grid {
   font-style: italic;
 }
 
-/* Reusable glass surface — frosted card / overlay base. */
+/* ── Brand gradient system (Tucano Proxy violet) ───────────────────────── */
+/* Filled accent — primary CTAs. Diagonal violet with a top sheen. */
+.tcn-accent {
+  background-image: linear-gradient(135deg, #7d6cea 0%, #6A57E0 45%, #5743d4 100%);
+  color: #fff;
+}
+.tcn-accent-glow {
+  box-shadow:
+    0 8px 22px -10px rgba(106, 87, 224, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.tcn-accent:hover { filter: brightness(1.06); }
+
+/* Soft accent wash — tinted surfaces / active nav. */
+.tcn-accent-soft {
+  background-image: linear-gradient(135deg, rgba(106, 87, 224, 0.18), rgba(106, 87, 224, 0.06));
+}
+
+/* Top-light card sheen — subtle depth on dark panels. */
+.tcn-sheen {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 60%);
+}
+
+/* Radial brand glow — sits behind heroes / modal headers. */
+.tcn-glow-radial {
+  background-image: radial-gradient(120% 80% at 50% -10%, rgba(106, 87, 224, 0.22) 0%, transparent 60%);
+}
+
+/* App chrome surface — matches the page background so the TopBar / Toolbar /
+   StatusBar / Sidebar read as one continuous surface with the canvas (no
+   brighter "frosted" seam). Light = paper, dark = black. */
 .tcn-glass {
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: #FBFBF8;
   border: 1px solid rgba(15, 24, 46, 0.08);
 }
 html.dark .tcn-glass {

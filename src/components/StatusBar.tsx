@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { useFlows } from "@/stores/flows";
 import { useUpdater } from "@/stores/updater";
+import { ipc } from "@/lib/ipc";
 import { t } from "@/lib/i18n";
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
@@ -21,9 +23,24 @@ export default function StatusBar() {
   const uVersion = useUpdater((u) => u.version);
   const restart = useUpdater((u) => u.restart);
 
+  // MCP bridge status — fetched on mount; Settings dispatches `tucano:mcp-
+  // changed` after a save so this stays in sync without polling.
+  const [mcp, setMcp] = useState<{ enabled: boolean; port: number } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      ipc.getMcpSettings()
+        .then((m) => { if (alive) setMcp({ enabled: m.enabled, port: m.port }); })
+        .catch(() => {});
+    load();
+    const onChange = () => load();
+    window.addEventListener("tucano:mcp-changed", onChange);
+    return () => { alive = false; window.removeEventListener("tucano:mcp-changed", onChange); };
+  }, []);
+
   return (
     <footer
-      className="h-8 px-4 flex items-center gap-3.5 text-[11px] tcn-glass text-foreground/70 dark:text-ink-100 border-t border-ink-100/60 dark:border-white/[0.07] relative
+      className="h-9 px-6 flex items-center gap-4 text-[11px] tcn-glass text-foreground/70 dark:text-ink-100 border-t border-ink-100/60 dark:border-white/[0.07] relative
         before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/[0.08] before:to-transparent before:pointer-events-none"
     >
       {/* Live proxy endpoint — glows violet when capturing. */}
@@ -41,7 +58,7 @@ export default function StatusBar() {
       </span>
 
       <Divider />
-      <Stat label={t("sb.flows")}><span className="text-cobalt-400 font-semibold">{flowsCount}</span></Stat>
+      <Stat label={t("sb.flows")}><span className="text-toucan-300 font-semibold">{flowsCount}</span></Stat>
       <Divider />
       <Stat label={t("sb.ca")}>
         <span className={s.caInstalled ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
@@ -52,6 +69,15 @@ export default function StatusBar() {
       <Stat label={t("sb.sysProxy")}>
         <span className={s.systemProxyOn ? "text-emerald-400 font-medium" : "opacity-60"}>
           {s.systemProxyOn ? t("sb.on") : t("sb.off")}
+        </span>
+      </Stat>
+      <Divider />
+      <Stat label="MCP">
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 rounded-full ${mcp?.enabled ? "bg-emerald-400 shadow-[0_0_8px_rgb(52_211_153_/_0.7)]" : "bg-ink-200/60 dark:bg-white/15"}`} />
+          {mcp?.enabled
+            ? <span className="text-emerald-400 font-medium">{`127.0.0.1:${mcp.port}`}</span>
+            : <span className="opacity-60">{t("sb.off")}</span>}
         </span>
       </Stat>
 
