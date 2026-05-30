@@ -49,7 +49,7 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
     <header
       onMouseDown={onBarMouseDown}
       onDoubleClick={onBarDoubleClick}
-      style={{ paddingTop: IS_MAC ? 30 : 12, paddingBottom: 12 }}
+      style={{ paddingTop: IS_MAC ? 42 : 12, paddingBottom: 12 }}
       className="px-[18px] flex items-center gap-3 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
         after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-toucan-400/30 after:via-transparent after:to-transparent after:pointer-events-none"
     >
