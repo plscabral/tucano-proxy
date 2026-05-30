@@ -18,15 +18,35 @@ type Mode = "auto" | "json" | "xml" | "html" | "form" | "raw" | "hex" | "image";
 // lands in the right pane (request vs response).
 let activeBody: HTMLElement | null = null;
 
-function detect(ct: string | null): Mode {
-  if (!ct) return "raw";
-  const c = ct.toLowerCase();
+// Sniff structured payloads by content — so a JSON body sent as text/plain (or
+// with no Content-Type) still gets recognized and pretty-printed.
+function sniffBody(body: string | null | undefined): Mode | null {
+  if (!body) return null;
+  const s = body.trimStart();
+  if (!s) return null;
+  const head = s[0];
+  if (head === "{" || head === "[") {
+    try { JSON.parse(s); return "json"; }
+    catch { return /[}\]]\s*$/.test(s.trimEnd()) ? "json" : null; }
+  }
+  if (/^<\?xml/i.test(s)) return "xml";
+  if (/^<!doctype html/i.test(s) || /^<html[\s>]/i.test(s)) return "html";
+  if (head === "<") return "xml";
+  return null;
+}
+
+function detect(ct: string | null, body?: string | null): Mode {
+  const c = (ct ?? "").toLowerCase();
   if (c.includes("json")) return "json";
   if (c.includes("xml")) return "xml";
   if (c.includes("html")) return "html";
   if (c.includes("x-www-form-urlencoded") || c.includes("multipart/form-data")) return "form";
   if (c.startsWith("image/")) return "image";
+  // Generic / missing Content-Type — fall back to content sniffing before raw.
+  const sniffed = sniffBody(body);
+  if (sniffed) return sniffed;
   if (c.startsWith("text/")) return "raw";
+  if (!ct) return "raw";
   return "hex";
 }
 
@@ -91,8 +111,8 @@ export default function BodyView({ body, encoding, contentType }: {
   const effective = useMemo<Mode>(() => {
     if (mode !== "auto") return mode;
     if (decoded && encoding === "base64") return "raw";
-    return detect(contentType);
-  }, [mode, decoded, encoding, contentType]);
+    return detect(contentType, decodedBody);
+  }, [mode, decoded, encoding, contentType, decodedBody]);
 
   const displayText = useMemo<string>(() => {
     if (!decodedBody) return "";
