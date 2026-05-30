@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Filter as FilterIcon, Plus, X, Zap, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useRules } from "@/stores/rules";
 import { newRule } from "@/lib/rules";
+import { purgeNonMatchingNow } from "@/lib/captureFilter";
 import { t } from "@/lib/i18n";
 import FiltersDialog from "./FiltersDialog";
 
@@ -26,7 +27,15 @@ export default function FilterBar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const active = rules.length;
+  // Only rules with a value actually filter — an empty rule the user just
+  // added isn't a "filter" yet, so it shouldn't show as a chip or count.
+  const meaningful = rules.filter((r) => r.value.trim() !== "");
+  const active = meaningful.length;
+  const toggleCapture = () => {
+    const on = !captureMode;
+    rs.setCaptureMode(on);
+    if (on) purgeNonMatchingNow(); // retroactively drop already-captured non-matches
+  };
 
   return (
     <div className="relative z-20 tcn-glass border-b border-ink-100/40 dark:border-white/[0.06]">
@@ -44,7 +53,7 @@ export default function FilterBar() {
           <>
             {/* Active-filter chips — single scrollable row so they never grow the bar. */}
             <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto scroll-thin py-0.5">
-              {rules.map((r, i) => (
+              {meaningful.map((r, i) => (
                 <div key={r.id} className="flex items-center gap-1.5 shrink-0">
                   {i > 0 && <span className="text-[9px] mono font-bold tracking-wider text-toucan-500/70 dark:text-toucan-300/70">{matchMode === "all" ? t("filter.matchAll") : t("filter.matchAny")}</span>}
                   <button
@@ -55,7 +64,7 @@ export default function FilterBar() {
                   >
                     <span className="text-toucan-500 dark:text-toucan-300 font-semibold">{t(`filter.field.${r.field}`)}</span>
                     <span className="opacity-45">{t(`filter.op.${r.op}`).toLowerCase()}</span>
-                    <span className="truncate max-w-[140px] opacity-90">{r.value || "…"}</span>
+                    <span className="truncate max-w-[140px] opacity-90">{r.value}</span>
                     <span
                       onClick={(e) => { e.stopPropagation(); rs.remove(r.id); }}
                       className="h-5 w-5 grid place-items-center rounded-md opacity-40 group-hover:opacity-70 hover:!opacity-100 hover:bg-destructive/15 hover:text-destructive transition"
@@ -71,7 +80,7 @@ export default function FilterBar() {
             ><SlidersHorizontal size={13} /> {t("filter.add")} <span className="text-[10px] mono px-1 rounded bg-toucan-400/15 text-toucan-500 dark:text-toucan-300">{active}</span></button>
 
             <button
-              onClick={() => rs.setCaptureMode(!captureMode)}
+              onClick={toggleCapture}
               title={t("filter.captureModeHint")}
               className={`h-8 px-3 text-[11px] rounded-xl flex items-center gap-1.5 transition font-medium shrink-0
                 ${captureMode ? "tcn-accent tcn-accent-glow" : "ring-1 ring-inset ring-border hover:ring-toucan-400/50 hover:text-toucan-500 dark:hover:text-toucan-300"}`}

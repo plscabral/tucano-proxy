@@ -1,4 +1,4 @@
-import { Plus, X, Zap, Trash2, Check, SlidersHorizontal } from "lucide-react";
+import { Plus, X, Trash2, Check, SlidersHorizontal } from "lucide-react";
 import { useRules } from "@/stores/rules";
 import { FIELDS, opsFor, newRule, type Field, type Op } from "@/lib/rules";
 import { t } from "@/lib/i18n";
@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 export default function FiltersDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const rules = useRules((s) => s.list);
   const matchMode = useRules((s) => s.matchMode);
-  const captureMode = useRules((s) => s.captureMode);
   const rs = useRules.getState();
 
   return (
@@ -104,17 +103,8 @@ export default function FiltersDialog({ open, onOpenChange }: { open: boolean; o
           ><Plus size={13} /> {t("filter.add")}</button>
         </div>
 
-        {/* Footer */}
-        <DialogFooter className="px-6 py-3.5 border-t border-border bg-muted/30 sm:justify-between gap-2">
-          <button
-            onClick={() => rs.setCaptureMode(!captureMode)}
-            title={t("filter.captureModeHint")}
-            className={`h-9 px-3.5 text-[11px] rounded-xl flex items-center gap-1.5 transition font-medium
-              ${captureMode
-                ? "tcn-accent tcn-accent-glow"
-                : "ring-1 ring-inset ring-border hover:ring-toucan-400/50 hover:text-toucan-500 dark:hover:text-toucan-300"}`}
-          ><Zap size={13} /> {t("filter.captureMode")}</button>
-
+        {/* Footer — capture filter lives in the FilterBar, not here. */}
+        <DialogFooter className="px-6 py-3.5 border-t border-border bg-muted/30 gap-2">
           <div className="flex items-center gap-2">
             {rules.length > 0 && (
               <button
