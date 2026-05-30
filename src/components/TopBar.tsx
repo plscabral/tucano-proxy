@@ -39,7 +39,6 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
         <span className="font-extrabold tracking-tight">Tucano</span>{" "}
         <Accent className="text-[18px] opacity-90">Proxy</Accent>
       </div>
-      <span className="text-[10px] uppercase tracking-[0.22em] text-toucan-400 mt-0.5 font-semibold">v0.1</span>
 
       <div className="flex-1" />
 
