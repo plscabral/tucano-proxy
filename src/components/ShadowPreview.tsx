@@ -58,7 +58,7 @@ export default function ShadowPreview({ html, onFindMount, onFindUnmount, onFind
     emitState();
   };
 
-  const controllerRef = useRef<FindController>();
+  const controllerRef = useRef<FindController | undefined>(undefined);
   if (!controllerRef.current) {
     controllerRef.current = {
       setQuery: (q) => { queryRef.current = q; apply(); },

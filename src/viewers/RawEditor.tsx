@@ -24,7 +24,7 @@ export default function RawEditor({ text, lang, wrap, onFindMount, onFindUnmount
   onFindStateRef.current = onFindState;
   const theme = useEffectiveTheme();
 
-  const controllerRef = useRef<FindController>();
+  const controllerRef = useRef<FindController | undefined>(undefined);
   if (!controllerRef.current) {
     const countMatches = () => {
       const view = viewRef.current, query = queryRef.current;

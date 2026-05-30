@@ -12,7 +12,7 @@ export default function IframePreview({ srcdoc, src, onFindMount, onFindUnmount,
   const onFindStateRef = useRef(onFindState);
   onFindStateRef.current = onFindState;
 
-  const controllerRef = useRef<FindController>();
+  const controllerRef = useRef<FindController | undefined>(undefined);
   if (!controllerRef.current) {
     const doc = () => iframeRef.current?.contentDocument ?? null;
     const emitState = () => onFindStateRef.current?.({ count: marksRef.current.length, current: currentRef.current });

@@ -18,7 +18,7 @@ export default function JsonEditor({ text, onFindMount, onFindUnmount, onFindSta
   onFindStateRef.current = onFindState;
   const theme = useEffectiveTheme();
 
-  const controllerRef = useRef<FindController>();
+  const controllerRef = useRef<FindController | undefined>(undefined);
   if (!controllerRef.current) {
     const count = () => {
       const view = viewRef.current, query = queryRef.current;

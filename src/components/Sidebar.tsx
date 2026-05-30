@@ -1,6 +1,204 @@
+import { useMemo, useState } from "react";
+import { ChevronRight, ChevronDown, Globe, AppWindow, X, PanelLeftClose, Layers, EyeOff } from "lucide-react";
+import { useFlows } from "@/stores/flows";
 import { useSidebar } from "@/stores/sidebar";
-import { Stub } from "./_stub";
+import { useIgnored } from "@/stores/ignored";
+import { ipc } from "@/lib/ipc";
+import { t } from "@/lib/i18n";
+import { CATEGORIES, matchesCategory, type Category } from "@/lib/category";
+import type { Flow } from "@/lib/types";
+
+// Drop all flows currently in the list that match a predicate, both from the
+// UI store and from Rust storage.
+function purgeMatching(predicate: (f: Flow) => boolean) {
+  const ids: string[] = [];
+  for (const f of useFlows.getState().flowsView) {
+    if (predicate(f)) ids.push(f.id);
+  }
+  if (ids.length === 0) return;
+  useFlows.getState().removeMany(new Set(ids));
+  ipc.deleteFlows(ids).catch(() => {});
+}
+
+const CAT_DOT: Record<Category, string> = {
+  all: "bg-toucan-400", http: "bg-cyan-300", https: "bg-emerald-400", websocket: "bg-fuchsia-400",
+  json: "bg-amber-400", form: "bg-teal-400", xml: "bg-orange-400", js: "bg-yellow-400",
+  css: "bg-pink-400", graphql: "bg-fuchsia-500", document: "bg-indigo-300", media: "bg-violet-400",
+  other: "bg-ink-200",
+};
+
 export default function Sidebar() {
+  const flowsView = useFlows((s) => s.flowsView);
+  const selApps = useSidebar((s) => s.selectedApps);
+  const selDomains = useSidebar((s) => s.selectedDomains);
+  const selCats = useSidebar((s) => s.selectedCategories);
   const width = useSidebar((s) => s.width);
-  return <div style={{ width }} className="shrink-0 border-r border-border/60"><Stub name="Sidebar" className="h-full" /></div>;
+  const ignApps = useIgnored((s) => s.apps);
+  const ignHosts = useIgnored((s) => s.hosts);
+
+  const groups = useMemo(() => {
+    const apps = new Map<string, { count: number; icon: string | null }>();
+    const domains = new Map<string, number>();
+    const cats = new Map<string, number>();
+    const catIds = CATEGORIES.filter((c) => c.id !== "all").map((c) => c.id);
+    for (const f of flowsView) {
+      const name = f.clientApp || t("sidebar.unknownApp");
+      const cur = apps.get(name);
+      if (cur) cur.count++;
+      else apps.set(name, { count: 1, icon: f.clientIcon ?? null });
+      domains.set(f.host, (domains.get(f.host) ?? 0) + 1);
+      for (const cid of catIds) {
+        if (matchesCategory(f, cid)) cats.set(cid, (cats.get(cid) ?? 0) + 1);
+      }
+    }
+    const appList = [...apps.entries()].map(([name, v]) => ({ name, count: v.count, icon: v.icon })).sort((a, b) => b.count - a.count);
+    const domainList = [...domains.entries()].map(([host, count]) => ({ host, count })).sort((a, b) => b.count - a.count);
+    const catList = CATEGORIES.filter((c) => c.id !== "all" && cats.has(c.id)).map((c) => ({ id: c.id as Category, count: cats.get(c.id)! }));
+    return { apps: appList, domains: domainList, cats: catList };
+  }, [flowsView]);
+
+  const totalSelected = selApps.size + selDomains.size + selCats.size;
+  const sb = useSidebar.getState();
+  const ig = useIgnored.getState();
+
+  return (
+    <aside
+      style={{ width: `${width}px` }}
+      className="shrink-0 border-r border-ink-100/40 dark:border-white/[0.05] tcn-glass flex flex-col overflow-hidden"
+    >
+      <div className="px-3 py-2 flex items-center gap-2 border-b border-ink-100/40 dark:border-white/[0.05]">
+        <div className="text-[11px] uppercase tracking-wider opacity-60 mono flex-1">{t("sidebar.title")}</div>
+        {totalSelected > 0 && (
+          <button
+            onClick={() => sb.clear()}
+            className="text-[10px] px-2 py-1 rounded-lg hover:bg-red-500/10 hover:text-red-500 flex items-center gap-1"
+            title={t("sidebar.clearSelection")}
+          ><X size={10} /> {totalSelected}</button>
+        )}
+        <button
+          onClick={() => sb.setOpen(false)}
+          className="h-6 w-6 grid place-items-center rounded-lg opacity-60 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-ink-400/20"
+          title={t("sidebar.toggle")}
+        ><PanelLeftClose size={12} /></button>
+      </div>
+
+      <div className="flex-1 overflow-auto py-1">
+        <Section icon={<AppWindow size={12} className="text-sky-400" />} label={t("sidebar.apps")} count={groups.apps.length} storeKey="apps" accent="text-sky-400">
+          {groups.apps.map((a) => (
+            <Row
+              key={a.name}
+              icon={a.icon ? <img src={a.icon} alt="" className="w-3.5 h-3.5 rounded-sm" /> : <AppWindow size={12} className="opacity-40" />}
+              label={a.name}
+              count={a.count}
+              selected={selApps.has(a.name)}
+              onClick={(additive) => sb.toggleApp(a.name, additive)}
+              hoverAction={{ icon: <EyeOff size={11} />, title: t("sidebar.ignoreApp"), onClick: () => { ig.addApp(a.name); purgeMatching((f) => (f.clientApp ?? "") === a.name); } }}
+            />
+          ))}
+        </Section>
+
+        <Section icon={<Globe size={12} className="text-emerald-400" />} label={t("sidebar.domains")} count={groups.domains.length} storeKey="domains" accent="text-emerald-400">
+          {groups.domains.map((d) => (
+            <Row
+              key={d.host}
+              icon={<Globe size={12} className="opacity-40" />}
+              label={d.host}
+              count={d.count}
+              selected={selDomains.has(d.host)}
+              onClick={(additive) => sb.toggleDomain(d.host, additive)}
+              hoverAction={{ icon: <EyeOff size={11} />, title: t("sidebar.ignoreHost"), onClick: () => { ig.addHost(d.host); purgeMatching((f) => f.host === d.host); } }}
+            />
+          ))}
+        </Section>
+
+        <Section icon={<Layers size={12} className="text-amber-400" />} label={t("sidebar.types")} count={groups.cats.length} storeKey="cats" accent="text-amber-400">
+          {groups.cats.map((c) => (
+            <Row
+              key={c.id}
+              icon={<span className={`h-1.5 w-1.5 rounded-full ${CAT_DOT[c.id]}`} />}
+              label={t(`cat.${c.id}`)}
+              count={c.count}
+              selected={selCats.has(c.id)}
+              onClick={(additive) => sb.toggleCategory(c.id, additive)}
+            />
+          ))}
+        </Section>
+
+        {ignApps.size + ignHosts.size > 0 && (
+          <Section
+            icon={<EyeOff size={12} className="text-red-400" />}
+            label={t("sidebar.ignored")}
+            count={ignApps.size + ignHosts.size}
+            storeKey="ignored"
+            accent="text-red-400"
+            headerAction={{ icon: <X size={10} />, title: t("sidebar.ignoredClearAll"), onClick: () => ig.clear() }}
+          >
+            {[...ignApps].map((name) => (
+              <Row key={`a-${name}`} icon={<AppWindow size={12} className="opacity-40" />} label={name} selected={false} onClick={() => ig.removeApp(name)} hoverAction={{ icon: <X size={11} />, title: t("sidebar.unignore"), onClick: () => ig.removeApp(name) }} />
+            ))}
+            {[...ignHosts].map((host) => (
+              <Row key={`h-${host}`} icon={<Globe size={12} className="opacity-40" />} label={host} selected={false} onClick={() => ig.removeHost(host)} hoverAction={{ icon: <X size={11} />, title: t("sidebar.unignore"), onClick: () => ig.removeHost(host) }} />
+            ))}
+          </Section>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+type SectionAction = { icon: React.ReactNode; title: string; onClick: () => void };
+
+function Section({ icon, label, count, storeKey, accent, children, headerAction }: {
+  icon: React.ReactNode; label: string; count: number; storeKey: string; accent?: string; children: React.ReactNode; headerAction?: SectionAction;
+}) {
+  const KEY = `tucano:sidebar:section:${storeKey}`;
+  const [open, setOpenState] = useState(localStorage.getItem(KEY) !== "0");
+  const setOpen = (v: boolean) => { setOpenState(v); localStorage.setItem(KEY, v ? "1" : "0"); };
+  return (
+    <div className="mb-1 group/sec">
+      <div className="w-full px-3 py-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-wider hover:bg-white/[0.03] transition">
+        <button onClick={() => setOpen(!open)} className="flex-1 flex items-center gap-1.5 text-left">
+          {open ? <ChevronDown size={11} className="opacity-60" /> : <ChevronRight size={11} className="opacity-60" />}
+          <span className={`flex items-center gap-1.5 font-semibold ${accent ?? ""}`}>{icon} {label}</span>
+        </button>
+        {headerAction && (
+          <button
+            onClick={(e) => { e.stopPropagation(); headerAction.onClick(); }}
+            title={headerAction.title}
+            className="h-5 w-5 grid place-items-center rounded-md opacity-0 group-hover/sec:opacity-60 hover:opacity-100 hover:bg-red-500/15 hover:text-red-400 transition"
+          >{headerAction.icon}</button>
+        )}
+        <span className="opacity-50 normal-case tracking-normal mono">{count}</span>
+      </div>
+      {open && <div>{children}</div>}
+    </div>
+  );
+}
+
+type RowAction = { icon: React.ReactNode; title: string; onClick: () => void };
+
+function Row({ icon, label, count, selected, onClick, hoverAction }: {
+  icon: React.ReactNode; label: string; count?: number; selected: boolean; onClick: (additive: boolean) => void; hoverAction?: RowAction;
+}) {
+  return (
+    <div
+      className={`group/row w-full px-3 py-1 pl-6 flex items-center gap-2 text-xs transition relative cursor-pointer
+        ${selected
+          ? "bg-gradient-to-r from-toucan-400/25 via-toucan-400/12 to-transparent text-toucan-600 dark:text-toucan-400 font-semibold"
+          : "hover:bg-ink-100/50 dark:hover:bg-white/[0.04] text-ink-500 dark:text-ink-50"}`}
+      title={label}
+      onClick={(e) => onClick(e.metaKey || e.ctrlKey || e.shiftKey)}
+    >
+      {icon}
+      <span className="flex-1 truncate mono">{label}</span>
+      {hoverAction && (
+        <button
+          onClick={(e) => { e.stopPropagation(); hoverAction.onClick(); }}
+          title={hoverAction.title}
+          className="h-5 w-5 grid place-items-center rounded-md opacity-0 group-hover/row:opacity-60 hover:opacity-100 hover:bg-red-500/15 hover:text-red-400 transition"
+        >{hoverAction.icon}</button>
+      )}
+      {count !== undefined && <span className="text-[10px] opacity-50 mono">{count}</span>}
+    </div>
+  );
 }
