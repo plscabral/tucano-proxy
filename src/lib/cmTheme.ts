@@ -4,26 +4,26 @@ import { tags as t } from "@lezer/highlight";
 
 const darkBase = EditorView.theme({
   "&": { color: "#E6E8EE", backgroundColor: "transparent", height: "100%", fontSize: "12px" },
-  ".cm-content": { caretColor: "#F99245" },
-  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#F99245" },
+  ".cm-content": { caretColor: "#6A57E0" },
+  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#6A57E0" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
-    backgroundColor: "rgba(249,146,69,0.18)",
+    backgroundColor: "rgba(106,87,224,0.20)",
   },
   ".cm-gutters": { backgroundColor: "transparent", color: "#525F88", border: "none" },
-  ".cm-activeLine": { backgroundColor: "rgba(249,146,69,0.06)" },
-  ".cm-activeLineGutter": { backgroundColor: "rgba(249,146,69,0.08)", color: "#F99245" },
-  ".cm-foldPlaceholder": { color: "#F99245", backgroundColor: "transparent", border: "none" },
+  ".cm-activeLine": { backgroundColor: "rgba(106,87,224,0.07)" },
+  ".cm-activeLineGutter": { backgroundColor: "rgba(106,87,224,0.10)", color: "#9583E7" },
+  ".cm-foldPlaceholder": { color: "#9583E7", backgroundColor: "transparent", border: "none" },
 }, { dark: true });
 
 const lightBase = EditorView.theme({
   "&": { color: "#0C142E", backgroundColor: "transparent", height: "100%", fontSize: "12px" },
-  ".cm-content": { caretColor: "#F99245" },
+  ".cm-content": { caretColor: "#6A57E0" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
-    backgroundColor: "rgba(249,146,69,0.18)",
+    backgroundColor: "rgba(106,87,224,0.18)",
   },
   ".cm-gutters": { backgroundColor: "transparent", color: "#8C95B0", border: "none" },
-  ".cm-activeLine": { backgroundColor: "rgba(249,146,69,0.07)" },
-  ".cm-activeLineGutter": { backgroundColor: "rgba(249,146,69,0.1)", color: "#D7610A" },
+  ".cm-activeLine": { backgroundColor: "rgba(106,87,224,0.07)" },
+  ".cm-activeLineGutter": { backgroundColor: "rgba(106,87,224,0.10)", color: "#4633BE" },
 }, { dark: false });
 
 const darkHl = HighlightStyle.define([

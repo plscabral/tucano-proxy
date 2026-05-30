@@ -59,6 +59,11 @@ function applyTheme() {
 applyTheme();
 useTheme.subscribe(applyTheme);
 
+// Reactive effective theme for components (e.g. CodeMirror editors that must
+// rebuild their theme extensions on light/dark switch).
+export const useEffectiveTheme = (): "dark" | "light" =>
+  useTheme((s) => (s.mode === "system" ? (s.systemDark ? "dark" : "light") : s.mode));
+
 export const themeMode = (): ThemeMode => useTheme.getState().mode;
 export const setTheme = (m: ThemeMode) => useTheme.getState().setMode(m);
 export const toggleTheme = () => useTheme.getState().toggle();

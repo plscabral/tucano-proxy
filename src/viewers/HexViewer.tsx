@@ -8,8 +8,8 @@ function bytes(text: string, encoding: "utf8" | "base64"): Uint8Array {
   return new TextEncoder().encode(text);
 }
 
-export default function HexViewer(props: { text: string; encoding: "utf8" | "base64" }) {
-  const b = bytes(props.text, props.encoding);
+export default function HexViewer({ text, encoding }: { text: string; encoding: "utf8" | "base64" }) {
+  const b = bytes(text, encoding);
   const lines: string[] = [];
   for (let i = 0; i < b.length; i += 16) {
     const slice = b.slice(i, i + 16);
@@ -17,5 +17,5 @@ export default function HexViewer(props: { text: string; encoding: "utf8" | "bas
     const ascii = Array.from(slice).map((x) => (x >= 32 && x < 127 ? String.fromCharCode(x) : ".")).join("");
     lines.push(`${i.toString(16).padStart(8, "0")}  ${hex.padEnd(48, " ")}  ${ascii}`);
   }
-  return <pre class="mono text-xs p-3 whitespace-pre">{lines.join("\n")}</pre>;
+  return <pre className="mono text-xs p-3 whitespace-pre">{lines.join("\n")}</pre>;
 }

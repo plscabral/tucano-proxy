@@ -1,5 +1,5 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
-import { Copy, Check, MoreHorizontal } from "lucide-solid";
+import { useMemo, useState } from "react";
+import { Copy, Check, MoreHorizontal } from "lucide-react";
 
 type Part = {
   name: string;
@@ -18,7 +18,6 @@ function fmtSize(n: number) {
 
 function parseUrlEncoded(text: string): Part[] {
   const out: Part[] = [];
-  // URLSearchParams handles + and percent-encoding.
   const params = new URLSearchParams(text);
   params.forEach((value, name) => {
     out.push({ name, value, isText: true, size: new TextEncoder().encode(value).length });
@@ -47,7 +46,6 @@ function indexOfBytes(haystack: Uint8Array, needle: Uint8Array, from = 0): numbe
 }
 
 function bytesToString(bytes: Uint8Array): string {
-  // Try UTF-8; fall back to latin1 to preserve bytes for non-text parts.
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
@@ -56,7 +54,6 @@ function bytesToString(bytes: Uint8Array): string {
 }
 
 function looksTextual(bytes: Uint8Array): boolean {
-  // Reject if contains a NUL or too many control bytes.
   let ctrl = 0;
   const sample = Math.min(bytes.length, 1024);
   for (let i = 0; i < sample; i++) {
@@ -88,12 +85,10 @@ function parseMultipart(bytes: Uint8Array, boundary: string): Part[] {
   pos += dashBoundary.length;
 
   while (pos < bytes.length) {
-    // Skip CRLF after boundary, or detect closing "--".
     if (bytes[pos] === 0x2d && bytes[pos + 1] === 0x2d) break; // "--" → end
     if (bytes[pos] === 0x0d && bytes[pos + 1] === 0x0a) pos += 2;
     else if (bytes[pos] === 0x0a) pos += 1;
 
-    // Headers end at CRLFCRLF (or LFLF tolerating).
     const headerEnd = (() => {
       const a = indexOfBytes(bytes, enc.encode("\r\n\r\n"), pos);
       const b = indexOfBytes(bytes, enc.encode("\n\n"), pos);
@@ -105,17 +100,14 @@ function parseMultipart(bytes: Uint8Array, boundary: string): Part[] {
     const headerStr = new TextDecoder("latin1").decode(bytes.subarray(pos, headerEnd));
     const bodyStart = headerEnd + (bytes[headerEnd] === 0x0d ? 4 : 2);
 
-    // Find next boundary.
     const nextBoundary = indexOfBytes(bytes, dashBoundary, bodyStart);
     if (nextBoundary < 0) break;
-    // Body is up to CRLF before the boundary.
     let bodyEnd = nextBoundary;
     if (bytes[bodyEnd - 2] === 0x0d && bytes[bodyEnd - 1] === 0x0a) bodyEnd -= 2;
     else if (bytes[bodyEnd - 1] === 0x0a) bodyEnd -= 1;
 
     const partBytes = bytes.subarray(bodyStart, bodyEnd);
 
-    // Parse headers for disposition / content-type.
     let name = "";
     let filename: string | undefined;
     let contentType: string | undefined;
@@ -151,29 +143,29 @@ function getBoundary(contentType: string | null): string | null {
   return m ? m[2] : null;
 }
 
-export default function FormViewer(props: {
+export default function FormViewer({ body, encoding, contentType }: {
   body: string;
   encoding: "utf8" | "base64";
   contentType: string | null;
 }) {
-  const parts = createMemo<Part[]>(() => {
-    const ct = (props.contentType ?? "").toLowerCase();
+  const parts = useMemo<Part[]>(() => {
+    const ct = (contentType ?? "").toLowerCase();
     if (ct.includes("application/x-www-form-urlencoded")) {
-      const text = props.encoding === "base64"
-        ? (() => { try { return atob(props.body); } catch { return props.body; } })()
-        : props.body;
+      const text = encoding === "base64"
+        ? (() => { try { return atob(body); } catch { return body; } })()
+        : body;
       return parseUrlEncoded(text);
     }
     if (ct.includes("multipart/")) {
-      const boundary = getBoundary(props.contentType);
+      const boundary = getBoundary(contentType);
       if (!boundary) return [];
-      return parseMultipart(bodyToBytes(props.body, props.encoding), boundary);
+      return parseMultipart(bodyToBytes(body, encoding), boundary);
     }
     return [];
-  });
+  }, [body, encoding, contentType]);
 
-  const [copied, setCopied] = createSignal<string | null>(null);
-  const [openRow, setOpenRow] = createSignal<number | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [openRow, setOpenRow] = useState<number | null>(null);
   const copy = async (id: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -184,79 +176,67 @@ export default function FormViewer(props: {
   };
   const item = "w-full text-left px-2.5 py-1.5 text-[11px] flex items-center gap-1.5 hover:bg-toucan-400/10 hover:text-toucan-400";
 
+  if (parts.length === 0) {
+    return <div className="text-xs"><div className="p-4 opacity-60">No form fields detected.</div></div>;
+  }
+
   return (
-    <div class="text-xs">
-      <Show
-        when={parts().length > 0}
-        fallback={<div class="p-4 opacity-60">No form fields detected.</div>}
-      >
-        <table class="w-full">
-          <thead class="text-[10px] uppercase tracking-wider opacity-60 mono">
-            <tr class="border-b border-ink-100 dark:border-ink-400/20">
-              <th class="text-left font-normal py-2 px-4 w-1/4">Field</th>
-              <th class="text-left font-normal py-2 px-4">Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            <For each={parts()}>
-              {(p, i) => {
-                const kId = `fk${i()}`;
-                const vId = `fv${i()}`;
-                const lId = `fl${i()}`;
-                return (
-                  <tr class="group border-b border-ink-100/60 dark:border-ink-400/10 align-top hover:bg-toucan-400/5">
-                    <td class="py-2 px-4 mono break-all">
-                      <div class="font-medium">{p.name}</div>
-                      <Show when={p.filename}>
-                        <div class="opacity-60 text-[10px] mt-1">filename: {p.filename}</div>
-                      </Show>
-                      <Show when={p.contentType}>
-                        <div class="opacity-60 text-[10px]">{p.contentType}</div>
-                      </Show>
-                      <div class="opacity-50 text-[10px] mt-1">{fmtSize(p.size)}</div>
-                    </td>
-                    <td class="py-2 px-4 mono [overflow-wrap:anywhere] whitespace-pre-wrap relative">
-                      <div class="flex gap-2">
-                        <span class="flex-1 min-w-0 [overflow-wrap:anywhere]">
-                          <Show
-                            when={p.isText}
-                            fallback={<span class="opacity-50 italic">(binary, {fmtSize(p.size)})</span>}
-                          >
-                            {p.value}
-                          </Show>
-                        </span>
-                        <Show when={p.isText}>
-                          <div class="relative shrink-0 self-start">
-                            <button
-                              onClick={() => setOpenRow(openRow() === i() ? null : i())}
-                              title="Copy"
-                              class="h-6 w-6 grid place-items-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20 hover:text-toucan-400 transition"
-                            ><MoreHorizontal size={13} /></button>
-                            <Show when={openRow() === i()}>
-                              <div class="fixed inset-0 z-30" onClick={() => setOpenRow(null)} />
-                              <div class="absolute z-40 right-0 top-7 min-w-[160px] bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-xl shadow-xl py-1">
-                                <button onClick={() => copy(kId, p.name)} class={item}>
-                                  {copied() === kId ? <Check size={11} /> : <Copy size={11} />} Copy key
-                                </button>
-                                <button onClick={() => copy(vId, p.value)} class={item}>
-                                  {copied() === vId ? <Check size={11} /> : <Copy size={11} />} Copy value
-                                </button>
-                                <button onClick={() => copy(lId, `${p.name}=${p.value}`)} class={item}>
-                                  {copied() === lId ? <Check size={11} /> : <Copy size={11} />} Copy key=value
-                                </button>
-                              </div>
-                            </Show>
-                          </div>
-                        </Show>
+    <div className="text-xs">
+      <table className="w-full">
+        <thead className="text-[10px] uppercase tracking-wider opacity-60 mono">
+          <tr className="border-b border-ink-100 dark:border-ink-400/20">
+            <th className="text-left font-normal py-2 px-4 w-1/4">Field</th>
+            <th className="text-left font-normal py-2 px-4">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {parts.map((p, i) => {
+            const kId = `fk${i}`, vId = `fv${i}`, lId = `fl${i}`;
+            return (
+              <tr key={i} className="group border-b border-ink-100/60 dark:border-ink-400/10 align-top hover:bg-toucan-400/5">
+                <td className="py-2 px-4 mono break-all">
+                  <div className="font-medium">{p.name}</div>
+                  {p.filename && <div className="opacity-60 text-[10px] mt-1">filename: {p.filename}</div>}
+                  {p.contentType && <div className="opacity-60 text-[10px]">{p.contentType}</div>}
+                  <div className="opacity-50 text-[10px] mt-1">{fmtSize(p.size)}</div>
+                </td>
+                <td className="py-2 px-4 mono [overflow-wrap:anywhere] whitespace-pre-wrap relative">
+                  <div className="flex gap-2">
+                    <span className="flex-1 min-w-0 [overflow-wrap:anywhere]">
+                      {p.isText ? p.value : <span className="opacity-50 italic">(binary, {fmtSize(p.size)})</span>}
+                    </span>
+                    {p.isText && (
+                      <div className="relative shrink-0 self-start">
+                        <button
+                          onClick={() => setOpenRow(openRow === i ? null : i)}
+                          title="Copy"
+                          className="h-6 w-6 grid place-items-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20 hover:text-toucan-400 transition"
+                        ><MoreHorizontal size={13} /></button>
+                        {openRow === i && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setOpenRow(null)} />
+                            <div className="absolute z-40 right-0 top-7 min-w-[160px] bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-xl shadow-xl py-1">
+                              <button onClick={() => copy(kId, p.name)} className={item}>
+                                {copied === kId ? <Check size={11} /> : <Copy size={11} />} Copy key
+                              </button>
+                              <button onClick={() => copy(vId, p.value)} className={item}>
+                                {copied === vId ? <Check size={11} /> : <Copy size={11} />} Copy value
+                              </button>
+                              <button onClick={() => copy(lId, `${p.name}=${p.value}`)} className={item}>
+                                {copied === lId ? <Check size={11} /> : <Copy size={11} />} Copy key=value
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    </td>
-                  </tr>
-                );
-              }}
-            </For>
-          </tbody>
-        </table>
-      </Show>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
