@@ -66,7 +66,7 @@ export default function Inspector({ flow, onClose, onComposer }: { flow: Flow | 
   };
 
   return (
-    <div data-inspector="true" className="h-full flex flex-col relative bg-white dark:bg-[#000000]">
+    <div data-inspector="true" className="h-full flex flex-col relative bg-[var(--tcn-canvas)]">
       {!flow ? (
         <div className="h-full grid place-items-center opacity-50 text-sm">{t("ins.placeholder")}</div>
       ) : (
@@ -153,7 +153,7 @@ export default function Inspector({ flow, onClose, onComposer }: { flow: Flow | 
           </div>
 
           {showTiming ? (
-            <div className="flex-1 overflow-auto scroll-thin bg-white dark:bg-[#000000]">
+            <div className="flex-1 overflow-auto scroll-thin bg-[var(--tcn-canvas)]">
               <TimingView flow={flow} />
             </div>
           ) : (
@@ -229,7 +229,7 @@ function Pane({ label, accent, tab, onTab, focused, onToggleFocus, onHide, child
           )}
         </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-auto scroll-thin bg-white dark:bg-[#000000]">
+      <div className="flex-1 min-h-0 overflow-auto scroll-thin bg-[var(--tcn-canvas)]">
         {children}
       </div>
     </div>

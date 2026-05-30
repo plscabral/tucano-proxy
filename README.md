@@ -3,7 +3,9 @@
 Open source HTTP/HTTPS debugging proxy — desktop app built with Tauri 2 + SolidJS.
 Free alternative to Fiddler Classic / Proxyman, running natively on macOS (Apple Silicon + Intel) and Windows.
 
-![logo](src/assets/logo.png)
+<p align="center">
+  <img src="public/tucano-proxy.png" alt="Tucano Proxy" width="128" height="128" />
+</p>
 
 ## Features
 

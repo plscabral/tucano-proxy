@@ -1,6 +1,6 @@
 {
   "name": "tucano-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server that exposes Tucano Proxy's captured HTTP/HTTPS flows to LLM clients (Claude Desktop, Claude Code, Cursor, etc).",
   "type": "module",
   "license": "MIT",

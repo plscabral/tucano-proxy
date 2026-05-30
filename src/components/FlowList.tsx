@@ -484,8 +484,8 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className="h-full flex flex-col relative bg-white dark:bg-[#000000]" onClick={closeCtx}>
-      <div ref={parentRef} className="flex-1 min-h-0 overflow-auto scroll-thin bg-white dark:bg-[#000000]" style={{ scrollbarGutter: "stable" }}>
+    <div className="h-full flex flex-col relative bg-[var(--tcn-surface)]" onClick={closeCtx}>
+      <div ref={parentRef} className="flex-1 min-h-0 overflow-auto scroll-thin bg-[var(--tcn-surface)]" style={{ scrollbarGutter: "stable" }}>
         <div className="flex flex-col" style={{ minWidth: `${totalWidth}px` }}>
           {/* Header — sticky so it stays visible while the rows scroll. */}
           <div
@@ -554,8 +554,9 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
 
       {rows.length === 0 && (
         <div className="absolute inset-0 top-9 tcn-grid flex items-center justify-center px-6 text-center pointer-events-none select-none overflow-hidden">
-          {/* Vignette so the grid fades toward the edges. */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(0,0,0,0.05)_100%)] dark:bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(0,0,0,0.6)_100%)]" />
+          {/* Vignette so the grid fades toward the edges. Kept subtle so the
+             surface stays on the brand canvas tone (no drift toward pure black). */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,0.04)_100%)] dark:bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,0.14)_100%)]" />
           {/* Big soft brand glow, only while listening. */}
           {running && <div className="absolute w-[460px] h-[460px] rounded-full bg-toucan-400/10 blur-[90px]" />}
 

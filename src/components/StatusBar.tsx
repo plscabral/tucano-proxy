@@ -19,7 +19,7 @@ function Indicator({ icon, tone, tooltip }: { icon: React.ReactNode; tone: Tone;
       <TooltipTrigger asChild>
         <span className="relative grid place-items-center h-6 w-6 rounded-md hover:bg-ink-100/60 dark:hover:bg-white/[0.05] transition cursor-default opacity-75 hover:opacity-100">
           {icon}
-          <span className={`absolute -bottom-px -right-px h-1.5 w-1.5 rounded-full ring-2 ring-[#FBFBF8] dark:ring-black ${dotClass[tone]}`} />
+          <span className={`absolute -bottom-px -right-px h-1.5 w-1.5 rounded-full ring-2 ring-[var(--tcn-canvas)] ${dotClass[tone]}`} />
         </span>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={6} className="mono text-[11px]">{tooltip}</TooltipContent>

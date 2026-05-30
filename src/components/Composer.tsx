@@ -68,8 +68,8 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
     `px-2.5 h-7 text-[11px] rounded-md transition ${active ? "bg-toucan-400/15 text-toucan-400 font-medium" : "opacity-65 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20"}`;
 
   return (
-    <div data-inspector="true" className="h-full flex flex-col bg-white dark:bg-[#000000] text-ink-500 dark:text-ink-50">
-      <div className="flex items-center gap-2 px-4 h-11 border-b border-ink-100 dark:border-ink-400/30 bg-ink-50 dark:bg-[#000000] shrink-0">
+    <div data-inspector="true" className="h-full flex flex-col bg-[var(--tcn-canvas)] text-ink-500 dark:text-ink-50">
+      <div className="flex items-center gap-2 px-4 h-11 border-b border-ink-100 dark:border-ink-400/30 bg-[var(--tcn-canvas)] shrink-0">
         <span className="text-xs font-semibold text-toucan-400 uppercase tracking-wider">Composer</span>
         <div className="flex-1" />
         <label className="flex items-center gap-1.5 text-xs opacity-70 hover:opacity-100 cursor-pointer">
@@ -112,7 +112,7 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
             </button>
           </div>
 
-          <div className="flex items-center gap-1 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-white dark:bg-[#000000] shrink-0">
+          <div className="flex items-center gap-1 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-[var(--tcn-canvas)] shrink-0">
             <button className={btnCls(tab === "parsed")} onClick={() => setTab("parsed")}>Parsed</button>
             <button className={btnCls(tab === "raw")} onClick={() => setTab("raw")}>Raw</button>
           </div>
@@ -125,7 +125,7 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
                   value={headersRaw}
                   onChange={(e) => setHeadersRaw(e.currentTarget.value)}
                   placeholder={"Content-Type: application/json\nAuthorization: Bearer token"}
-                  className="flex-1 px-3 py-2 mono text-xs bg-white dark:bg-[#000000] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
+                  className="flex-1 px-3 py-2 mono text-xs bg-[var(--tcn-canvas)] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
                 />
               </div>
               <div className="flex flex-col flex-1 min-h-0">
@@ -134,7 +134,7 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
                   value={bodyText}
                   onChange={(e) => setBodyText(e.currentTarget.value)}
                   placeholder={'{"key": "value"}'}
-                  className="flex-1 px-3 py-2 mono text-xs bg-white dark:bg-[#000000] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
+                  className="flex-1 px-3 py-2 mono text-xs bg-[var(--tcn-canvas)] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
                 />
               </div>
             </div>
@@ -154,7 +154,7 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
                   setHeadersRaw(headerLines);
                   if (emptyLine > 0) setBodyText(lines.slice(emptyLine + 1).join("\n"));
                 }}
-                className="flex-1 px-3 py-2 mono text-xs bg-white dark:bg-[#000000] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
+                className="flex-1 px-3 py-2 mono text-xs bg-[var(--tcn-canvas)] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
               />
             </div>
           )}
@@ -164,7 +164,7 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
               {error && <div className="p-3 text-xs text-red-400 mono">{error}</div>}
               {response && (
                 <>
-                  <div className="flex items-center gap-2 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-white dark:bg-[#000000] shrink-0">
+                  <div className="flex items-center gap-2 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-[var(--tcn-canvas)] shrink-0">
                     <span className={`text-xs font-semibold mono ${(response.status ?? 0) >= 400 ? "text-red-400" : (response.status ?? 0) >= 300 ? "text-cyan-300" : "text-emerald-400"}`}>
                       {response.status} {response.statusText}
                     </span>

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor,
   ChevronDown, Lock, RefreshCw, FileText, Film, Music, Database, Plug, FileType,
-  Braces, Type, FileCode2, Bot, Copy, RotateCw,
+  Braces, Type, FileCode2, Bot, Copy, RotateCw, Palette, Shapes,
 } from "lucide-react";
 import { SiJavascript, SiCss, SiHtml5, SiGraphql } from "react-icons/si";
 import {
@@ -82,7 +82,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
 
   const refreshMcpClients = async () => { try { setMcpClients(await ipc.listMcpClients()); } catch {} };
   const installMcpClient = async (c: McpClient) => {
-    if (!mcpToken) { alert("Save the MCP settings first so a token exists."); return; }
+    if (!mcpToken) { alert(t("set.mcp.needToken")); return; }
     setMcpClientBusy(c);
     try { setMcpClients(await ipc.installMcpClient(c)); } catch (e) { alert(String(e)); } finally { setMcpClientBusy(""); }
   };
@@ -96,7 +96,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
     setMcpSaved(true); setTimeout(() => setMcpSaved(false), 1500);
   };
   const rotateMcpToken = async () => {
-    if (!confirm("Rotate MCP token? Existing clients will need to be reconfigured.")) return;
+    if (!confirm(t("set.mcp.rotateConfirm"))) return;
     const m = await ipc.rotateMcpToken();
     setMcpToken(m.token);
   };
@@ -140,15 +140,25 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
     URL.revokeObjectURL(url);
   };
 
-  const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [
-    { id: "general", icon: <Sun size={14} />, label: t("set.appearance") },
-    { id: "proxy", icon: <Network size={14} />, label: t("set.proxy") },
-    { id: "localhost", icon: <Globe size={14} />, label: t("set.localhost") },
-    { id: "cert", icon: <ShieldCheck size={14} />, label: t("set.cert") },
-    { id: "mcp", icon: <Bot size={14} />, label: "MCP (LLM tools)" },
-    { id: "icons", icon: <Info size={14} />, label: t("set.iconsTitle") },
-    { id: "about", icon: <RefreshCw size={14} />, label: t("set.aboutTitle") },
-    { id: "shortcuts", icon: <Keyboard size={14} />, label: t("set.shortcuts") },
+  // Grouped nav — related settings sit together under a small section label so
+  // the dialog reads as a few clear areas instead of one long flat list.
+  const NAV_GROUPS: { label: string; items: { id: Tab; icon: React.ReactNode; label: string }[] }[] = [
+    { label: t("set.group.general"), items: [
+      { id: "general", icon: <Palette size={14} />, label: t("set.appearance") },
+      { id: "shortcuts", icon: <Keyboard size={14} />, label: t("set.shortcuts") },
+    ] },
+    { label: t("set.group.capture"), items: [
+      { id: "proxy", icon: <Network size={14} />, label: t("set.proxy") },
+      { id: "localhost", icon: <Globe size={14} />, label: t("set.localhost") },
+      { id: "cert", icon: <ShieldCheck size={14} />, label: t("set.cert") },
+    ] },
+    { label: t("set.group.integrations"), items: [
+      { id: "mcp", icon: <Bot size={14} />, label: "MCP" },
+    ] },
+    { label: t("set.group.reference"), items: [
+      { id: "icons", icon: <Shapes size={14} />, label: t("set.iconsTitle") },
+      { id: "about", icon: <Info size={14} />, label: t("set.aboutTitle") },
+    ] },
   ];
 
   if (!open) return null;
@@ -156,7 +166,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-[880px] max-w-[92vw] h-[640px] max-h-[86vh] flex flex-col rounded-2xl bg-white dark:bg-[#000000] text-ink-500 dark:text-ink-50 border border-ink-100 dark:border-white/10 shadow-2xl overflow-hidden"
+        className="w-[880px] max-w-[92vw] h-[640px] max-h-[86vh] flex flex-col rounded-2xl bg-white dark:bg-[var(--tcn-canvas)] text-ink-500 dark:text-ink-50 border border-ink-100 dark:border-white/10 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative shrink-0 border-b border-ink-100 dark:border-white/10 overflow-hidden">
@@ -177,13 +187,18 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
         </div>
 
         <div className="flex flex-1 min-h-0">
-          <nav className="w-52 shrink-0 border-r border-ink-100 dark:border-white/[0.07] py-3 px-2 flex flex-col gap-0.5 overflow-auto scroll-thin">
-            {TABS.map((tb) => (
-              <button
-                key={tb.id}
-                onClick={() => setTab(tb.id)}
-                className={`w-full flex items-center gap-2.5 px-3 h-9 rounded-xl text-xs transition text-left ${tab === tb.id ? "tcn-accent-soft text-toucan-500 dark:text-toucan-300 ring-1 ring-inset ring-toucan-400/25 font-semibold shadow-[0_0_20px_-12px_rgba(106,87,224,0.8)]" : "opacity-75 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-white/[0.04]"}`}
-              >{tb.icon}<span className="truncate">{tb.label}</span></button>
+          <nav className="w-52 shrink-0 border-r border-ink-100 dark:border-white/[0.07] py-3 px-2 flex flex-col gap-4 overflow-auto scroll-thin">
+            {NAV_GROUPS.map((g) => (
+              <div key={g.label} className="flex flex-col gap-0.5">
+                <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.12em] opacity-40 font-semibold">{g.label}</div>
+                {g.items.map((tb) => (
+                  <button
+                    key={tb.id}
+                    onClick={() => setTab(tb.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 h-9 rounded-xl text-xs transition text-left ${tab === tb.id ? "tcn-accent-soft text-toucan-500 dark:text-toucan-300 ring-1 ring-inset ring-toucan-400/25 font-semibold shadow-[0_0_20px_-12px_rgba(106,87,224,0.8)]" : "opacity-75 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-white/[0.04]"}`}
+                  ><span className={tab === tb.id ? "" : "opacity-80"}>{tb.icon}</span><span className="truncate">{tb.label}</span></button>
+                ))}
+              </div>
             ))}
           </nav>
           <div className="flex-1 min-w-0 overflow-auto scroll-thin">
@@ -260,17 +275,17 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
 
                 <Section icon={<Lock size={14} />} title={t("set.ssl")}>
                   <p className="text-xs opacity-70 leading-relaxed">
-                    By default, HTTPS traffic is tunneled (not decrypted). Add domains to the SSL Proxying List to inspect their content.
+                    {t("set.sslIntro")}
                   </p>
                   <div className="flex gap-1 p-1 rounded-xl bg-ink-50 dark:bg-white/[0.04] w-full">
-                    <SslOpt mode="allowlist" label="Allow List (default)" current={sslMode} setCurrent={setSslMode} />
-                    <SslOpt mode="all" label="Decrypt All" current={sslMode} setCurrent={setSslMode} />
-                    <SslOpt mode="blocklist" label="Block List" current={sslMode} setCurrent={setSslMode} />
+                    <SslOpt mode="allowlist" label={t("set.sslTab.allow")} current={sslMode} setCurrent={setSslMode} />
+                    <SslOpt mode="all" label={t("set.sslTab.all")} current={sslMode} setCurrent={setSslMode} />
+                    <SslOpt mode="blocklist" label={t("set.sslTab.block")} current={sslMode} setCurrent={setSslMode} />
                   </div>
                   {sslMode !== "all" && (
                     <div>
                       <div className="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">
-                        {sslMode === "allowlist" ? "Domains to decrypt (include list):" : "Domains to skip (exclude list):"}
+                        {sslMode === "allowlist" ? t("set.sslInclude") : t("set.sslExclude")}
                       </div>
                       <textarea
                         value={sslHosts}
@@ -282,14 +297,14 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                   )}
                   {sslMode === "all" && (
                     <div>
-                      <div className="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">Always bypass (never decrypt):</div>
+                      <div className="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">{t("set.sslBypass")}</div>
                       <textarea
                         value={skipHosts}
                         onChange={(e) => setSkipHosts(e.currentTarget.value)}
                         placeholder={"*.example.com\napi.pinned-app.com"}
                         className="w-full h-24 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
                       />
-                      <div className="text-[10px] opacity-50 mt-1">Supports wildcards: *.example.com</div>
+                      <div className="text-[10px] opacity-50 mt-1">{t("set.sslWildcard")}</div>
                     </div>
                   )}
                   <button onClick={saveSsl} className={`h-9 px-4 text-xs rounded-xl font-medium transition ${sslSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>
@@ -310,32 +325,32 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
 
             {tab === "mcp" && (
               <>
-                <Section icon={<Bot size={14} />} title="MCP bridge">
+                <Section icon={<Bot size={14} />} title={t("set.mcp.bridge")}>
                   <p className="text-xs opacity-70 leading-relaxed">
-                    Exposes captured flows to LLM tools (Claude Desktop, Claude Code, Cursor) via a local-loopback HTTP API. Use the <code className="mono">tucano-mcp</code> npm package as the stdio bridge.
+                    {t("set.mcp.bridgeHint")}
                   </p>
-                  <Row title="Enable MCP bridge" hint="Off by default. Listens on 127.0.0.1 only, requires Bearer token.">
-                    <Toggle checked={mcpEnabled} onChange={setMcpEnabled} label="Enable MCP bridge" />
+                  <Row title={t("set.mcp.enable")} hint={t("set.mcp.enableHint")}>
+                    <Toggle checked={mcpEnabled} onChange={setMcpEnabled} label={t("set.mcp.enable")} />
                   </Row>
                   <div className="flex items-center gap-3">
-                    <label className="text-xs opacity-70 w-14">Port</label>
+                    <label className="text-xs opacity-70 w-14">{t("set.mcp.port")}</label>
                     <input type="number" value={mcpPort} onChange={(e) => setMcpPort(Number(e.currentTarget.value) || 7878)} className="w-28 h-9 px-3 mono text-sm rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none" />
                   </div>
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">Token</div>
+                    <div className="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">{t("set.mcp.token")}</div>
                     <div className="flex items-center gap-2">
                       <input type={tokenVisible ? "text" : "password"} readOnly value={mcpToken} className="flex-1 h-9 px-3 mono text-xs rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 outline-none" />
-                      <button onClick={() => setTokenVisible(!tokenVisible)} className="h-9 px-3 text-xs rounded-xl border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60">{tokenVisible ? "Hide" : "Show"}</button>
-                      <button onClick={() => copyMcp("token")} className={`h-9 px-3 text-xs rounded-xl border flex items-center gap-1.5 transition ${mcpCopied === "token" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}><Copy size={13} /> {mcpCopied === "token" ? "Copied" : "Copy"}</button>
-                      <button onClick={rotateMcpToken} className="h-9 px-3 text-xs rounded-xl border border-red-500/40 text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"><RotateCw size={13} /> Rotate</button>
+                      <button onClick={() => setTokenVisible(!tokenVisible)} className="h-9 px-3 text-xs rounded-xl border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60">{tokenVisible ? t("set.mcp.hide") : t("set.mcp.show")}</button>
+                      <button onClick={() => copyMcp("token")} className={`h-9 px-3 text-xs rounded-xl border flex items-center gap-1.5 transition ${mcpCopied === "token" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}><Copy size={13} /> {mcpCopied === "token" ? t("set.copied") : t("set.copy")}</button>
+                      <button onClick={rotateMcpToken} className="h-9 px-3 text-xs rounded-xl border border-red-500/40 text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"><RotateCw size={13} /> {t("set.mcp.rotate")}</button>
                     </div>
                   </div>
-                  <button onClick={saveMcp} className={`h-9 px-4 text-xs rounded-xl font-medium transition ${mcpSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>{mcpSaved ? "Saved" : "Save"}</button>
+                  <button onClick={saveMcp} className={`h-9 px-4 text-xs rounded-xl font-medium transition ${mcpSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>{mcpSaved ? t("set.mcp.saved") : t("set.mcp.save")}</button>
                 </Section>
 
-                <Section icon={<Plug size={14} />} title="Install in clients">
+                <Section icon={<Plug size={14} />} title={t("set.mcp.installTitle")}>
                   <p className="text-xs opacity-70 leading-relaxed">
-                    One-click install of the <code className="mono">tucano</code> MCP entry into your client's config file. Uses the current port and token — save above first if you just changed them. Restart the client after installing.
+                    {t("set.mcp.installHint")}
                   </p>
                   <div className="flex flex-col gap-2">
                     {mcpClients.map((c) => (
@@ -343,28 +358,28 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium flex items-center gap-2">
                             {c.label}
-                            {c.installed && <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500 border border-emerald-500/40">Installed</span>}
+                            {c.installed && <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500 border border-emerald-500/40">{t("set.mcp.installed")}</span>}
                           </div>
                           <div className="text-[11px] mono opacity-60 truncate">{c.path}</div>
                         </div>
                         {c.installed ? (
-                          <button disabled={mcpClientBusy === c.id} onClick={() => uninstallMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg border border-red-500/40 text-red-500 hover:bg-red-500/10 disabled:opacity-50">Remove</button>
+                          <button disabled={mcpClientBusy === c.id} onClick={() => uninstallMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg border border-red-500/40 text-red-500 hover:bg-red-500/10 disabled:opacity-50">{t("set.mcp.remove")}</button>
                         ) : (
-                          <button disabled={mcpClientBusy === c.id} onClick={() => installMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg tcn-accent tcn-accent-glow disabled:opacity-50">Install</button>
+                          <button disabled={mcpClientBusy === c.id} onClick={() => installMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg tcn-accent tcn-accent-glow disabled:opacity-50">{t("set.mcp.install")}</button>
                         )}
                       </div>
                     ))}
                   </div>
-                  <button onClick={refreshMcpClients} className="h-8 px-3 text-xs rounded-lg border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 flex items-center gap-1.5"><RefreshCw size={12} /> Refresh</button>
+                  <button onClick={refreshMcpClients} className="h-8 px-3 text-xs rounded-lg border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 flex items-center gap-1.5"><RefreshCw size={12} /> {t("set.mcp.refresh")}</button>
                 </Section>
 
-                <Section icon={<Info size={14} />} title="Client config">
+                <Section icon={<Info size={14} />} title={t("set.mcp.configTitle")}>
                   <p className="text-xs opacity-70 leading-relaxed">
-                    Paste into your LLM client's MCP config. Save settings above first — the snippet uses the current port and token. The token is masked below; <strong>Copy</strong> always copies the real value.
+                    {t("set.mcp.configHint")}
                   </p>
                   <div className="relative">
                     <pre className="text-[11px] mono p-3 rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 overflow-auto whitespace-pre">{mcpConfigSnippet()}</pre>
-                    <button onClick={() => copyMcp("config")} className={`absolute top-2 right-2 h-7 px-2 text-[11px] rounded-lg border flex items-center gap-1.5 transition ${mcpCopied === "config" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "bg-white dark:bg-[#000000] border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}><Copy size={11} /> {mcpCopied === "config" ? "Copied" : "Copy"}</button>
+                    <button onClick={() => copyMcp("config")} className={`absolute top-2 right-2 h-7 px-2 text-[11px] rounded-lg border flex items-center gap-1.5 transition ${mcpCopied === "config" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "bg-white dark:bg-[var(--tcn-canvas)] border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}><Copy size={11} /> {mcpCopied === "config" ? t("set.copied") : t("set.copy")}</button>
                   </div>
                 </Section>
               </>
@@ -514,14 +529,14 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 function SslOpt({ mode, label, current, setCurrent }: { mode: SslMode; label: string; current: SslMode; setCurrent: (m: SslMode) => void }) {
   const active = current === mode;
   return (
-    <button onClick={() => setCurrent(mode)} className={`flex-1 h-8 rounded-lg flex items-center justify-center text-xs transition truncate px-2 ${active ? "bg-white dark:bg-[#000000] text-toucan-400 shadow-sm font-medium" : "opacity-70 hover:opacity-100"}`}>{label}</button>
+    <button onClick={() => setCurrent(mode)} className={`flex-1 h-8 rounded-lg flex items-center justify-center text-xs transition truncate px-2 ${active ? "bg-white dark:bg-[var(--tcn-canvas)] text-toucan-400 shadow-sm font-medium" : "opacity-70 hover:opacity-100"}`}>{label}</button>
   );
 }
 
 function ThemeOpt({ mode, icon, label }: { mode: ThemeMode; icon: React.ReactNode; label: string }) {
   const active = useTheme((s) => s.mode) === mode;
   return (
-    <button onClick={() => setTheme(mode)} className={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-xs transition ${active ? "bg-white dark:bg-[#000000] text-toucan-400 shadow-sm" : "opacity-70 hover:opacity-100"}`}>{icon} {label}</button>
+    <button onClick={() => setTheme(mode)} className={`flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-xs transition ${active ? "bg-white dark:bg-[var(--tcn-canvas)] text-toucan-400 shadow-sm" : "opacity-70 hover:opacity-100"}`}>{icon} {label}</button>
   );
 }
 

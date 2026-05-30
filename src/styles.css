@@ -7,9 +7,10 @@
     /* shadcn tokens — light. Warm off-white surfaces, toucan as primary. */
     --background: 60 13% 98%;
     --foreground: 224 54% 7%;
-    --card: 0 0% 100%;
+    /* Single flat brand tone — card / popover match the canvas (#FBFBF8). */
+    --card: 60 13% 98%;
     --card-foreground: 224 54% 7%;
-    --popover: 0 0% 100%;
+    --popover: 60 13% 98%;
     --popover-foreground: 224 54% 7%;
     --primary: 248 70% 61%;
     --primary-foreground: 252 60% 98%;
@@ -25,16 +26,21 @@
     --input: 224 16% 88%;
     --ring: 248 70% 58%;
     --radius: 0.75rem;
+
+    /* Single flat brand tone — light. surface == canvas (paper). */
+    --tcn-canvas: #FBFBF8;
+    --tcn-surface: #FBFBF8;
   }
 
   .dark {
     /* shadcn tokens — dark. True-black canvas with neutral (slightly cool)
        elevated surfaces, so the violet brand accent reads cleanly on black. */
-    --background: 0 0% 0%;
+    --background: 228 14% 7%;
     --foreground: 0 0% 96%;
-    --card: 240 6% 6%;
+    /* Single flat brand tone — card / popover match the canvas (#0F1014). */
+    --card: 228 14% 7%;
     --card-foreground: 0 0% 96%;
-    --popover: 240 6% 7%;
+    --popover: 228 14% 7%;
     --popover-foreground: 0 0% 96%;
     --primary: 248 70% 64%;
     --primary-foreground: 252 60% 98%;
@@ -44,11 +50,16 @@
     --muted-foreground: 240 5% 62%;
     --accent: 240 5% 14%;
     --accent-foreground: 0 0% 92%;
+    /* card / popover surfaces now ride the brand "surface" tone (#181A20). */
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
     --border: 240 5% 14%;
     --input: 240 5% 14%;
     --ring: 248 72% 66%;
+
+    /* Single flat brand tone — dark. surface == canvas (#0F1014). */
+    --tcn-canvas: #0F1014;
+    --tcn-surface: #0F1014;
   }
 
   /* Default every bare `border` utility to the brand border token instead of
@@ -81,8 +92,8 @@ body {
 }
 
 html.dark body {
-  /* True black canvas to make the violet brand accent sing. */
-  background: #000000;
+  /* Brand "canvas" tone — a deep, slightly-cool near-black. */
+  background: var(--tcn-canvas);
   color: #EDEEF3;
 }
 
@@ -168,26 +179,26 @@ html.dark .tcn-grid {
    StatusBar / Sidebar read as one continuous surface with the canvas (no
    brighter "frosted" seam). Light = paper, dark = black. */
 .tcn-glass {
-  background: #FBFBF8;
+  background: var(--tcn-canvas);
   border: 1px solid rgba(15, 24, 46, 0.08);
 }
 html.dark .tcn-glass {
-  /* Solid black so the chrome reads as the exact same tone as the body. */
-  background: #000000;
+  /* Chrome rides the same canvas tone as the body — one continuous surface. */
+  background: var(--tcn-canvas);
   border-color: rgba(255, 255, 255, 0.06);
 }
 
 /* Stronger glass — for dropdowns and modals where the surface needs to
    feel like a distinct floating layer. More opaque + heavier blur. */
 .tcn-glass-strong {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--tcn-surface);
   backdrop-filter: saturate(180%) blur(24px);
   -webkit-backdrop-filter: saturate(180%) blur(24px);
   border: 1px solid rgba(15, 24, 46, 0.10);
 }
 html.dark .tcn-glass-strong {
-  /* Slightly lifted off pure black so floating menus/modals separate. */
-  background: #0c0c0f;
+  /* Elevated "surface" tone so floating menus/modals lift off the canvas. */
+  background: var(--tcn-surface);
   border-color: rgba(255, 255, 255, 0.08);
 }
 
