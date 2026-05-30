@@ -1,39 +1,50 @@
-import { createSignal, createEffect } from "solid-js";
+import { create } from "zustand";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export type ThemeMode = "dark" | "light" | "system";
 
 const KEY = "tucano:theme";
-const initial = (localStorage.getItem(KEY) as ThemeMode) || "system";
+const initialMode = (localStorage.getItem(KEY) as ThemeMode) || "system";
 
-const [mode, setMode] = createSignal<ThemeMode>(initial);
-const [systemDark, setSystemDark] = createSignal(
-  window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true,
-);
+type ThemeState = {
+  mode: ThemeMode;
+  systemDark: boolean;
+  setMode: (m: ThemeMode) => void;
+  toggle: () => void;
+};
+
+export const useTheme = create<ThemeState>((set, get) => ({
+  mode: initialMode,
+  systemDark: window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true,
+  setMode(m) {
+    localStorage.setItem(KEY, m);
+    set({ mode: m });
+  },
+  toggle() {
+    const order: ThemeMode[] = ["light", "dark", "system"];
+    const i = order.indexOf(get().mode);
+    get().setMode(order[(i + 1) % order.length]);
+  },
+}));
+
+export const effectiveTheme = (): "dark" | "light" => {
+  const { mode, systemDark } = useTheme.getState();
+  if (mode === "system") return systemDark ? "dark" : "light";
+  return mode;
+};
 
 if (window.matchMedia) {
   const mq = window.matchMedia("(prefers-color-scheme: dark)");
-  mq.addEventListener?.("change", (e) => setSystemDark(e.matches));
+  mq.addEventListener?.("change", (e) => useTheme.setState({ systemDark: e.matches }));
 }
 
-export const effectiveTheme = () => {
-  const m = mode();
-  if (m === "system") return systemDark() ? "dark" : "light";
-  return m;
-};
-
-createEffect(() => {
-  document.documentElement.classList.toggle("dark", effectiveTheme() === "dark");
-});
-
-// Keep the macOS native title bar (Transparent style) in sync with the
-// active theme by repainting the window background. Without this, the
-// title bar would always show the static color from tauri.conf.json,
-// leaving a dark stripe at the top of the window in light mode.
-createEffect(() => {
+// Side effects: toggle the `dark` class on <html> and keep the macOS native
+// title bar (Transparent style) in sync by repainting the window background.
+// Matches the CSS body backgrounds in styles.css so there's no seam between
+// OS chrome and the TopBar.
+function applyTheme() {
   const dark = effectiveTheme() === "dark";
-  // Match the CSS body backgrounds in styles.css so the title bar blends
-  // perfectly with the rest of the app (no seam between OS chrome and TopBar).
+  document.documentElement.classList.toggle("dark", dark);
   const color = dark ? "#080D1B" : "#F4F5F7";
   try {
     getCurrentWindow().setBackgroundColor(color).catch((e) => {
@@ -43,17 +54,11 @@ createEffect(() => {
     // Not running inside Tauri (e.g. plain web preview) — ignore silently.
     void e;
   }
-});
+}
 
-export function setTheme(t: ThemeMode) {
-  setMode(t);
-  localStorage.setItem(KEY, t);
-}
-export function toggleTheme() {
-  const order: ThemeMode[] = ["light", "dark", "system"];
-  const i = order.indexOf(mode());
-  setTheme(order[(i + 1) % order.length]);
-}
-export const themeMode = mode;
-// Backwards-compat — many places import { theme }; keep it returning effective.
-export const theme = effectiveTheme;
+applyTheme();
+useTheme.subscribe(applyTheme);
+
+export const themeMode = (): ThemeMode => useTheme.getState().mode;
+export const setTheme = (m: ThemeMode) => useTheme.getState().setMode(m);
+export const toggleTheme = () => useTheme.getState().toggle();

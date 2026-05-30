@@ -1,9 +1,13 @@
-import { createSignal } from "solid-js";
+import { create } from "zustand";
 
-const [openId, setOpenId] = createSignal<string | null>(null);
-
-export const noteStore = {
-  openId,
-  open(id: string) { setOpenId(id); },
-  close() { setOpenId(null); },
+type NoteState = {
+  openId: string | null;
+  open: (id: string) => void;
+  close: () => void;
 };
+
+export const useNote = create<NoteState>((set) => ({
+  openId: null,
+  open(id) { set({ openId: id }); },
+  close() { set({ openId: null }); },
+}));

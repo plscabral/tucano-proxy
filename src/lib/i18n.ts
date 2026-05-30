@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { create } from "zustand";
 
 export type Locale = "en" | "pt-BR" | "pt-PT" | "es";
 
@@ -1480,20 +1480,32 @@ const detected = (): Locale => {
   return "en";
 };
 
-const [locale, setLocaleSignal] = createSignal<Locale>(detected());
+// Locale lives in a Zustand store so React components can subscribe and
+// re-render on language change. `t()` itself stays a plain function reading
+// the current value (getState) — components that render translated text are
+// kept in sync by subscribing to `useLocale` at the app root, which re-renders
+// the tree on change (see App). This avoids threading a hook through every
+// `t(...)` call site.
+type LocaleState = { locale: Locale; setLocale: (l: Locale) => void };
 
-export const setLocale = (l: Locale) => {
-  setLocaleSignal(l);
-  localStorage.setItem(KEY, l);
-  document.documentElement.setAttribute("lang", l);
-};
-document.documentElement.setAttribute("lang", locale());
+export const useLocale = create<LocaleState>((set) => ({
+  locale: detected(),
+  setLocale: (l: Locale) => {
+    localStorage.setItem(KEY, l);
+    document.documentElement.setAttribute("lang", l);
+    set({ locale: l });
+  },
+}));
+
+document.documentElement.setAttribute("lang", useLocale.getState().locale);
+
+export const setLocale = (l: Locale) => useLocale.getState().setLocale(l);
 
 export const t = (
   key: string,
   vars?: Record<string, string | number>,
 ): string => {
-  const d = dicts[locale()] || en;
+  const d = dicts[useLocale.getState().locale] || en;
   let s = d[key] ?? en[key] ?? key;
   if (vars)
     for (const [k, v] of Object.entries(vars))
@@ -1501,4 +1513,4 @@ export const t = (
   return s;
 };
 
-export const currentLocale = locale;
+export const currentLocale = (): Locale => useLocale.getState().locale;

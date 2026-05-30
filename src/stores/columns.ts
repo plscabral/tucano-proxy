@@ -1,4 +1,4 @@
-import { createStore, produce } from "solid-js/store";
+import { create } from "zustand";
 
 export type ColId = "index" | "method" | "status" | "host" | "path" | "size" | "duration" | "client" | "scheme" | "mime" | "charset" | "note";
 
@@ -70,41 +70,44 @@ function load(): Col[] {
       if (min && c.width < min) c.width = min;
     }
     return merged;
-  } catch { return DEFAULT; }
+  } catch { return DEFAULT.map((c) => ({ ...c })); }
 }
 
-const [state, setState] = createStore<{ list: Col[] }>({ list: load() });
+function persist(list: Col[]) { localStorage.setItem(KEY, JSON.stringify(list)); }
 
-function persist() { localStorage.setItem(KEY, JSON.stringify(state.list)); }
-
-export const columnsStore = {
-  cols: () => state.list,
-  visible: () => state.list.filter((c) => c.visible),
-  toggle(id: ColId) {
-    setState(produce((s) => {
-      const c = s.list.find((x) => x.id === id);
-      if (c) c.visible = !c.visible;
-    }));
-    persist();
-  },
-  setWidth(id: ColId, w: number) {
-    setState(produce((s) => {
-      const c = s.list.find((x) => x.id === id);
-      if (c) {
-        const min = MIN_COL_WIDTH[id] ?? 40;
-        c.width = Math.max(min, Math.min(800, Math.round(w)));
-      }
-    }));
-    persist();
-  },
-  move(id: ColId, toIndex: number) {
-    setState(produce((s) => {
-      const from = s.list.findIndex((x) => x.id === id);
-      if (from === -1) return;
-      const [item] = s.list.splice(from, 1);
-      s.list.splice(Math.max(0, Math.min(s.list.length, toIndex)), 0, item);
-    }));
-    persist();
-  },
-  reset() { setState("list", DEFAULT.map((c) => ({ ...c }))); persist(); },
+type ColumnsState = {
+  list: Col[];
+  toggle: (id: ColId) => void;
+  setWidth: (id: ColId, w: number) => void;
+  move: (id: ColId, toIndex: number) => void;
+  reset: () => void;
 };
+
+export const useColumns = create<ColumnsState>((set, get) => ({
+  list: load(),
+  toggle(id) {
+    const list = get().list.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c));
+    set({ list }); persist(list);
+  },
+  setWidth(id, w) {
+    const list = get().list.map((c) => {
+      if (c.id !== id) return c;
+      const min = MIN_COL_WIDTH[id] ?? 40;
+      return { ...c, width: Math.max(min, Math.min(800, Math.round(w))) };
+    });
+    set({ list }); persist(list);
+  },
+  move(id, toIndex) {
+    const cur = get().list;
+    const from = cur.findIndex((x) => x.id === id);
+    if (from === -1) return;
+    const list = cur.slice();
+    const [item] = list.splice(from, 1);
+    list.splice(Math.max(0, Math.min(list.length, toIndex)), 0, item);
+    set({ list }); persist(list);
+  },
+  reset() {
+    const list = DEFAULT.map((c) => ({ ...c }));
+    set({ list }); persist(list);
+  },
+}));

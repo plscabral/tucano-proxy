@@ -1,27 +1,33 @@
-import { createSignal } from "solid-js";
+import { create } from "zustand";
 import type { ColId } from "./columns";
 
 const KEY = "tucano:sort";
 
-type State = { by: ColId | null; dir: "asc" | "desc" };
+export type SortState = { by: ColId | null; dir: "asc" | "desc" };
 
-function load(): State {
-  try { return JSON.parse(localStorage.getItem(KEY) || "") as State; }
+function load(): SortState {
+  try { return JSON.parse(localStorage.getItem(KEY) || "") as SortState; }
   catch { return { by: null, dir: "asc" }; }
 }
 
-const [state, setState] = createSignal<State>(load());
+function persist(s: SortState) { localStorage.setItem(KEY, JSON.stringify(s)); }
 
-function persist() { localStorage.setItem(KEY, JSON.stringify(state())); }
-
-export const sortStore = {
-  state,
-  toggle(col: ColId) {
-    const s = state();
-    if (s.by !== col) setState({ by: col, dir: "asc" });
-    else if (s.dir === "asc") setState({ by: col, dir: "desc" });
-    else setState({ by: null, dir: "asc" });
-    persist();
-  },
-  clear() { setState({ by: null, dir: "asc" }); persist(); },
+type SortStore = {
+  by: ColId | null;
+  dir: "asc" | "desc";
+  toggle: (col: ColId) => void;
+  clear: () => void;
 };
+
+export const useSort = create<SortStore>((set, get) => ({
+  ...load(),
+  toggle(col) {
+    const { by, dir } = get();
+    let next: SortState;
+    if (by !== col) next = { by: col, dir: "asc" };
+    else if (dir === "asc") next = { by: col, dir: "desc" };
+    else next = { by: null, dir: "asc" };
+    set(next); persist(next);
+  },
+  clear() { const next: SortState = { by: null, dir: "asc" }; set(next); persist(next); },
+}));

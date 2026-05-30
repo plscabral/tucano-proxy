@@ -1,15 +1,18 @@
-import { createSignal } from "solid-js";
+import { create } from "zustand";
 
 const KEY = "tucano:sessionPath";
 
-const [path, setPath] = createSignal<string | null>(localStorage.getItem(KEY));
-
-export const sessionStore = {
+type SessionState = {
   /** Currently bound on-disk path for the active capture session. */
-  path,
-  setPath(p: string | null) {
-    setPath(p);
+  path: string | null;
+  setPath: (p: string | null) => void;
+};
+
+export const useSession = create<SessionState>((set) => ({
+  path: localStorage.getItem(KEY),
+  setPath(p) {
+    set({ path: p });
     if (p) localStorage.setItem(KEY, p);
     else localStorage.removeItem(KEY);
   },
-};
+}));

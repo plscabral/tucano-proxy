@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { create } from "zustand";
 
 const KEY = "tucano:prefs";
 
@@ -19,15 +19,23 @@ function load(): Prefs {
   }
 }
 
-const [prefs, setPrefs] = createSignal<Prefs>(load());
+type PrefsState = Prefs & {
+  setAutoCapture: (on: boolean) => void;
+  setKeepLimit: (n: number) => void;
+};
 
 function save(next: Prefs) {
-  setPrefs(next);
   try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
 }
 
-export const prefsStore = {
-  prefs,
-  setAutoCapture(on: boolean) { save({ ...prefs(), autoCapture: on }); },
-  setKeepLimit(n: number) { save({ ...prefs(), keepLimit: n }); },
-};
+export const usePrefs = create<PrefsState>((set, get) => ({
+  ...load(),
+  setAutoCapture(on) {
+    const next = { autoCapture: on, keepLimit: get().keepLimit };
+    set({ autoCapture: on }); save(next);
+  },
+  setKeepLimit(n) {
+    const next = { autoCapture: get().autoCapture, keepLimit: n };
+    set({ keepLimit: n }); save(next);
+  },
+}));

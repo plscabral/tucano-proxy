@@ -1,12 +1,12 @@
-import { createSignal } from "solid-js";
-import type { Flow } from "../lib/types";
-import { ipc } from "../lib/ipc";
+import { create } from "zustand";
+import type { Flow } from "@/lib/types";
+import { ipc } from "@/lib/ipc";
 
 // Persistent ignore-list. Anything matching is dropped from storage as soon
 // as it arrives (same pipeline as captureMode) so noisy traffic from
 // background apps (JetBrains, Claude, telemetry, ...) never pollutes the
 // list. Two independent keys: clientApp name and host. Wildcard match is
-// intentional kept out — keep this dumb and predictable; rules engine
+// intentionally kept out — keep this dumb and predictable; rules engine
 // already covers richer patterns via captureMode.
 //
 // Ignoring a HOST also adds it to the proxy's SSL skip-list (tunnel, never
@@ -50,47 +50,55 @@ function saveSet(key: string, s: Set<string>) {
   try { localStorage.setItem(key, JSON.stringify([...s])); } catch {}
 }
 
-const [apps, setApps] = createSignal<Set<string>>(loadSet(KEY_APPS));
-const [hosts, setHosts] = createSignal<Set<string>>(loadSet(KEY_HOSTS));
+type IgnoredState = {
+  apps: Set<string>;
+  hosts: Set<string>;
+  addApp: (name: string) => void;
+  removeApp: (name: string) => void;
+  addHost: (host: string) => void;
+  removeHost: (host: string) => void;
+  clear: () => void;
+  matches: (f: Flow) => boolean;
+};
 
-function mutate(get: () => Set<string>, set: (v: Set<string>) => void, key: string, fn: (s: Set<string>) => void) {
-  const next = new Set(get());
-  fn(next);
-  set(next);
-  saveSet(key, next);
-}
+export const useIgnored = create<IgnoredState>((set, get) => ({
+  apps: loadSet(KEY_APPS),
+  hosts: loadSet(KEY_HOSTS),
 
-export const ignoredStore = {
-  apps,
-  hosts,
-
-  addApp(name: string) {
+  addApp(name) {
     if (!name) return;
-    mutate(apps, setApps, KEY_APPS, (s) => s.add(name));
+    const next = new Set(get().apps); next.add(name);
+    set({ apps: next }); saveSet(KEY_APPS, next);
   },
-  removeApp(name: string) {
-    mutate(apps, setApps, KEY_APPS, (s) => s.delete(name));
+  removeApp(name) {
+    const next = new Set(get().apps); next.delete(name);
+    set({ apps: next }); saveSet(KEY_APPS, next);
   },
-  addHost(host: string) {
+  addHost(host) {
     if (!host) return;
-    mutate(hosts, setHosts, KEY_HOSTS, (s) => s.add(host));
+    const next = new Set(get().hosts); next.add(host);
+    set({ hosts: next }); saveSet(KEY_HOSTS, next);
     void syncSkipHost(host, true);
   },
-  removeHost(host: string) {
-    mutate(hosts, setHosts, KEY_HOSTS, (s) => s.delete(host));
+  removeHost(host) {
+    const next = new Set(get().hosts); next.delete(host);
+    set({ hosts: next }); saveSet(KEY_HOSTS, next);
     void syncSkipHost(host, false);
   },
   clear() {
-    const removedHosts = [...hosts()];
-    mutate(apps, setApps, KEY_APPS, (s) => s.clear());
-    mutate(hosts, setHosts, KEY_HOSTS, (s) => s.clear());
+    const removedHosts = [...get().hosts];
+    const apps = new Set<string>();
+    const hosts = new Set<string>();
+    set({ apps, hosts });
+    saveSet(KEY_APPS, apps);
+    saveSet(KEY_HOSTS, hosts);
     void syncSkipHostsRemove(removedHosts);
   },
 
-  matches(f: Flow): boolean {
+  matches(f) {
     const a = f.clientApp ?? "";
-    if (a && apps().has(a)) return true;
-    if (f.host && hosts().has(f.host)) return true;
+    if (a && get().apps.has(a)) return true;
+    if (f.host && get().hosts.has(f.host)) return true;
     return false;
   },
-};
+}));

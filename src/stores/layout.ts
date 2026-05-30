@@ -1,9 +1,13 @@
-import { createSignal, createEffect } from "solid-js";
+import { create } from "zustand";
 
 export type InspectorPos = "right" | "bottom" | "hidden";
 
 const KEY = "tucano:layout";
 type State = { pos: InspectorPos; rightPct: number; bottomPct: number };
+
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
+}
 
 function load(): State {
   try {
@@ -16,30 +20,24 @@ function load(): State {
   } catch { return { pos: "right", rightPct: 55, bottomPct: 55 }; }
 }
 
-function clamp(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, n));
-}
+function persist(s: State) { localStorage.setItem(KEY, JSON.stringify(s)); }
 
-const init = load();
-const [pos, setPos] = createSignal<InspectorPos>(init.pos);
-const [rightPct, setRightPct] = createSignal(init.rightPct);
-const [bottomPct, setBottomPct] = createSignal(init.bottomPct);
+type LayoutState = State & {
+  setPos: (p: InspectorPos) => void;
+  setRightPct: (n: number) => void;
+  setBottomPct: (n: number) => void;
+  cyclePos: () => void;
+};
 
-createEffect(() => {
-  localStorage.setItem(KEY, JSON.stringify({
-    pos: pos(), rightPct: rightPct(), bottomPct: bottomPct(),
-  }));
-});
-
-export const layoutStore = {
-  pos, setPos,
-  rightPct,
-  bottomPct,
-  setRightPct: (n: number) => setRightPct(clamp(n, 20, 85)),
-  setBottomPct: (n: number) => setBottomPct(clamp(n, 20, 85)),
+export const useLayout = create<LayoutState>((set, get) => ({
+  ...load(),
+  setPos(p) { const s = { ...get(), pos: p }; set({ pos: p }); persist(s); },
+  setRightPct(n) { const v = clamp(n, 20, 85); set({ rightPct: v }); persist({ ...get(), rightPct: v }); },
+  setBottomPct(n) { const v = clamp(n, 20, 85); set({ bottomPct: v }); persist({ ...get(), bottomPct: v }); },
   cyclePos() {
     const order: InspectorPos[] = ["right", "bottom", "hidden"];
-    const i = order.indexOf(pos());
-    setPos(order[(i + 1) % order.length]);
+    const i = order.indexOf(get().pos);
+    const p = order[(i + 1) % order.length];
+    set({ pos: p }); persist({ ...get(), pos: p });
   },
-};
+}));

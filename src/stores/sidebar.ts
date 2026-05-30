@@ -1,7 +1,11 @@
-import { createSignal, createEffect } from "solid-js";
+import { create } from "zustand";
 
 const KEY = "tucano:sidebar";
 type Persisted = { open: boolean; width: number };
+
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
+}
 
 function load(): Persisted {
   try {
@@ -10,22 +14,9 @@ function load(): Persisted {
   } catch { return { open: true, width: 220 }; }
 }
 
-function clamp(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, n));
+function persist(open: boolean, width: number) {
+  localStorage.setItem(KEY, JSON.stringify({ open, width }));
 }
-
-const init = load();
-const [open, setOpen] = createSignal(init.open);
-const [width, setWidthSignal] = createSignal(init.width);
-// Selection lives in memory only — like the FlowList selection — so it
-// resets between sessions and doesn't quietly hide flows on a fresh start.
-const [selectedApps, setSelectedApps] = createSignal<Set<string>>(new Set());
-const [selectedDomains, setSelectedDomains] = createSignal<Set<string>>(new Set());
-const [selectedCategories, setSelectedCategories] = createSignal<Set<string>>(new Set());
-
-createEffect(() => {
-  localStorage.setItem(KEY, JSON.stringify({ open: open(), width: width() }));
-});
 
 function toggleIn(set: Set<string>, value: string, additive: boolean): Set<string> {
   const next = new Set(additive ? set : []);
@@ -35,29 +26,44 @@ function toggleIn(set: Set<string>, value: string, additive: boolean): Set<strin
   return next;
 }
 
-export const sidebarStore = {
-  open, setOpen,
-  toggleOpen: () => setOpen(!open()),
-  width,
-  setWidth: (n: number) => setWidthSignal(clamp(n, 160, 480)),
-  selectedApps,
-  selectedDomains,
-  selectedCategories,
-  toggleApp(name: string, additive: boolean) {
-    setSelectedApps((s) => toggleIn(s, name, additive));
-  },
-  toggleDomain(host: string, additive: boolean) {
-    setSelectedDomains((s) => toggleIn(s, host, additive));
-  },
-  toggleCategory(id: string, additive: boolean) {
-    setSelectedCategories((s) => toggleIn(s, id, additive));
-  },
-  setCategories(ids: Set<string>) {
-    setSelectedCategories(ids);
-  },
-  clear() {
-    setSelectedApps(new Set<string>());
-    setSelectedDomains(new Set<string>());
-    setSelectedCategories(new Set<string>());
-  },
+const init = load();
+
+type SidebarState = {
+  open: boolean;
+  width: number;
+  // Selection lives in memory only — like the FlowList selection — so it
+  // resets between sessions and doesn't quietly hide flows on a fresh start.
+  selectedApps: Set<string>;
+  selectedDomains: Set<string>;
+  selectedCategories: Set<string>;
+  setOpen: (v: boolean) => void;
+  toggleOpen: () => void;
+  setWidth: (n: number) => void;
+  toggleApp: (name: string, additive: boolean) => void;
+  toggleDomain: (host: string, additive: boolean) => void;
+  toggleCategory: (id: string, additive: boolean) => void;
+  setCategories: (ids: Set<string>) => void;
+  clear: () => void;
 };
+
+export const useSidebar = create<SidebarState>((set, get) => ({
+  open: init.open,
+  width: init.width,
+  selectedApps: new Set<string>(),
+  selectedDomains: new Set<string>(),
+  selectedCategories: new Set<string>(),
+  setOpen(v) { set({ open: v }); persist(v, get().width); },
+  toggleOpen() { const v = !get().open; set({ open: v }); persist(v, get().width); },
+  setWidth(n) { const w = clamp(n, 160, 480); set({ width: w }); persist(get().open, w); },
+  toggleApp(name, additive) { set({ selectedApps: toggleIn(get().selectedApps, name, additive) }); },
+  toggleDomain(host, additive) { set({ selectedDomains: toggleIn(get().selectedDomains, host, additive) }); },
+  toggleCategory(id, additive) { set({ selectedCategories: toggleIn(get().selectedCategories, id, additive) }); },
+  setCategories(ids) { set({ selectedCategories: ids }); },
+  clear() {
+    set({
+      selectedApps: new Set<string>(),
+      selectedDomains: new Set<string>(),
+      selectedCategories: new Set<string>(),
+    });
+  },
+}));

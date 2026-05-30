@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { create } from "zustand";
 
 const KEY = "tucano:marks";
 
@@ -16,20 +16,25 @@ function load(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; }
 }
 
-const [marks, setMarks] = createSignal<Record<string, string>>(load());
+type MarksState = {
+  marks: Record<string, string>;
+  get: (id: string) => string | undefined;
+  set: (id: string, colorId: string) => void;
+  clear: () => void;
+};
 
-export const marksStore = {
-  marks,
-  get(id: string) { return marks()[id]; },
-  set(id: string, colorId: string) {
-    const next = { ...marks() };
+export const useMarks = create<MarksState>((set, get) => ({
+  marks: load(),
+  get(id) { return get().marks[id]; },
+  set(id, colorId) {
+    const next = { ...get().marks };
     if (!colorId || colorId === "none") delete next[id];
     else next[id] = colorId;
-    setMarks(next);
+    set({ marks: next });
     localStorage.setItem(KEY, JSON.stringify(next));
   },
-  clear() { setMarks({}); localStorage.removeItem(KEY); },
-};
+  clear() { set({ marks: {} }); localStorage.removeItem(KEY); },
+}));
 
 export function colorOf(id: string | undefined): string | null {
   if (!id) return null;

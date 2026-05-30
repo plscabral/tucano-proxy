@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/lib", "src/stores", "src/components/ui", "src/components/Display.tsx"]
+}
