@@ -9,6 +9,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/tucano-proxy-mark.svg";
 
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
 async function refresh() { useFlows.getState().setStatus(await ipc.status()); }
 
 export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -18,8 +20,7 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
   const [busy, setBusy] = useState(false);
 
   const toggle = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    // Drop focus so a follow-up Space key doesn't double-toggle.
-    e.currentTarget.blur();
+    e.currentTarget.blur(); // avoid Space double-toggle
     if (busy) return;
     setBusy(true);
     try {
@@ -33,37 +34,45 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
   const themeIcon = mode === "dark" ? <Moon size={15} /> : mode === "light" ? <Sun size={15} /> : <Monitor size={15} />;
 
   return (
-    <header className="h-14 px-5 flex items-center gap-3 tcn-glass border-b border-ink-100/40 dark:border-white/[0.06] relative">
-      <img src={logo} alt="Tucano Proxy" className="h-9 w-9 object-contain shrink-0" />
-      <div className="text-[17px] leading-none">
+    <header
+      data-tauri-drag-region
+      style={{ paddingLeft: IS_MAC ? 82 : undefined }}
+      className="h-14 pr-4 flex items-center gap-3 tcn-glass relative border-b border-ink-100/40 dark:border-white/[0.06]
+        after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-toucan-400/30 after:via-transparent after:to-transparent after:pointer-events-none"
+    >
+      <img src={logo} alt="Tucano Proxy" className="h-9 w-9 object-contain shrink-0 pointer-events-none" />
+      <div className="text-[17px] leading-none pointer-events-none">
         <span className="font-extrabold tracking-tight">Tucano</span>{" "}
         <Accent className="text-[18px] opacity-90">Proxy</Accent>
       </div>
 
-      <div className="flex-1" />
+      <div className="flex-1 h-full" data-tauri-drag-region />
 
+      {/* Primary capture toggle — violet "go" when idle, red "stop" when live. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             onClick={toggle}
             disabled={busy}
             className={`h-9 w-9 grid place-items-center rounded-xl transition
-              ${busy ? "opacity-60 cursor-not-allowed" : ""}
+              ${busy ? "opacity-60 cursor-not-allowed" : "hover:brightness-110"}
               ${running
-                ? "text-red-500 hover:bg-red-500/10 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.15)]"
-                : "text-emerald-500 hover:bg-emerald-500/10 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)]"}`}
+                ? "bg-red-500/12 text-red-400 ring-1 ring-inset ring-red-500/25 hover:bg-red-500/18"
+                : "tcn-accent tcn-accent-glow"}`}
           >
             {busy
               ? <Loader2 size={15} className="animate-spin" />
               : running
                 ? <Pause size={15} fill="currentColor" />
-                : <Play size={15} fill="currentColor" />}
+                : <Play size={15} fill="currentColor" className="translate-x-px" />}
           </button>
         </TooltipTrigger>
         <TooltipContent>
           {busy ? t("topbar.busyTitle") : running ? t("topbar.stopTitle") : t("topbar.startTitle")}
         </TooltipContent>
       </Tooltip>
+
+      <span className="h-5 w-px bg-ink-100 dark:bg-white/10 mx-0.5" />
 
       <Tooltip>
         <TooltipTrigger asChild>
