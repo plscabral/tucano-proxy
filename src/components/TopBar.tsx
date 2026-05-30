@@ -9,8 +9,6 @@ import { Accent } from "@/components/Display";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import logo from "@/assets/tucano-proxy-mark.svg";
 
-const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-
 async function refresh() { useFlows.getState().setStatus(await ipc.status()); }
 
 export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -49,14 +47,17 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
     <header
       onMouseDown={onBarMouseDown}
       onDoubleClick={onBarDoubleClick}
-      style={{ paddingLeft: IS_MAC ? 88 : 20 }}
-      className="h-16 pr-4 flex items-center gap-2.5 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
+      className="h-16 px-4 flex items-center gap-2.5 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
         after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-toucan-400/30 after:via-transparent after:to-transparent after:pointer-events-none"
     >
-      <img src={logo} alt="Tucano Proxy" className="h-8 w-8 object-contain shrink-0" />
-      <div className="text-[16px] leading-none">
-        <span className="font-extrabold tracking-tight">Tucano</span>{" "}
-        <Accent className="text-[17px] opacity-90">Proxy</Accent>
+      {/* Brand centered in the bar (absolute + non-interactive so the whole
+          bar stays draggable and the traffic lights sit alone on the left). */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2.5 pointer-events-none">
+        <img src={logo} alt="Tucano Proxy" className="h-8 w-8 object-contain shrink-0" />
+        <div className="text-[16px] leading-none">
+          <span className="font-extrabold tracking-tight">Tucano</span>{" "}
+          <Accent className="text-[17px] opacity-90">Proxy</Accent>
+        </div>
       </div>
 
       <div className="flex-1 h-full" />
