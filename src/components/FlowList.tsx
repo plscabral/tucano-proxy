@@ -23,6 +23,8 @@ import {
 } from "react-icons/fa6";
 import { EXPORT_FORMATS } from "@/lib/exporters";
 import NoteDialog from "./NoteDialog";
+import { Display, Accent } from "./Display";
+import proxyMark from "@/assets/tucano-proxy-mark.svg";
 
 function statusChipClass(s: number | null) {
   if (s == null) return "bg-ink-100/70 dark:bg-white/[0.04] text-ink-300 backdrop-blur-sm";
@@ -482,8 +484,8 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className="h-full flex flex-col relative bg-white dark:bg-[#000000]" onClick={closeCtx}>
-      <div ref={parentRef} className="flex-1 min-h-0 overflow-auto scroll-thin bg-white dark:bg-[#000000]" style={{ scrollbarGutter: "stable" }}>
+    <div className="h-full flex flex-col relative bg-white dark:bg-[#000000] tcn-grid" onClick={closeCtx}>
+      <div ref={parentRef} className="flex-1 min-h-0 overflow-auto scroll-thin" style={{ scrollbarGutter: "stable" }}>
         <div className="flex flex-col" style={{ minWidth: `${totalWidth}px` }}>
           {/* Header — sticky so it stays visible while the rows scroll. */}
           <div
@@ -551,27 +553,44 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
       </div>
 
       {rows.length === 0 && (
-        <div className="absolute inset-0 top-9 flex items-center justify-center px-6 text-center pointer-events-none select-none">
-          <div className="flex flex-col items-center justify-center gap-5 max-w-sm">
-            {running ? (
-              <div className="relative w-24 h-24 flex items-center justify-center">
-                <span className="absolute w-20 h-20 rounded-full bg-toucan-400/10 animate-ping" />
-                <span className="absolute w-16 h-16 rounded-full bg-toucan-400/15" />
-                <Radio size={36} className="relative text-toucan-400" strokeWidth={1.75} />
+        <div className="absolute inset-0 top-9 tcn-grid flex items-center justify-center px-6 text-center pointer-events-none select-none overflow-hidden">
+          {/* Radial vignette so the grid fades toward the edges. */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(0,0,0,0.04)_100%)] dark:bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(0,0,0,0.55)_100%)]" />
+
+          <div className="relative flex flex-col items-center gap-7 max-w-md">
+            {/* Brand mark with a live violet glow while capturing. */}
+            <div className="relative grid place-items-center">
+              <span
+                className={`absolute rounded-full blur-2xl transition-all duration-500 ${
+                  running ? "w-28 h-28 bg-toucan-400/30" : "w-20 h-20 bg-toucan-400/0"
+                }`}
+              />
+              {running && <span className="absolute w-24 h-24 rounded-full ring-1 ring-toucan-400/30 animate-ping" />}
+              <div className="relative w-[68px] h-[68px] grid place-items-center rounded-[20px] bg-gradient-to-b from-white/[0.06] to-transparent ring-1 ring-inset ring-white/[0.07] shadow-elev">
+                <img src={proxyMark} alt="" className={`w-9 h-9 object-contain transition-opacity ${running ? "opacity-100" : "opacity-40 grayscale"}`} />
               </div>
-            ) : (
-              <div className="relative w-24 h-24 flex items-center justify-center">
-                <span className="absolute w-16 h-16 rounded-full bg-ink-200/20 dark:bg-ink-300/15" />
-                <WifiOff size={36} className="relative text-ink-300 dark:text-ink-200/70" strokeWidth={1.75} />
+            </div>
+
+            {/* Display wordmark — Manrope extrabold + Newsreader italic accent. */}
+            <div className="flex flex-col items-center gap-3">
+              <Display className="text-[34px]">
+                Tucano <Accent className="text-[36px]">Proxy</Accent>
+              </Display>
+
+              <div className="flex flex-col items-center gap-1.5">
+                <div className={`text-sm font-semibold ${running ? "text-foreground dark:text-ink-50" : "text-foreground/70 dark:text-ink-200/80"}`}>
+                  {running ? t("list.emptyTitle") : t("list.emptyTitleOff")}
+                </div>
+                <div className="text-xs opacity-55 leading-relaxed max-w-xs">
+                  {running ? t("list.empty", { port }) : t("list.emptyOff")}
+                </div>
               </div>
-            )}
-            <div className="flex flex-col items-center gap-1">
-              <div className={`text-base font-semibold ${running ? "text-ink-500 dark:text-ink-50" : "text-ink-400 dark:text-ink-200/80"}`}>
-                {running ? t("list.emptyTitle") : t("list.emptyTitleOff")}
-              </div>
-              <div className="text-xs opacity-60 leading-relaxed">
-                {running ? t("list.empty", { port }) : t("list.emptyOff")}
-              </div>
+            </div>
+
+            {/* Keyboard hint chip. */}
+            <div className="flex items-center gap-2 text-[11px] opacity-60">
+              <kbd className="mono px-1.5 py-0.5 rounded-md bg-ink-100/70 dark:bg-white/[0.06] border border-ink-200/60 dark:border-white/10 text-[10px]">Space</kbd>
+              <span>{running ? t("topbar.stopTitle") : t("topbar.startTitle")}</span>
             </div>
           </div>
         </div>
