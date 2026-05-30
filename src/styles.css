@@ -143,6 +143,27 @@ html.dark .tcn-grid {
   background-image: radial-gradient(120% 80% at 50% -10%, rgba(106, 87, 224, 0.22) 0%, transparent 60%);
 }
 
+/* Neon primary — the hero "Capturar" CTA. Vivid violet with a layered outer
+   glow so it reads as the most alive element on the dark canvas. */
+.tcn-neon {
+  background-image: linear-gradient(135deg, #8f7df2 0%, #6A57E0 52%, #5640d6 100%);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 6px 16px -6px rgba(106, 87, 224, 0.85),
+    0 0 26px -4px rgba(122, 100, 255, 0.65);
+  transition: box-shadow .18s, filter .18s;
+}
+.tcn-neon:hover {
+  filter: brightness(1.07) saturate(1.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 20px -6px rgba(106, 87, 224, 0.95),
+    0 0 36px -2px rgba(132, 110, 255, 0.8);
+}
+
 /* App chrome surface — matches the page background so the TopBar / Toolbar /
    StatusBar / Sidebar read as one continuous surface with the canvas (no
    brighter "frosted" seam). Light = paper, dark = black. */

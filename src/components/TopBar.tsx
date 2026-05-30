@@ -68,11 +68,11 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
           <button
             onClick={toggle}
             disabled={busy}
-            className={`h-9 pl-3 pr-3.5 rounded-xl flex items-center gap-2 text-xs font-semibold transition shrink-0
-              ${busy ? "opacity-70 cursor-not-allowed" : "hover:brightness-110"}
+            className={`h-9 pl-3 pr-3.5 rounded-xl flex items-center gap-2 text-xs font-semibold shrink-0
+              ${busy ? "opacity-70 cursor-not-allowed" : ""}
               ${running
-                ? "bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/25 hover:bg-red-500/[0.16]"
-                : "tcn-accent tcn-accent-glow"}`}
+                ? "bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/25 hover:bg-red-500/[0.16] transition"
+                : "tcn-neon"}`}
           >
             {busy ? (
               <Loader2 size={14} className="animate-spin" />

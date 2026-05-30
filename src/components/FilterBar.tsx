@@ -4,6 +4,7 @@ import { useRules } from "@/stores/rules";
 import { newRule } from "@/lib/rules";
 import { purgeNonMatchingNow } from "@/lib/captureFilter";
 import { t } from "@/lib/i18n";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import FiltersDialog from "./FiltersDialog";
 
 export default function FilterBar() {
@@ -79,16 +80,24 @@ export default function FilterBar() {
               className="h-8 px-3 text-xs rounded-xl ring-1 ring-inset ring-border hover:ring-toucan-400/50 hover:text-toucan-500 dark:hover:text-toucan-300 flex items-center gap-1.5 transition shrink-0"
             ><SlidersHorizontal size={13} /> {t("filter.add")} <span className="text-[10px] mono px-1 rounded bg-toucan-400/15 text-toucan-500 dark:text-toucan-300">{active}</span></button>
 
-            {/* Destructive capture toggle — amber (not violet) so it never gets
-                confused with the primary "Capturar" button and signals risk. */}
-            <button
-              onClick={toggleCapture}
-              title={t("filter.captureModeHint")}
-              className={`h-8 px-3 text-[11px] rounded-xl flex items-center gap-1.5 transition font-medium shrink-0
-                ${captureMode
-                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-300 ring-1 ring-inset ring-amber-500/35 shadow-[0_0_16px_-6px_rgb(245_158_11_/_0.5)]"
-                  : "ring-1 ring-inset ring-border text-muted-foreground hover:ring-amber-400/50 hover:text-amber-600 dark:hover:text-amber-300"}`}
-            ><Zap size={12} /> {t("filter.captureMode")}</button>
+            {/* Destructive capture toggle — icon-only ⚡, amber (not violet) so
+                it never competes with the primary "Capturar" button. Hover for
+                what it does. */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={toggleCapture}
+                  className={`h-8 w-8 grid place-items-center rounded-xl transition shrink-0
+                    ${captureMode
+                      ? "bg-amber-500/15 text-amber-600 dark:text-amber-300 ring-1 ring-inset ring-amber-500/35 shadow-[0_0_16px_-6px_rgb(245_158_11_/_0.5)]"
+                      : "ring-1 ring-inset ring-border text-muted-foreground hover:ring-amber-400/50 hover:text-amber-600 dark:hover:text-amber-300"}`}
+                ><Zap size={14} /></button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px]">
+                <div className="font-semibold mb-0.5">{t("filter.captureMode")}</div>
+                <div className="opacity-80 text-[11px] leading-relaxed">{t("filter.captureModeHint")}</div>
+              </TooltipContent>
+            </Tooltip>
 
             <button
               onClick={() => rs.clear()}
