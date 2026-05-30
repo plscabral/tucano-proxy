@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Flow } from "@/lib/types";
 import { ipc } from "@/lib/ipc";
+import { matchesCategory, type Category } from "@/lib/category";
 
 // Persistent ignore-list. Anything matching is dropped from storage as soon
 // as it arrives (same pipeline as captureMode) so noisy traffic from
@@ -17,6 +18,7 @@ import { ipc } from "@/lib/ipc";
 
 const KEY_APPS = "tucano:ignored:apps";
 const KEY_HOSTS = "tucano:ignored:hosts";
+const KEY_TYPES = "tucano:ignored:types";
 
 // Keep the SSL skip-list in sync with the ignored-hosts set. Best-effort and
 // additive: we only touch the given host, never other (manual) skip entries.
@@ -53,10 +55,13 @@ function saveSet(key: string, s: Set<string>) {
 type IgnoredState = {
   apps: Set<string>;
   hosts: Set<string>;
+  types: Set<string>;
   addApp: (name: string) => void;
   removeApp: (name: string) => void;
   addHost: (host: string) => void;
   removeHost: (host: string) => void;
+  addType: (id: string) => void;
+  removeType: (id: string) => void;
   clear: () => void;
   matches: (f: Flow) => boolean;
 };
@@ -64,6 +69,17 @@ type IgnoredState = {
 export const useIgnored = create<IgnoredState>((set, get) => ({
   apps: loadSet(KEY_APPS),
   hosts: loadSet(KEY_HOSTS),
+  types: loadSet(KEY_TYPES),
+
+  addType(id) {
+    if (!id) return;
+    const next = new Set(get().types); next.add(id);
+    set({ types: next }); saveSet(KEY_TYPES, next);
+  },
+  removeType(id) {
+    const next = new Set(get().types); next.delete(id);
+    set({ types: next }); saveSet(KEY_TYPES, next);
+  },
 
   addApp(name) {
     if (!name) return;
@@ -89,9 +105,11 @@ export const useIgnored = create<IgnoredState>((set, get) => ({
     const removedHosts = [...get().hosts];
     const apps = new Set<string>();
     const hosts = new Set<string>();
-    set({ apps, hosts });
+    const types = new Set<string>();
+    set({ apps, hosts, types });
     saveSet(KEY_APPS, apps);
     saveSet(KEY_HOSTS, hosts);
+    saveSet(KEY_TYPES, types);
     void syncSkipHostsRemove(removedHosts);
   },
 
@@ -99,6 +117,10 @@ export const useIgnored = create<IgnoredState>((set, get) => ({
     const a = f.clientApp ?? "";
     if (a && get().apps.has(a)) return true;
     if (f.host && get().hosts.has(f.host)) return true;
+    const types = get().types;
+    if (types.size > 0) {
+      for (const ty of types) if (matchesCategory(f, ty as Category)) return true;
+    }
     return false;
   },
 }));

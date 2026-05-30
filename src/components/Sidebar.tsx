@@ -35,6 +35,7 @@ export default function Sidebar() {
   const width = useSidebar((s) => s.width);
   const ignApps = useIgnored((s) => s.apps);
   const ignHosts = useIgnored((s) => s.hosts);
+  const ignTypes = useIgnored((s) => s.types);
 
   const groups = useMemo(() => {
     const apps = new Map<string, { count: number; icon: string | null }>();
@@ -125,19 +126,27 @@ export default function Sidebar() {
               count={c.count}
               selected={selCats.has(c.id)}
               onClick={(additive) => sb.toggleCategory(c.id, additive)}
+              hoverAction={{
+                icon: <EyeOff size={11} />,
+                title: t("sidebar.ignoreType"),
+                onClick: () => { ig.addType(c.id); purgeMatching((f) => matchesCategory(f, c.id)); },
+              }}
             />
           ))}
         </Section>
 
-        {ignApps.size + ignHosts.size > 0 && (
+        {ignApps.size + ignHosts.size + ignTypes.size > 0 && (
           <Section
             icon={<EyeOff size={12} className="text-red-400" />}
             label={t("sidebar.ignored")}
-            count={ignApps.size + ignHosts.size}
+            count={ignApps.size + ignHosts.size + ignTypes.size}
             storeKey="ignored"
             accent="text-red-400"
             headerAction={{ icon: <X size={10} />, title: t("sidebar.ignoredClearAll"), onClick: () => ig.clear() }}
           >
+            {[...ignTypes].map((id) => (
+              <Row key={`t-${id}`} icon={<span className={`h-1.5 w-1.5 rounded-full ${CAT_DOT[id as Category] ?? "bg-ink-200"}`} />} label={t(`cat.${id}`)} selected={false} onClick={() => ig.removeType(id)} hoverAction={{ icon: <X size={11} />, title: t("sidebar.unignore"), onClick: () => ig.removeType(id) }} />
+            ))}
             {[...ignApps].map((name) => (
               <Row key={`a-${name}`} icon={<AppWindow size={12} className="opacity-40" />} label={name} selected={false} onClick={() => ig.removeApp(name)} hoverAction={{ icon: <X size={11} />, title: t("sidebar.unignore"), onClick: () => ig.removeApp(name) }} />
             ))}

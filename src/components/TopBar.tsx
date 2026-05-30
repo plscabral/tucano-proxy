@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sun, Moon, Monitor, Settings as Cog, Play, Pause, Loader2 } from "lucide-react";
+import { Sun, Moon, Monitor, Settings as Cog, Play, Loader2 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useFlows } from "@/stores/flows";
 import { ipc } from "@/lib/ipc";
@@ -8,6 +8,8 @@ import { t } from "@/lib/i18n";
 import { Accent } from "@/components/Display";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import logo from "@/assets/tucano-proxy-mark.svg";
+
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 async function refresh() { useFlows.getState().setStatus(await ipc.status()); }
 
@@ -47,29 +49,26 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
     <header
       onMouseDown={onBarMouseDown}
       onDoubleClick={onBarDoubleClick}
-      className="h-16 px-4 flex items-center gap-2.5 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
+      style={{ paddingLeft: IS_MAC ? 88 : 18 }}
+      className="h-16 pr-4 flex items-center gap-3 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
         after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-toucan-400/30 after:via-transparent after:to-transparent after:pointer-events-none"
     >
-      {/* Brand centered in the bar (absolute + non-interactive so the whole
-          bar stays draggable and the traffic lights sit alone on the left). */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2.5 pointer-events-none">
-        <img src={logo} alt="Tucano Proxy" className="h-8 w-8 object-contain shrink-0" />
-        <div className="text-[16px] leading-none">
-          <span className="font-extrabold tracking-tight">Tucano</span>{" "}
-          <Accent className="text-[17px] opacity-90">Proxy</Accent>
-        </div>
+      {/* Brand — left aligned, just after the traffic lights. */}
+      <img src={logo} alt="Tucano Proxy" className="h-8 w-8 object-contain shrink-0" />
+      <div className="text-[16px] leading-none shrink-0">
+        <span className="font-extrabold tracking-tight">Tucano</span>{" "}
+        <Accent className="text-[17px] opacity-90">Proxy</Accent>
       </div>
 
       <div className="flex-1 h-full" />
 
-      {/* Primary capture toggle — a labeled pill. Violet "go" when idle, a live
-          red recording chip when capturing. */}
+      {/* Primary capture toggle — violet "go" when idle, live red chip when capturing. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             onClick={toggle}
             disabled={busy}
-            className={`h-9 pl-3 pr-3.5 rounded-xl flex items-center gap-2 text-xs font-semibold transition
+            className={`h-9 pl-3 pr-3.5 rounded-xl flex items-center gap-2 text-xs font-semibold transition shrink-0
               ${busy ? "opacity-70 cursor-not-allowed" : "hover:brightness-110"}
               ${running
                 ? "bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/25 hover:bg-red-500/[0.16]"
@@ -94,7 +93,7 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
       </Tooltip>
 
       {/* Grouped secondary controls — contained so they don't float loosely. */}
-      <div className="flex items-center gap-0.5 ml-1 p-0.5 rounded-xl ring-1 ring-inset ring-ink-100 dark:ring-white/[0.07] bg-ink-50/50 dark:bg-white/[0.02]">
+      <div className="flex items-center gap-0.5 p-0.5 rounded-xl ring-1 ring-inset ring-ink-100 dark:ring-white/[0.07] bg-ink-50/50 dark:bg-white/[0.02] shrink-0">
         <Tooltip>
           <TooltipTrigger asChild>
             <button onClick={toggleTheme} className="h-8 w-8 grid place-items-center rounded-lg opacity-75 hover:opacity-100 hover:bg-ink-100/70 dark:hover:bg-white/[0.06] transition">
