@@ -49,11 +49,11 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
     <header
       onMouseDown={onBarMouseDown}
       onDoubleClick={onBarDoubleClick}
-      style={{ paddingLeft: IS_MAC ? 88 : 18 }}
-      className="h-16 pr-4 flex items-center gap-3 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
+      style={{ paddingTop: IS_MAC ? 30 : 12, paddingBottom: 12 }}
+      className="px-[18px] flex items-center gap-3 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
         after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-toucan-400/30 after:via-transparent after:to-transparent after:pointer-events-none"
     >
-      {/* Brand — left aligned, just after the traffic lights. */}
+      {/* Brand — left aligned, below the traffic-light strip on macOS. */}
       <img src={logo} alt="Tucano Proxy" className="h-8 w-8 object-contain shrink-0" />
       <div className="text-[16px] leading-none shrink-0">
         <span className="font-extrabold tracking-tight">Tucano</span>{" "}
