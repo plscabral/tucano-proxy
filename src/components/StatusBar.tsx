@@ -54,7 +54,7 @@ export default function StatusBar() {
 
   return (
     <footer
-      className="h-9 px-5 flex items-center gap-2.5 text-[11px] tcn-glass text-foreground/70 dark:text-ink-100 border-t border-ink-100/60 dark:border-white/[0.07] relative
+      className="h-11 px-5 flex items-center gap-2.5 text-[11px] tcn-glass text-foreground/70 dark:text-ink-100 border-t border-ink-100/60 dark:border-white/[0.07] relative
         before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/[0.08] before:to-transparent before:pointer-events-none"
     >
       {/* Tagline — centered in the footer, behind the left/right clusters. */}

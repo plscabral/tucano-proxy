@@ -19,6 +19,8 @@ export default function FilterBar() {
     if (useRules.getState().list.length === 0) rs.add(newRule());
     setOpen(true);
   };
+  // Quick shortcut: add a fresh rule and jump straight into the builder.
+  const addFilter = () => { rs.add(newRule()); setOpen(true); };
 
   // Cmd+K (handled in App) asks us to open the builder.
   useEffect(() => {
@@ -73,12 +75,20 @@ export default function FilterBar() {
                   </button>
                 </div>
               ))}
+
+              {/* Quick "+" — add another filter right where the chips end. */}
+              <button
+                onClick={addFilter}
+                title={t("filter.add")}
+                className="shrink-0 h-7 w-7 grid place-items-center rounded-lg border border-dashed border-ink-200/70 dark:border-white/15 text-muted-foreground hover:border-toucan-400 hover:text-toucan-500 dark:hover:text-toucan-300 hover:bg-toucan-400/5 transition"
+              ><Plus size={13} /></button>
             </div>
 
             <button
               onClick={openDialog}
-              className="h-8 px-3 text-xs rounded-xl ring-1 ring-inset ring-border hover:ring-toucan-400/50 hover:text-toucan-500 dark:hover:text-toucan-300 flex items-center gap-1.5 transition shrink-0"
-            ><SlidersHorizontal size={13} /> {t("filter.add")} <span className="text-[10px] mono px-1 rounded bg-toucan-400/15 text-toucan-500 dark:text-toucan-300">{active}</span></button>
+              title={t("filter.title")}
+              className="h-8 px-2.5 text-xs rounded-xl ring-1 ring-inset ring-border hover:ring-toucan-400/50 hover:text-toucan-500 dark:hover:text-toucan-300 flex items-center gap-1.5 transition shrink-0"
+            ><SlidersHorizontal size={13} /> <span className="text-[10px] mono px-1 rounded bg-toucan-400/15 text-toucan-500 dark:text-toucan-300">{active}</span></button>
 
             {/* Destructive capture toggle — icon-only ⚡, amber (not violet) so
                 it never competes with the primary "Capturar" button. Hover for
