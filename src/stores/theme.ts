@@ -47,8 +47,15 @@ function applyTheme() {
   document.documentElement.classList.toggle("dark", dark);
   const color = dark ? "#000000" : "#FBFBF8";
   try {
-    getCurrentWindow().setBackgroundColor(color).catch((e) => {
+    const win = getCurrentWindow();
+    win.setBackgroundColor(color).catch((e) => {
       console.warn("[theme] setBackgroundColor failed", e);
+    });
+    // macOS: the native title bar (Transparent style) follows the WINDOW
+    // theme, not the background color — without this it stays dark/black while
+    // the app is in light mode. setTheme repaints the title bar to match.
+    win.setTheme(dark ? "dark" : "light").catch((e) => {
+      console.warn("[theme] setTheme failed", e);
     });
   } catch (e) {
     // Not running inside Tauri (e.g. plain web preview) — ignore silently.

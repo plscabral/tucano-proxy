@@ -1,19 +1,33 @@
 import { useEffect, useState } from "react";
+import { ShieldCheck, Globe, Bot, Layers } from "lucide-react";
 import { useFlows } from "@/stores/flows";
 import { useUpdater } from "@/stores/updater";
 import { ipc } from "@/lib/ipc";
 import { t } from "@/lib/i18n";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-function Stat({ label, children }: { label: string; children: React.ReactNode }) {
+type Tone = "ok" | "warn" | "off";
+const dotClass: Record<Tone, string> = {
+  ok: "bg-emerald-400 shadow-[0_0_7px_rgb(52_211_153_/_0.7)]",
+  warn: "bg-amber-400 shadow-[0_0_7px_rgb(251_191_36_/_0.6)]",
+  off: "bg-ink-300/60 dark:bg-white/20",
+};
+
+function Indicator({ icon, tone, tooltip }: { icon: React.ReactNode; tone: Tone; tooltip: React.ReactNode }) {
   return (
-    <span className="flex items-center gap-1.5">
-      <span className="text-[9px] uppercase tracking-[0.14em] opacity-40">{label}</span>
-      <span className="mono text-[11px]">{children}</span>
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="relative grid place-items-center h-6 w-6 rounded-md hover:bg-ink-100/60 dark:hover:bg-white/[0.05] transition cursor-default opacity-75 hover:opacity-100">
+          {icon}
+          <span className={`absolute -bottom-px -right-px h-1.5 w-1.5 rounded-full ring-2 ring-[#FBFBF8] dark:ring-black ${dotClass[tone]}`} />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6} className="mono text-[11px]">{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 
-const Divider = () => <span className="h-3 w-px bg-foreground/10 dark:bg-white/10" />;
+const Divider = () => <span className="h-3.5 w-px bg-foreground/10 dark:bg-white/10" />;
 
 export default function StatusBar() {
   const s = useFlows((st) => st.status);
@@ -40,17 +54,17 @@ export default function StatusBar() {
 
   return (
     <footer
-      className="h-9 px-6 flex items-center gap-4 text-[11px] tcn-glass text-foreground/70 dark:text-ink-100 border-t border-ink-100/60 dark:border-white/[0.07] relative
+      className="h-9 px-5 flex items-center gap-2.5 text-[11px] tcn-glass text-foreground/70 dark:text-ink-100 border-t border-ink-100/60 dark:border-white/[0.07] relative
         before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/[0.08] before:to-transparent before:pointer-events-none"
     >
-      {/* Live proxy endpoint — glows violet when capturing. */}
+      {/* Live proxy endpoint — the one detail worth keeping always visible. */}
       <span
         className={`flex items-center gap-2 mono font-medium h-[22px] px-2.5 rounded-lg transition-colors
           ${s.running
             ? "bg-toucan-400/12 text-toucan-300 ring-1 ring-inset ring-toucan-400/25 shadow-[0_0_18px_-6px_rgb(106_87_224_/_0.6)]"
             : "opacity-55"}`}
       >
-        <span className={`relative grid place-items-center h-1.5 w-1.5`}>
+        <span className="relative grid place-items-center h-1.5 w-1.5">
           {s.running && <span className="absolute inset-0 rounded-full bg-toucan-400/70 animate-ping" />}
           <span className={`relative h-1.5 w-1.5 rounded-full ${s.running ? "bg-toucan-400" : "bg-ink-200/60"}`} />
         </span>
@@ -58,28 +72,34 @@ export default function StatusBar() {
       </span>
 
       <Divider />
-      <Stat label={t("sb.flows")}><span className="text-toucan-300 font-semibold">{flowsCount}</span></Stat>
-      <Divider />
-      <Stat label={t("sb.ca")}>
-        <span className={s.caInstalled ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
-          {s.caInstalled ? t("sb.caTrusted") : t("sb.caNotInstalled")}
-        </span>
-      </Stat>
-      <Divider />
-      <Stat label={t("sb.sysProxy")}>
-        <span className={s.systemProxyOn ? "text-emerald-400 font-medium" : "opacity-60"}>
-          {s.systemProxyOn ? t("sb.on") : t("sb.off")}
-        </span>
-      </Stat>
-      <Divider />
-      <Stat label="MCP">
-        <span className="inline-flex items-center gap-1.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${mcp?.enabled ? "bg-emerald-400 shadow-[0_0_8px_rgb(52_211_153_/_0.7)]" : "bg-ink-200/60 dark:bg-white/15"}`} />
-          {mcp?.enabled
-            ? <span className="text-emerald-400 font-medium">{`127.0.0.1:${mcp.port}`}</span>
-            : <span className="opacity-60">{t("sb.off")}</span>}
-        </span>
-      </Stat>
+
+      {/* Capture count — always visible (it's the number people watch). */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="flex items-center gap-1.5 px-1.5 h-6 rounded-md hover:bg-ink-100/60 dark:hover:bg-white/[0.05] transition cursor-default">
+            <Layers size={13} className="opacity-55" />
+            <span className="mono font-semibold text-toucan-300 tabular-nums">{flowsCount}</span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6} className="text-[11px]">{t("sb.flows")}</TooltipContent>
+      </Tooltip>
+
+      {/* Compact icon indicators — detail on hover. */}
+      <Indicator
+        icon={<ShieldCheck size={13} />}
+        tone={s.caInstalled ? "ok" : "warn"}
+        tooltip={<>{t("sb.ca")}: {s.caInstalled ? t("sb.caTrusted") : t("sb.caNotInstalled")}</>}
+      />
+      <Indicator
+        icon={<Globe size={13} />}
+        tone={s.systemProxyOn ? "ok" : "off"}
+        tooltip={<>{t("sb.sysProxy")}: {s.systemProxyOn ? t("sb.on") : t("sb.off")}</>}
+      />
+      <Indicator
+        icon={<Bot size={13} />}
+        tone={mcp?.enabled ? "ok" : "off"}
+        tooltip={mcp?.enabled ? <>MCP: <span className="text-emerald-400">127.0.0.1:{mcp.port}</span></> : <>MCP: {t("sb.off")}</>}
+      />
 
       <div className="flex-1" />
 
@@ -96,8 +116,8 @@ export default function StatusBar() {
         </button>
       )}
 
-      {/* Tagline — muted, with the brand dot. */}
-      <span className="flex items-center gap-1.5 opacity-45 select-none text-[11px]">
+      {/* Tagline — muted brand flavor. */}
+      <span className="flex items-center gap-1.5 opacity-40 select-none text-[11px]">
         <span className="h-1 w-1 rounded-full bg-toucan-400/70" />
         {t("sb.tagline")}
       </span>
