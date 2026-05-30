@@ -7,7 +7,7 @@ import { t } from "@/lib/i18n";
 import { Accent } from "@/components/Display";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/tucano-proxy-mark.svg";
 
 async function refresh() { useFlows.getState().setStatus(await ipc.status()); }
 

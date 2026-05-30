@@ -60,23 +60,25 @@ export default {
           800: "#03050A",
           900: "#010205",
         },
-        // Slightly richer toucan — same brand identity, more saturated mid
-        // tones so it pops against the deeper ink without losing warmth.
+        // Tucano *Proxy* brand accent — official product color is violet
+        // (#6A57E0, oklch .585/.17/280). The token key stays `toucan` so the
+        // dozens of existing `text-toucan-400` / `bg-toucan-400` usages map to
+        // the brand accent with no per-component churn. One accent at a time,
+        // per the brand ("Reconhecíveis juntos, distintos a sós").
         toucan: {
-          DEFAULT: "#FB8E37",
-          50:  "#FEF1E5",
-          100: "#FDDFC0",
-          200: "#FCC287",
-          300: "#FBA659",
-          400: "#FB8E37",
-          500: "#F47410",
-          600: "#D55D06",
-          700: "#A04606",
-          800: "#6C2F04",
-          900: "#391902",
+          DEFAULT: "#6A57E0",
+          50:  "#EEEBFB",
+          100: "#DAD3F6",
+          200: "#BBADEE",
+          300: "#9583E7",
+          400: "#6A57E0",
+          500: "#5743D4",
+          600: "#4633BE",
+          700: "#392A98",
+          800: "#2B2073",
+          900: "#1F1752",
         },
-        // Companion accent (cool counterweight to toucan). Used sparingly
-        // for active selection states / subtle gradients.
+        // Companion cool accent (selection states / subtle gradients).
         cobalt: {
           400: "#7AA2FF",
           500: "#5B86FF",
@@ -89,14 +91,14 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        // Hanken Grotesk drives UI body + display headings; IBM Plex Mono
-        // stays for data/code; Newsreader italic is the editorial accent.
-        sans: ["Hanken Grotesk", "system-ui", "sans-serif"],
-        mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
+        // Official Tucano brand pairing: Manrope (display + UI), JetBrains Mono
+        // (data/code/labels), Newsreader italic (editorial accent).
+        sans: ["Manrope", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "monospace"],
         accent: ["Newsreader", "ui-serif", "Georgia", "serif"],
       },
       boxShadow: {
-        glow: "0 0 24px -6px rgb(251 142 55 / 0.55)",
+        glow: "0 0 24px -6px rgb(106 87 224 / 0.55)",
         soft: "0 1px 0 rgb(255 255 255 / 0.04) inset, 0 1px 3px rgb(0 0 0 / 0.20)",
         elev: "0 12px 40px -12px rgb(0 0 0 / 0.55), 0 1px 0 rgb(255 255 255 / 0.04) inset",
       },

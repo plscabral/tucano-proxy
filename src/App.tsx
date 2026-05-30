@@ -412,7 +412,7 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="h-full flex flex-col bg-[#FAFAF8] dark:bg-[#080D1B] text-ink-500 dark:text-ink-50">
+      <div className="h-full flex flex-col bg-[#FBFBF8] dark:bg-[#080D1B] text-ink-500 dark:text-ink-50">
         <TopBar onOpenSettings={() => setSettingsOpen(true)} />
         <FilterBar />
         <FlowToolbar count={filtered.length} flows={filtered} onCompare={openCompare} />

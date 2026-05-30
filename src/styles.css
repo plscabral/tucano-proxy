@@ -11,8 +11,8 @@
     --card-foreground: 224 54% 7%;
     --popover: 0 0% 100%;
     --popover-foreground: 224 54% 7%;
-    --primary: 27 96% 60%;
-    --primary-foreground: 26 55% 12%;
+    --primary: 248 70% 61%;
+    --primary-foreground: 252 60% 98%;
     --secondary: 60 10% 93%;
     --secondary-foreground: 224 40% 14%;
     --muted: 60 10% 95%;
@@ -23,7 +23,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 224 16% 88%;
     --input: 224 16% 88%;
-    --ring: 27 96% 55%;
+    --ring: 248 70% 58%;
     --radius: 0.75rem;
   }
 
@@ -35,8 +35,8 @@
     --card-foreground: 230 20% 94%;
     --popover: 224 42% 9%;
     --popover-foreground: 230 20% 94%;
-    --primary: 27 96% 60%;
-    --primary-foreground: 26 55% 12%;
+    --primary: 248 70% 61%;
+    --primary-foreground: 252 60% 98%;
     --secondary: 224 30% 14%;
     --secondary-foreground: 230 18% 90%;
     --muted: 224 30% 13%;
@@ -47,7 +47,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 224 26% 16%;
     --input: 224 26% 16%;
-    --ring: 27 96% 58%;
+    --ring: 248 72% 64%;
   }
 }
 
@@ -62,11 +62,11 @@ html, body, #root {
 }
 
 body {
-  font-family: "Hanken Grotesk", system-ui, sans-serif;
+  font-family: "Manrope", system-ui, sans-serif;
   font-feature-settings: "kern", "liga";
-  /* Warm, paper-like off-white. Panels above use pure white so content
-     surfaces visibly pop against the page tone. */
-  background: #FAFAF8;
+  /* Paper — the brand's warm off-white. Panels above use pure white so
+     content surfaces visibly pop against the page tone. */
+  background: #FBFBF8;
   color: #080D1B;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -80,9 +80,9 @@ html.dark body {
 }
 
 .mono {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
   font-feature-settings: "kern";
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
 }
 
 /* Editorial display accent — Newsreader italic for the "accent word" in
@@ -182,7 +182,7 @@ html.dark .tcn-find-row {
   border: 1px solid rgba(0,0,0,0.08);
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-  font: 12px "Hanken Grotesk", system-ui, sans-serif;
+  font: 12px "Manrope", system-ui, sans-serif;
 }
 html.dark .tcn-find {
   background: rgba(15,24,46,0.6);
@@ -218,7 +218,7 @@ html.dark .tcn-find-input {
   border-color: rgba(255,255,255,0.12);
   background: rgba(255,255,255,0.04);
 }
-.tcn-find-input:focus { border-color: #FB923C; background: transparent; }
+.tcn-find-input:focus { border-color: #6A57E0; background: transparent; }
 .tcn-find-count {
   font: 11px "IBM Plex Mono", ui-monospace, monospace;
   opacity: 0.55;
