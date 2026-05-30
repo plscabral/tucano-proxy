@@ -277,15 +277,7 @@ export default function App() {
       }
       if (meta && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        const rs = useRules.getState();
-        if (rs.list.length === 0) {
-          const { newRule } = await import("@/lib/rules");
-          rs.add(newRule());
-        }
-        setTimeout(() => {
-          const inputs = document.querySelectorAll<HTMLInputElement>("[data-filter-input]");
-          inputs[inputs.length - 1]?.focus();
-        }, 0);
+        window.dispatchEvent(new Event("tucano:open-filters"));
       } else if (meta && e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         const list = useRules.getState().list;
