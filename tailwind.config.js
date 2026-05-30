@@ -1,3 +1,5 @@
+import tailwindcssAnimate from "tailwindcss-animate";
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: "class",
@@ -5,6 +7,43 @@ export default {
   theme: {
     extend: {
       colors: {
+        // --- shadcn semantic tokens (driven by CSS vars in styles.css) ---
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+
+        // --- Tucano brand palettes (kept verbatim — components reference
+        // text-ink-500, bg-toucan-400, etc. directly) ---
         // Deeper, warmer ink palette — slight blue-purple tilt at the
         // darkest end so the dark mode reads as cinematic instead of flat
         // navy. Lighter shades stay neutral so text remains crisp.
@@ -44,9 +83,17 @@ export default {
           600: "#3D6BE6",
         },
       },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
       fontFamily: {
-        sans: ["IBM Plex Sans", "system-ui", "sans-serif"],
+        // Hanken Grotesk drives UI body + display headings; IBM Plex Mono
+        // stays for data/code; Newsreader italic is the editorial accent.
+        sans: ["Hanken Grotesk", "system-ui", "sans-serif"],
         mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
+        accent: ["Newsreader", "ui-serif", "Georgia", "serif"],
       },
       boxShadow: {
         glow: "0 0 24px -6px rgb(251 142 55 / 0.55)",
@@ -56,7 +103,21 @@ export default {
       backdropBlur: {
         xs: "2px",
       },
+      keyframes: {
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
     },
   },
-  plugins: [],
+  plugins: [tailwindcssAnimate],
 };

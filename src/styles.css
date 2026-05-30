@@ -2,6 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    /* shadcn tokens — light. Warm off-white surfaces, toucan as primary. */
+    --background: 60 13% 98%;
+    --foreground: 224 54% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 54% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 54% 7%;
+    --primary: 27 96% 60%;
+    --primary-foreground: 26 55% 12%;
+    --secondary: 60 10% 93%;
+    --secondary-foreground: 224 40% 14%;
+    --muted: 60 10% 95%;
+    --muted-foreground: 224 10% 40%;
+    --accent: 60 12% 93%;
+    --accent-foreground: 224 40% 14%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 16% 88%;
+    --input: 224 16% 88%;
+    --ring: 27 96% 55%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* shadcn tokens — dark. Deep blue-black canvas matching the brand. */
+    --background: 224 54% 7%;
+    --foreground: 230 20% 94%;
+    --card: 224 48% 8%;
+    --card-foreground: 230 20% 94%;
+    --popover: 224 42% 9%;
+    --popover-foreground: 230 20% 94%;
+    --primary: 27 96% 60%;
+    --primary-foreground: 26 55% 12%;
+    --secondary: 224 30% 14%;
+    --secondary-foreground: 230 18% 90%;
+    --muted: 224 30% 13%;
+    --muted-foreground: 230 12% 64%;
+    --accent: 224 30% 16%;
+    --accent-foreground: 230 18% 90%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 26% 16%;
+    --input: 224 26% 16%;
+    --ring: 27 96% 58%;
+  }
+}
 
 :root {
   --ink: #080D1B;
@@ -14,7 +62,7 @@ html, body, #root {
 }
 
 body {
-  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-family: "Hanken Grotesk", system-ui, sans-serif;
   font-feature-settings: "kern", "liga";
   /* Warm, paper-like off-white. Panels above use pure white so content
      surfaces visibly pop against the page tone. */
@@ -35,6 +83,13 @@ html.dark body {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-feature-settings: "kern";
   letter-spacing: -0.005em;
+}
+
+/* Editorial display accent — Newsreader italic for the "accent word" in
+   display headings (e.g. brand wordmark, onboarding, empty states). */
+.font-accent {
+  font-family: "Newsreader", ui-serif, Georgia, serif;
+  font-style: italic;
 }
 
 /* Reusable glass surface — frosted card / overlay base. */
@@ -127,7 +182,7 @@ html.dark .tcn-find-row {
   border: 1px solid rgba(0,0,0,0.08);
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-  font: 12px Manrope, system-ui, sans-serif;
+  font: 12px "Hanken Grotesk", system-ui, sans-serif;
 }
 html.dark .tcn-find {
   background: rgba(15,24,46,0.6);
@@ -155,7 +210,7 @@ html.dark .tcn-find {
   border: 1px solid rgba(0,0,0,0.12);
   background: rgba(0,0,0,0.03);
   color: inherit;
-  font: 12px "JetBrains Mono", ui-monospace, monospace;
+  font: 12px "IBM Plex Mono", ui-monospace, monospace;
   outline: none;
   transition: border-color .12s, background .12s;
 }
@@ -165,7 +220,7 @@ html.dark .tcn-find-input {
 }
 .tcn-find-input:focus { border-color: #FB923C; background: transparent; }
 .tcn-find-count {
-  font: 11px "JetBrains Mono", ui-monospace, monospace;
+  font: 11px "IBM Plex Mono", ui-monospace, monospace;
   opacity: 0.55;
   white-space: nowrap;
   padding: 0 2px;
@@ -184,4 +239,3 @@ html.dark .tcn-find-input {
   transition: opacity .12s, background .12s;
 }
 .tcn-find-btn:hover { opacity: 1; background: rgba(127,127,127,0.12); }
-
