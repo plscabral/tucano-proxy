@@ -1,6 +1,6 @@
 # Tucano Proxy
 
-Open source HTTP/HTTPS debugging proxy — desktop app built with Tauri 2 + SolidJS.
+Open source HTTP/HTTPS debugging proxy — desktop app built with Tauri 2 + React.
 Free alternative to Fiddler Classic / Proxyman, running natively on macOS (Apple Silicon + Intel) and Windows.
 
 <p align="center">
@@ -32,8 +32,8 @@ Free alternative to Fiddler Classic / Proxyman, running natively on macOS (Apple
 
 **App**
 
-- Dark / Light theme — palette `#0C142E` ink, `#F99245` toucan accent
-- Localized in English, Português (BR/PT) and Español
+- Dark / Light theme — violet brand accent (`#6A57E0`) on a deep `#0F1014` canvas
+- Localized in English, Português (Brasil) and Español
 - Inspector layout: right pane, bottom pane, or hidden
 - In-app auto-updater (signed releases via GitHub)
 
@@ -68,9 +68,9 @@ The app is currently **not code-signed**, so the OS will warn you the first time
 | Shell    | Tauri 2 (Rust) |
 | Proxy    | hudsucker (hyper + rustls), rcgen |
 | Storage  | SQLite (rusqlite, bundled) |
-| UI       | SolidJS + Vite + TailwindCSS |
+| UI       | React + Vite + Tailwind CSS (shadcn/ui) |
 | Editors  | CodeMirror 6 |
-| Virtual  | @tanstack/solid-virtual |
+| Virtual  | @tanstack/react-virtual |
 
 ## Getting started
 
