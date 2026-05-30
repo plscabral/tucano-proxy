@@ -57,6 +57,12 @@ export default function StatusBar() {
       className="h-9 px-5 flex items-center gap-2.5 text-[11px] tcn-glass text-foreground/70 dark:text-ink-100 border-t border-ink-100/60 dark:border-white/[0.07] relative
         before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/[0.08] before:to-transparent before:pointer-events-none"
     >
+      {/* Tagline — centered in the footer, behind the left/right clusters. */}
+      <span className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 opacity-40 select-none text-[11px] pointer-events-none">
+        <span className="h-1 w-1 rounded-full bg-toucan-400/70" />
+        {t("sb.tagline")}
+      </span>
+
       {/* Live proxy endpoint — the one detail worth keeping always visible. */}
       <span
         className={`flex items-center gap-2 mono font-medium h-[22px] px-2.5 rounded-lg transition-colors
