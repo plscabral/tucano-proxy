@@ -1,79 +1,88 @@
-import { Sun, Moon, Monitor, Settings as Cog, Play, Pause, Loader2 } from "lucide-solid";
-import { createSignal } from "solid-js";
-import { flowsStore } from "../stores/flows";
-import { ipc } from "../lib/ipc";
-import { themeMode, toggleTheme } from "../stores/theme";
-import { t } from "../lib/i18n";
-import logo from "../assets/logo.png";
+import { useState } from "react";
+import { Sun, Moon, Monitor, Settings as Cog, Play, Pause, Loader2 } from "lucide-react";
+import { useFlows } from "@/stores/flows";
+import { ipc } from "@/lib/ipc";
+import { useTheme, toggleTheme } from "@/stores/theme";
+import { t } from "@/lib/i18n";
+import { Accent } from "@/components/Display";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import logo from "@/assets/logo.png";
 
-async function refresh() { flowsStore.setStatus(await ipc.status()); }
+async function refresh() { useFlows.getState().setStatus(await ipc.status()); }
 
-export default function TopBar(props: { onOpenSettings: () => void }) {
-  const s = flowsStore.status;
-  const [busy, setBusy] = createSignal(false);
-  const toggle = async (e: MouseEvent) => {
-    // Drop focus so a follow-up Space key doesn't double-toggle (the
-    // browser would re-fire click on the focused button AND the global
-    // Space shortcut would also run).
-    (e.currentTarget as HTMLButtonElement)?.blur();
-    if (busy()) return;
+export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const running = useFlows((s) => s.status.running);
+  const port = useFlows((s) => s.status.port);
+  const mode = useTheme((s) => s.mode);
+  const [busy, setBusy] = useState(false);
+
+  const toggle = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    // Drop focus so a follow-up Space key doesn't double-toggle.
+    e.currentTarget.blur();
+    if (busy) return;
     setBusy(true);
     try {
-      if (s().running) await ipc.stopCapture(); else await ipc.startCapture(s().port);
+      if (running) await ipc.stopCapture(); else await ipc.startCapture(port);
       await refresh();
     } finally {
       setBusy(false);
     }
   };
 
-  // Inline JSX expression so Solid re-evaluates the icon when `themeMode()`
-  // changes — wrapping the conditional in a regular function (`<ThemeIcon/>`)
-  // would cache the first result and never update the icon.
-  const themeIcon = () => {
-    const m = themeMode();
-    if (m === "dark") return <Moon size={15} />;
-    if (m === "light") return <Sun size={15} />;
-    return <Monitor size={15} />;
-  };
+  const themeIcon = mode === "dark" ? <Moon size={15} /> : mode === "light" ? <Sun size={15} /> : <Monitor size={15} />;
 
   return (
-    <header class="h-14 px-5 flex items-center gap-3 tcn-glass border-b border-ink-100/40 dark:border-white/[0.06] relative">
-      <img src={logo} alt="Tucano Proxy" class="h-9 w-9 object-contain shrink-0" />
-      <div class="font-semibold text-[15px] tracking-tight">Tucano <span class="opacity-60">Proxy</span></div>
-      <span class="text-[10px] uppercase tracking-[0.22em] text-toucan-400 mt-0.5 font-medium">v0.1</span>
+    <header className="h-14 px-5 flex items-center gap-3 tcn-glass border-b border-ink-100/40 dark:border-white/[0.06] relative">
+      <img src={logo} alt="Tucano Proxy" className="h-9 w-9 object-contain shrink-0" />
+      <div className="text-[17px] leading-none">
+        <span className="font-extrabold tracking-tight">Tucano</span>{" "}
+        <Accent className="text-[18px] opacity-90">Proxy</Accent>
+      </div>
+      <span className="text-[10px] uppercase tracking-[0.22em] text-toucan-400 mt-0.5 font-semibold">v0.1</span>
 
-      <div class="flex-1" />
+      <div className="flex-1" />
 
-      <button
-        onClick={toggle}
-        disabled={busy()}
-        title={busy()
-          ? t("topbar.busyTitle")
-          : s().running ? t("topbar.stopTitle") : t("topbar.startTitle")}
-        class={`h-9 w-9 grid place-items-center rounded-xl transition
-          ${busy() ? "opacity-60 cursor-not-allowed" : ""}
-          ${s().running
-            ? "text-red-500 hover:bg-red-500/10 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.15)]"
-            : "text-emerald-500 hover:bg-emerald-500/10 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)]"}`}
-      >
-        {busy()
-          ? <Loader2 size={15} class="animate-spin" />
-          : s().running
-            ? <Pause size={15} fill="currentColor" />
-            : <Play size={15} fill="currentColor" />}
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={toggle}
+            disabled={busy}
+            className={`h-9 w-9 grid place-items-center rounded-xl transition
+              ${busy ? "opacity-60 cursor-not-allowed" : ""}
+              ${running
+                ? "text-red-500 hover:bg-red-500/10 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.15)]"
+                : "text-emerald-500 hover:bg-emerald-500/10 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)]"}`}
+          >
+            {busy
+              ? <Loader2 size={15} className="animate-spin" />
+              : running
+                ? <Pause size={15} fill="currentColor" />
+                : <Play size={15} fill="currentColor" />}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {busy ? t("topbar.busyTitle") : running ? t("topbar.stopTitle") : t("topbar.startTitle")}
+        </TooltipContent>
+      </Tooltip>
 
-      <button
-        onClick={toggleTheme}
-        class="h-9 w-9 grid place-items-center rounded-xl opacity-70 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-ink-400/20 transition"
-        title={t("topbar.toggleTheme")}
-      >{themeIcon()}</button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-9 w-9 rounded-xl opacity-70 hover:opacity-100">
+            {themeIcon}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t("topbar.toggleTheme")}</TooltipContent>
+      </Tooltip>
 
-      <button
-        onClick={props.onOpenSettings}
-        class="h-9 w-9 grid place-items-center rounded-xl opacity-70 hover:opacity-100 hover:bg-ink-50 dark:hover:bg-ink-400/20 transition"
-        title={t("topbar.settings")}
-      ><Cog size={15} /></button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" onClick={onOpenSettings} className="h-9 w-9 rounded-xl opacity-70 hover:opacity-100">
+            <Cog size={15} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t("topbar.settings")}</TooltipContent>
+      </Tooltip>
     </header>
   );
 }
