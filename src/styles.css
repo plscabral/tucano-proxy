@@ -50,6 +50,13 @@
     --input: 240 5% 14%;
     --ring: 248 72% 66%;
   }
+
+  /* Default every bare `border` utility to the brand border token instead of
+     currentColor (which renders as a harsh white/near-white edge). Standard
+     shadcn base rule. Explicit border-* colors still override this. */
+  * {
+    border-color: hsl(var(--border));
+  }
 }
 
 :root {

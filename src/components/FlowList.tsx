@@ -588,27 +588,22 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
               Tucano <Accent className="text-[37px]">Proxy</Accent>
             </Display>
 
-            {/* Status pill + helper line. */}
-            <div className="flex flex-col items-center gap-2.5 -mt-1">
-              <div
-                className={`inline-flex items-center gap-2 h-7 pl-2.5 pr-3 rounded-full text-xs font-semibold ring-1 ring-inset transition-colors
-                  ${running
-                    ? "tcn-accent-soft text-toucan-500 dark:text-toucan-300 ring-toucan-400/25"
-                    : "bg-ink-100/60 dark:bg-white/[0.04] text-foreground/70 dark:text-ink-200/80 ring-ink-200/50 dark:ring-white/10"}`}
-              >
-                <span className="relative grid place-items-center h-1.5 w-1.5">
-                  {running && <span className="absolute inset-0 rounded-full bg-toucan-400/70 animate-ping" />}
-                  <span className={`relative h-1.5 w-1.5 rounded-full ${running ? "bg-toucan-400" : "bg-ink-300/70 dark:bg-ink-200/50"}`} />
-                </span>
-                {running ? t("list.emptyTitle") : t("list.emptyTitleOff")}
-              </div>
-              <p className="text-xs opacity-55 leading-relaxed max-w-[18rem]">
-                {running ? t("list.empty", { port }) : t("list.emptyOff")}
-              </p>
+            {/* Status pill — the only status line (kept short). */}
+            <div
+              className={`inline-flex items-center gap-2 h-7 pl-2.5 pr-3 -mt-1 rounded-full text-xs font-semibold ring-1 ring-inset transition-colors
+                ${running
+                  ? "tcn-accent-soft text-toucan-500 dark:text-toucan-300 ring-toucan-400/25"
+                  : "bg-ink-100/60 dark:bg-white/[0.04] text-foreground/70 dark:text-ink-200/80 ring-ink-200/50 dark:ring-white/10"}`}
+            >
+              <span className="relative grid place-items-center h-1.5 w-1.5">
+                {running && <span className="absolute inset-0 rounded-full bg-toucan-400/70 animate-ping" />}
+                <span className={`relative h-1.5 w-1.5 rounded-full ${running ? "bg-toucan-400" : "bg-ink-300/70 dark:bg-ink-200/50"}`} />
+              </span>
+              {running ? t("list.emptyTitle") : t("list.emptyTitleOff")}
             </div>
 
-            {/* Keyboard hint. */}
-            <div className="flex items-center gap-2 text-[11px] opacity-50 mt-1">
+            {/* One subtle keyboard hint — press Space to toggle. */}
+            <div className="flex items-center gap-2 text-[11px] opacity-45 mt-1">
               <kbd className="mono px-1.5 py-0.5 rounded-md bg-ink-100/70 dark:bg-white/[0.06] border border-ink-200/60 dark:border-white/10 text-[10px]">Space</kbd>
               <span>{running ? t("topbar.stopTitle") : t("topbar.startTitle")}</span>
             </div>

@@ -124,8 +124,8 @@ export default function FiltersDialog({ open, onOpenChange }: { open: boolean; o
             )}
             <button
               onClick={() => onOpenChange(false)}
-              className="h-9 px-5 text-xs rounded-xl tcn-accent tcn-accent-glow font-semibold transition hover:brightness-110"
-            >{t("ob.finish") /* "Done" */}</button>
+              className="h-9 px-5 text-xs rounded-xl tcn-accent tcn-accent-glow font-semibold transition hover:brightness-110 flex items-center gap-1.5"
+            ><Check size={14} strokeWidth={2.5} /> {t("find.close")}</button>
           </div>
         </DialogFooter>
       </DialogContent>

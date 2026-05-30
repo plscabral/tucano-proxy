@@ -84,23 +84,6 @@ export default function StatusBar() {
         <TooltipContent side="top" sideOffset={6} className="text-[11px]">{t("sb.flows")}</TooltipContent>
       </Tooltip>
 
-      {/* Compact icon indicators — detail on hover. */}
-      <Indicator
-        icon={<ShieldCheck size={13} />}
-        tone={s.caInstalled ? "ok" : "warn"}
-        tooltip={<>{t("sb.ca")}: {s.caInstalled ? t("sb.caTrusted") : t("sb.caNotInstalled")}</>}
-      />
-      <Indicator
-        icon={<Globe size={13} />}
-        tone={s.systemProxyOn ? "ok" : "off"}
-        tooltip={<>{t("sb.sysProxy")}: {s.systemProxyOn ? t("sb.on") : t("sb.off")}</>}
-      />
-      <Indicator
-        icon={<Bot size={13} />}
-        tone={mcp?.enabled ? "ok" : "off"}
-        tooltip={mcp?.enabled ? <>MCP: <span className="text-emerald-400">127.0.0.1:{mcp.port}</span></> : <>MCP: {t("sb.off")}</>}
-      />
-
       <div className="flex-1" />
 
       {uState === "downloading" && (
@@ -116,11 +99,22 @@ export default function StatusBar() {
         </button>
       )}
 
-      {/* Tagline — muted brand flavor. */}
-      <span className="flex items-center gap-1.5 opacity-40 select-none text-[11px]">
-        <span className="h-1 w-1 rounded-full bg-toucan-400/70" />
-        {t("sb.tagline")}
-      </span>
+      {/* Compact status indicators — pushed to the right. Detail on hover. */}
+      <Indicator
+        icon={<ShieldCheck size={13} />}
+        tone={s.caInstalled ? "ok" : "warn"}
+        tooltip={<>{t("sb.ca")}: {s.caInstalled ? t("sb.caTrusted") : t("sb.caNotInstalled")}</>}
+      />
+      <Indicator
+        icon={<Globe size={13} />}
+        tone={s.systemProxyOn ? "ok" : "off"}
+        tooltip={<>{t("sb.sysProxy")}: {s.systemProxyOn ? t("sb.on") : t("sb.off")}</>}
+      />
+      <Indicator
+        icon={<Bot size={13} />}
+        tone={mcp?.enabled ? "ok" : "off"}
+        tooltip={mcp?.enabled ? <>MCP: <span className="text-emerald-400">127.0.0.1:{mcp.port}</span></> : <>MCP: {t("sb.off")}</>}
+      />
     </footer>
   );
 }

@@ -53,8 +53,8 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
     <header
       onMouseDown={onBarMouseDown}
       onDoubleClick={onBarDoubleClick}
-      style={{ paddingLeft: IS_MAC ? 96 : 20 }}
-      className="h-14 pr-4 flex items-center gap-2.5 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
+      style={{ paddingLeft: IS_MAC ? 96 : 20, paddingTop: IS_MAC ? 6 : 0 }}
+      className="h-16 pr-4 flex items-center gap-2.5 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
         after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-toucan-400/30 after:via-transparent after:to-transparent after:pointer-events-none"
     >
       <img src={logo} alt="Tucano Proxy" className="h-9 w-9 object-contain shrink-0" />

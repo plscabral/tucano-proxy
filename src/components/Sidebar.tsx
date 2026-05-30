@@ -88,7 +88,7 @@ export default function Sidebar() {
       </div>
 
       <div className="flex-1 overflow-auto py-1">
-        <Section icon={<AppWindow size={12} className="text-sky-400" />} label={t("sidebar.apps")} count={groups.apps.length} storeKey="apps" accent="text-sky-400">
+        <Section icon={<AppWindow size={12} className="text-muted-foreground" />} label={t("sidebar.apps")} count={groups.apps.length} storeKey="apps">
           {groups.apps.map((a) => (
             <Row
               key={a.name}
@@ -102,7 +102,7 @@ export default function Sidebar() {
           ))}
         </Section>
 
-        <Section icon={<Globe size={12} className="text-emerald-400" />} label={t("sidebar.domains")} count={groups.domains.length} storeKey="domains" accent="text-emerald-400">
+        <Section icon={<Globe size={12} className="text-muted-foreground" />} label={t("sidebar.domains")} count={groups.domains.length} storeKey="domains">
           {groups.domains.map((d) => (
             <Row
               key={d.host}
@@ -116,7 +116,7 @@ export default function Sidebar() {
           ))}
         </Section>
 
-        <Section icon={<Layers size={12} className="text-amber-400" />} label={t("sidebar.types")} count={groups.cats.length} storeKey="cats" accent="text-amber-400">
+        <Section icon={<Layers size={12} className="text-muted-foreground" />} label={t("sidebar.types")} count={groups.cats.length} storeKey="cats">
           {groups.cats.map((c) => (
             <Row
               key={c.id}
