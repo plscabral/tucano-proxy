@@ -72,7 +72,8 @@
 
 :root {
   --ink: #080D1B;
-  --toucan: #FB8E37;
+  /* Brand accent — violet since v0.2 (was #FB8E37 orange pre-rebrand). */
+  --toucan: #6A57E0;
 }
 
 html, body, #root {
@@ -95,6 +96,22 @@ html.dark body {
   /* Brand "canvas" tone — a deep, slightly-cool near-black. */
   background: var(--tcn-canvas);
   color: #EDEEF3;
+}
+
+/* Native number-input spinner arrows render dark-on-dark in WebKit; opting the
+   control into the dark color-scheme makes the browser draw light arrows. */
+html.dark input[type="number"] {
+  color-scheme: dark;
+}
+
+/* Text selection — brand violet everywhere (plain inputs/textareas would
+   otherwise fall back to the OS accent, which is blue on macOS). CodeMirror
+   sets its own matching tint in cmTheme.ts. */
+::selection {
+  background: rgba(106, 87, 224, 0.28);
+}
+::-moz-selection {
+  background: rgba(106, 87, 224, 0.28);
 }
 
 /* Faint engineering-grid texture — the brand's "graph paper" ornament. Sits

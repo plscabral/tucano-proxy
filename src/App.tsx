@@ -380,19 +380,15 @@ export default function App() {
     useLayout.getState().setBottomPct(Math.max(15, Math.min(85, pct)));
   };
 
-  const showSide = selected || composerOpen;
+  // Composer is a standalone modal dialog (rendered below), so the split
+  // panel only ever hosts the Inspector.
+  const showSide = !!selected;
   const panel = (
-    <>
-      {composerOpen ? (
-        <Composer onClose={() => setComposerOpen(false)} initialFlow={composerFlow} />
-      ) : (
-        <Inspector
-          flow={selected}
-          onClose={() => { setOpenedFlowId(null); useFlows.getState().clearSelection(); }}
-          onComposer={openComposer}
-        />
-      )}
-    </>
+    <Inspector
+      flow={selected}
+      onClose={() => { setOpenedFlowId(null); useFlows.getState().clearSelection(); }}
+      onComposer={openComposer}
+    />
   );
   const list = (
     <FlowList
@@ -463,18 +459,8 @@ export default function App() {
         <StatusBar />
         <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-        {composerOpen && pos === "hidden" && (
-          <div
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm grid place-items-center"
-            onClick={() => setComposerOpen(false)}
-          >
-            <div
-              className="w-[800px] max-w-[95vw] h-[600px] max-h-[90vh] rounded-2xl overflow-hidden border border-ink-100 dark:border-ink-400/40 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Composer onClose={() => setComposerOpen(false)} initialFlow={composerFlow} />
-            </div>
-          </div>
+        {composerOpen && (
+          <Composer onClose={() => setComposerOpen(false)} initialFlow={composerFlow} />
         )}
 
         {onboardingOpen && <Onboarding onClose={() => setOnboardingOpen(false)} />}

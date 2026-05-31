@@ -307,7 +307,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                       <div className="text-[10px] opacity-50 mt-1">{t("set.sslWildcard")}</div>
                     </div>
                   )}
-                  <button onClick={saveSsl} className={`h-9 px-4 text-xs rounded-xl font-medium transition ${sslSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>
+                  <button onClick={saveSsl} className={`self-start h-9 px-5 text-xs rounded-xl font-medium transition ${sslSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>
                     {sslSaved ? t("set.sslSaved") : t("set.sslSave")}
                   </button>
                 </Section>
@@ -345,7 +345,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                       <button onClick={rotateMcpToken} className="h-9 px-3 text-xs rounded-xl border border-red-500/40 text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"><RotateCw size={13} /> {t("set.mcp.rotate")}</button>
                     </div>
                   </div>
-                  <button onClick={saveMcp} className={`h-9 px-4 text-xs rounded-xl font-medium transition ${mcpSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>{mcpSaved ? t("set.mcp.saved") : t("set.mcp.save")}</button>
+                  <button onClick={saveMcp} className={`self-start h-9 px-5 text-xs rounded-xl font-medium transition ${mcpSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>{mcpSaved ? t("set.mcp.saved") : t("set.mcp.save")}</button>
                 </Section>
 
                 <Section icon={<Plug size={14} />} title={t("set.mcp.installTitle")}>

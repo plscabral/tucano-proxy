@@ -215,7 +215,7 @@ export default function FormViewer({ body, encoding, contentType }: {
                         {openRow === i && (
                           <>
                             <div className="fixed inset-0 z-30" onClick={() => setOpenRow(null)} />
-                            <div className="absolute z-40 right-0 top-7 min-w-[160px] bg-white dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 rounded-xl shadow-xl py-1">
+                            <div className="absolute z-40 right-0 top-7 min-w-[160px] bg-white dark:bg-[var(--tcn-canvas)] border border-ink-100 dark:border-ink-400/40 rounded-xl shadow-xl py-1">
                               <button onClick={() => copy(kId, p.name)} className={item}>
                                 {copied === kId ? <Check size={11} /> : <Copy size={11} />} Copy key
                               </button>

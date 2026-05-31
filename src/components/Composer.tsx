@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Play, Clock, X, ChevronDown } from "lucide-react";
+import { Play, Clock, X, ChevronDown, Terminal, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { ipc } from "@/lib/ipc";
 import type { Flow } from "@/lib/types";
 import BodyView from "./BodyView";
@@ -28,7 +28,6 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
   const [url, setUrl] = useState(initialFlow ? buildUrl(initialFlow) : "https://");
   const [headersRaw, setHeadersRaw] = useState(initialFlow ? headersToRaw(initialFlow.reqHeaders) : "User-Agent: Tucano Composer\nAccept: */*");
   const [bodyText, setBodyText] = useState(initialFlow?.reqBody ?? "");
-  const [tab, setTab] = useState<"parsed" | "raw">("parsed");
   const [log, setLog] = useState(true);
   const [executing, setExecuting] = useState(false);
   const [response, setResponse] = useState<Flow | null>(null);
@@ -65,84 +64,80 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
   };
 
   const btnCls = (active: boolean) =>
-    `px-2.5 h-7 text-[11px] rounded-md transition ${active ? "bg-toucan-400/15 text-toucan-400 font-medium" : "opacity-65 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20"}`;
+    `px-2.5 h-7 text-[11px] rounded-md transition ${active ? "bg-toucan-400/15 text-toucan-400 font-medium" : "opacity-65 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-white/[0.06]"}`;
+
+  const status = response?.status ?? 0;
+  const statusColor = status >= 400 ? "text-red-400" : status >= 300 ? "text-cyan-300" : "text-emerald-400";
 
   return (
-    <div data-inspector="true" className="h-full flex flex-col bg-[var(--tcn-canvas)] text-ink-500 dark:text-ink-50">
-      <div className="flex items-center gap-2 px-4 h-11 border-b border-ink-100 dark:border-ink-400/30 bg-[var(--tcn-canvas)] shrink-0">
-        <span className="text-xs font-semibold text-toucan-400 uppercase tracking-wider">Composer</span>
-        <div className="flex-1" />
-        <label className="flex items-center gap-1.5 text-xs opacity-70 hover:opacity-100 cursor-pointer">
-          <input type="checkbox" checked={log} onChange={(e) => setLog(e.currentTarget.checked)} />
-          Log requests
-        </label>
-        <button onClick={onClose} className="h-7 w-7 grid place-items-center rounded-lg opacity-60 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-ink-400/20 transition">
-          <X size={13} />
-        </button>
-      </div>
-
-      <div className="flex flex-1 min-h-0">
-        <div className="flex-1 flex flex-col min-h-0 min-w-0">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
-            <div className="relative">
-              <select
-                value={method}
-                onChange={(e) => setMethod(e.currentTarget.value)}
-                className="appearance-none h-8 pl-3 pr-7 text-xs mono font-semibold rounded-lg bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 hover:border-toucan-400/60 outline-none cursor-pointer"
-              >
-                {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-              <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div
+        data-inspector="true"
+        onClick={(e) => e.stopPropagation()}
+        className="w-[1140px] max-w-[95vw] h-[760px] max-h-[92vh] flex flex-col rounded-2xl bg-white dark:bg-[var(--tcn-canvas)] text-ink-500 dark:text-ink-50 border border-ink-100 dark:border-white/10 shadow-2xl overflow-hidden"
+      >
+        {/* Header — branded, matches Settings */}
+        <div className="relative shrink-0 border-b border-ink-100 dark:border-white/10 overflow-hidden">
+          <div className="absolute inset-0 tcn-grid opacity-50 pointer-events-none" />
+          <div className="absolute inset-0 tcn-glow-radial pointer-events-none" />
+          <div className="relative flex items-center gap-3 px-5 h-16">
+            <div className="w-9 h-9 grid place-items-center rounded-xl tcn-sheen ring-1 ring-inset ring-ink-200/50 dark:ring-white/10 shadow-soft">
+              <Terminal size={18} className="text-toucan-400" />
             </div>
-            <input
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.currentTarget.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") execute(); }}
-              placeholder="https://api.example.com/endpoint"
-              className="flex-1 h-8 px-3 mono text-xs rounded-lg bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
-            />
-            <button
-              onClick={execute}
-              disabled={executing}
-              className="h-8 px-4 text-xs font-semibold rounded-lg bg-toucan-400 text-white hover:bg-toucan-300 disabled:opacity-50 flex items-center gap-1.5 transition shrink-0"
+            <div className="leading-none">
+              <div className="font-bold tracking-tight text-base">Composer</div>
+              <div className="text-[11px] opacity-50 mt-1.5">Build, send and inspect a request</div>
+            </div>
+            <div className="flex-1" />
+            <label className="flex items-center gap-1.5 text-xs opacity-70 hover:opacity-100 cursor-pointer">
+              <input type="checkbox" checked={log} onChange={(e) => setLog(e.currentTarget.checked)} className="accent-toucan-400" />
+              Log requests
+            </label>
+            <button onClick={onClose} className="h-8 w-8 grid place-items-center rounded-lg opacity-70 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-white/10 transition"><X size={18} /></button>
+          </div>
+        </div>
+
+        {/* URL bar */}
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-ink-100 dark:border-white/10 shrink-0">
+          <div className="relative shrink-0">
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.currentTarget.value)}
+              className="appearance-none h-9 pl-3.5 pr-8 text-xs mono font-semibold rounded-xl bg-transparent border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 outline-none cursor-pointer"
             >
-              <Play size={12} className={executing ? "animate-pulse" : ""} />
-              {executing ? "Sending…" : "Execute"}
-            </button>
+              {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
           </div>
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") execute(); }}
+            placeholder="https://api.example.com/endpoint"
+            className="flex-1 h-9 px-3.5 mono text-xs rounded-xl bg-transparent border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
+          />
+          <button
+            onClick={execute}
+            disabled={executing}
+            className="h-9 px-5 text-xs font-semibold rounded-xl tcn-accent tcn-accent-glow disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+          >
+            <Play size={12} className={executing ? "animate-pulse" : ""} />
+            {executing ? "Sending…" : "Execute"}
+          </button>
+        </div>
 
-          <div className="flex items-center gap-1 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-[var(--tcn-canvas)] shrink-0">
-            <button className={btnCls(tab === "parsed")} onClick={() => setTab("parsed")}>Parsed</button>
-            <button className={btnCls(tab === "raw")} onClick={() => setTab("raw")}>Raw</button>
-          </div>
-
-          {tab === "parsed" && (
-            <div className="flex flex-col flex-1 min-h-0 divide-y divide-ink-100 dark:divide-ink-400/20">
-              <div className="flex flex-col" style={{ maxHeight: "40%" }}>
-                <div className="px-3 py-1 text-[10px] uppercase tracking-wider opacity-50 shrink-0">Request Headers</div>
-                <textarea
-                  value={headersRaw}
-                  onChange={(e) => setHeadersRaw(e.currentTarget.value)}
-                  placeholder={"Content-Type: application/json\nAuthorization: Bearer token"}
-                  className="flex-1 px-3 py-2 mono text-xs bg-[var(--tcn-canvas)] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
-                />
-              </div>
-              <div className="flex flex-col flex-1 min-h-0">
-                <div className="px-3 py-1 text-[10px] uppercase tracking-wider opacity-50 shrink-0">Request Body</div>
-                <textarea
-                  value={bodyText}
-                  onChange={(e) => setBodyText(e.currentTarget.value)}
-                  placeholder={'{"key": "value"}'}
-                  className="flex-1 px-3 py-2 mono text-xs bg-[var(--tcn-canvas)] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
-                />
-              </div>
+        {/* Body — three clear regions: Request | Response | History */}
+        <div className="flex flex-1 min-h-0">
+          {/* REQUEST */}
+          <section className="flex flex-col flex-1 min-w-0 border-r border-ink-100 dark:border-white/10">
+            <div className="flex items-center gap-2 px-4 h-9 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
+              <ArrowUpRight size={13} className="text-toucan-400" />
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-toucan-400">Request</span>
             </div>
-          )}
 
-          {tab === "raw" && (
             <div className="flex flex-col flex-1 min-h-0">
-              <div className="px-3 py-1 text-[10px] uppercase tracking-wider opacity-50 shrink-0">Raw HTTP Request</div>
+              <div className="px-4 pt-2.5 pb-1 text-[10px] uppercase tracking-wider opacity-50 shrink-0">Raw HTTP request</div>
               <textarea
                 value={`${method} ${url.replace(/^https?:\/\/[^/]+/, "") || "/"} HTTP/1.1\n${headersRaw}\n\n${bodyText}`}
                 onChange={(e) => {
@@ -154,51 +149,69 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
                   setHeadersRaw(headerLines);
                   if (emptyLine > 0) setBodyText(lines.slice(emptyLine + 1).join("\n"));
                 }}
-                className="flex-1 px-3 py-2 mono text-xs bg-[var(--tcn-canvas)] resize-none outline-none focus:bg-white dark:focus:bg-ink-500 transition"
+                spellCheck={false}
+                className="flex-1 min-h-0 px-4 pb-3 mono text-xs bg-transparent resize-none outline-none scroll-thin"
               />
             </div>
-          )}
+          </section>
 
-          {(response || error) && (
-            <div className="border-t-2 border-toucan-400/30 flex flex-col min-h-0" style={{ height: "45%" }}>
-              {error && <div className="p-3 text-xs text-red-400 mono">{error}</div>}
+          {/* RESPONSE */}
+          <section className="flex flex-col flex-1 min-w-0 border-r border-ink-100 dark:border-white/10">
+            <div className="flex items-center gap-2 px-4 h-9 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
+              <ArrowDownLeft size={13} className="text-toucan-400" />
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-toucan-400">Response</span>
+              <div className="flex-1" />
               {response && (
                 <>
-                  <div className="flex items-center gap-2 px-3 h-9 border-b border-ink-100 dark:border-ink-400/30 bg-[var(--tcn-canvas)] shrink-0">
-                    <span className={`text-xs font-semibold mono ${(response.status ?? 0) >= 400 ? "text-red-400" : (response.status ?? 0) >= 300 ? "text-cyan-300" : "text-emerald-400"}`}>
-                      {response.status} {response.statusText}
-                    </span>
-                    <span className="text-[11px] opacity-50 mono">{response.durationMs}ms · {response.resSize}B</span>
-                    <div className="flex-1" />
-                    <button className={btnCls(resTab === "headers")} onClick={() => setResTab("headers")}>Headers</button>
-                    <button className={btnCls(resTab === "body")} onClick={() => setResTab("body")}>Body</button>
-                  </div>
-                  <div className="flex-1 min-h-0 overflow-auto scroll-thin">
-                    {resTab === "headers"
-                      ? <HeadersView headers={response.resHeaders} />
-                      : <BodyView body={response.resBody ?? null} encoding={response.resBodyEncoding} contentType={response.resContentType ?? null} />}
-                  </div>
+                  <button className={btnCls(resTab === "headers")} onClick={() => setResTab("headers")}>Headers</button>
+                  <button className={btnCls(resTab === "body")} onClick={() => setResTab("body")}>Body</button>
                 </>
               )}
             </div>
-          )}
-        </div>
 
-        <div className="w-44 shrink-0 border-l border-ink-100 dark:border-ink-400/30 flex flex-col min-h-0">
-          <div className="px-3 py-2 text-[10px] uppercase tracking-wider opacity-50 flex items-center gap-1 shrink-0">
-            <Clock size={10} /> History
-          </div>
-          <div className="flex-1 overflow-auto scroll-thin">
-            {history.length === 0 ? (
-              <div className="px-3 py-2 text-[11px] opacity-40">No history yet</div>
-            ) : history.map((entry, i) => (
-              <button key={i} onClick={() => loadFromHistory(entry)} className="w-full px-3 py-2 text-left hover:bg-toucan-400/10 hover:text-toucan-400 transition">
-                <div className="text-[10px] font-semibold mono text-toucan-400/80">{entry.method}</div>
-                <div className="text-[11px] truncate opacity-70">{entry.host}</div>
-                <div className="text-[10px] truncate opacity-50 mono">{entry.path}</div>
-              </button>
-            ))}
-          </div>
+            {error ? (
+              <div className="p-4 text-xs text-red-400 mono whitespace-pre-wrap overflow-auto scroll-thin">{error}</div>
+            ) : executing ? (
+              <div className="flex-1 grid place-items-center text-xs opacity-50">
+                <span className="flex items-center gap-2"><Play size={13} className="animate-pulse" /> Sending request…</span>
+              </div>
+            ) : response ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex items-center gap-2 px-4 h-9 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
+                  <span className={`text-xs font-semibold mono ${statusColor}`}>{response.status} {response.statusText}</span>
+                  <span className="text-[11px] opacity-50 mono">{response.durationMs}ms · {response.resSize}B</span>
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto scroll-thin">
+                  {resTab === "headers"
+                    ? <HeadersView headers={response.resHeaders} />
+                    : <BodyView body={response.resBody ?? null} encoding={response.resBodyEncoding} contentType={response.resContentType ?? null} />}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 grid place-items-center text-xs opacity-40 px-6 text-center">
+                Run a request to see the response here.
+              </div>
+            )}
+          </section>
+
+          {/* HISTORY */}
+          <aside className="w-52 shrink-0 flex flex-col min-h-0">
+            <div className="flex items-center gap-1.5 px-4 h-9 border-b border-ink-100 dark:border-ink-400/30 shrink-0">
+              <Clock size={11} className="opacity-60" />
+              <span className="text-[10px] uppercase tracking-wider font-semibold opacity-50">History</span>
+            </div>
+            <div className="flex-1 overflow-auto scroll-thin">
+              {history.length === 0 ? (
+                <div className="px-4 py-3 text-[11px] opacity-40">No history yet</div>
+              ) : history.map((entry, i) => (
+                <button key={i} onClick={() => loadFromHistory(entry)} className="w-full px-4 py-2.5 text-left border-b border-ink-100 dark:border-ink-400/20 hover:bg-toucan-400/10 hover:text-toucan-400 transition">
+                  <div className="text-[10px] font-semibold mono text-toucan-400/80">{entry.method}</div>
+                  <div className="text-[11px] truncate opacity-70">{entry.host}</div>
+                  <div className="text-[10px] truncate opacity-50 mono">{entry.path}</div>
+                </button>
+              ))}
+            </div>
+          </aside>
         </div>
       </div>
     </div>

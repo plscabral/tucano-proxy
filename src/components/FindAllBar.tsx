@@ -20,7 +20,7 @@ export default function FindAllBar() {
   };
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 border-b border-ink-100 dark:border-ink-400/30 bg-ink-50/60 dark:bg-ink-600/40">
+    <div className="flex items-center gap-2 px-3 py-2 border-b border-ink-100 dark:border-ink-400/30 bg-ink-50/60 dark:bg-white/[0.04]">
       <Search size={13} className="opacity-60 shrink-0" />
       <input
         data-findall-input

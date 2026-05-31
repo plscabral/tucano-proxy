@@ -162,7 +162,7 @@ export default function BodyView({ body, encoding, contentType }: {
 
   return (
     <div ref={rootRef} onMouseEnter={onRootEnter} className={full
-      ? "fixed inset-0 z-50 flex flex-col bg-white dark:bg-ink-500"
+      ? "fixed inset-0 z-50 flex flex-col bg-white dark:bg-[var(--tcn-canvas)]"
       : "h-full flex flex-col"
     }>
       <div className="flex items-center gap-1.5 px-3 py-2 text-xs border-b border-ink-100 dark:border-ink-400/20">
@@ -171,7 +171,7 @@ export default function BodyView({ body, encoding, contentType }: {
             value={mode}
             onChange={(e) => setMode(e.currentTarget.value as Mode)}
             className="appearance-none h-7 pl-2.5 pr-7 text-[11px] mono uppercase tracking-wider rounded-lg
-                       bg-ink-50 dark:bg-ink-500 border border-ink-100 dark:border-ink-400/40
+                       bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40
                        hover:border-toucan-400/60 focus:border-toucan-400 outline-none cursor-pointer"
           >
             {MODES.map((m) => (
