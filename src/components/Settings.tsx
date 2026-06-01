@@ -125,7 +125,10 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
     setSslSaved(true); setTimeout(() => setSslSaved(false), 1500);
   };
 
-  const installCa = async () => { setBusy(true); try { await ipc.installCa(); await refresh(); } finally { setBusy(false); } };
+  const installCa = async () => {
+    setBusy(true);
+    try { await ipc.installCa(); await refresh(); } catch (e) { console.error(e); alert(String(e)); } finally { setBusy(false); }
+  };
   const uninstallCa = async () => {
     if (!confirm(t("set.uninstallCaConfirm"))) return;
     setBusy(true);

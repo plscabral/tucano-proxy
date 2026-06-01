@@ -62,13 +62,66 @@ impl CertAuthority {
             // for all policies in the admin domain fixes .NET (and Java, etc.)
             // while still working for browsers.
             //
-            // Writing to the System keychain requires admin rights; macOS shows
-            // a native authorization prompt the first time.
+            // This is split into two operations on purpose. The naive
+            // `add-trusted-cert -k /Library/Keychains/System.keychain` does
+            // BOTH a root-owned keychain write AND a trust-settings write in one
+            // call, and that only works from a code-signed app that the Security
+            // framework lets present the native authorization prompt. From an
+            // unsigned / `tauri dev` binary the prompt never appears and it
+            // fails instantly with "SecCertificateAddToKeychain: Write
+            // permissions error" — install silently does nothing. The two
+            // sub-operations also have *opposite* elevation requirements, so
+            // neither plain-direct nor osascript-admin works for both at once:
+            //
+            //   • Writing the cert into the System keychain needs root, and does
+            //     NOT prompt on its own. We run it via osascript-admin, which
+            //     shows macOS's own password dialog and performs the write as
+            //     root — works regardless of code signing.
+            //   • Setting the admin-domain trust must NOT run as root: as root
+            //     SecTrustSettingsSetTrustSettings fails with "authorization
+            //     denied since no user interaction was possible". Run directly
+            //     as the user, with the cert already in the keychain, it
+            //     succeeds with no prompt at all.
+            //
+            // First, evict any stale copy from the user's login keychain. Builds
+            // before v0.2.2 installed the CA there; that old copy survives an
+            // upgrade and confuses the trust step. User-owned, so no prompt;
+            // ignore the result (nothing to remove on a clean machine).
+            let _ = std::process::Command::new("security")
+                .args(["delete-certificate", "-c", "Tucano Root CA"])
+                .status();
+
+            // Step 1: add the cert to the System keychain as root.
+            let cert = self.cert_path.to_string_lossy();
+            let inner = format!(
+                "security add-certificates -k /Library/Keychains/System.keychain '{}'",
+                cert
+            );
+            let script = format!(
+                "do shell script \"{}\" with administrator privileges",
+                inner.replace('\\', "\\\\").replace('"', "\\\"")
+            );
+            let added = std::process::Command::new("osascript")
+                .args(["-e", &script])
+                .status()?;
+            if !added.success() {
+                return Err("adding the CA to the System keychain failed (cancelled or no admin rights)".into());
+            }
+
+            // Step 2: set admin-domain trust for ALL policies (note: no `-p`).
+            // No `-k`: the cert is already in the System keychain, so this only
+            // writes the trust setting — directly, as the user, no prompt.
+            //
+            // Why admin domain / all policies? Browsers honor user-domain,
+            // SSL-scoped trust, so the old login-keychain `-p ssl` approach
+            // *looked* fine. But the .NET chain builder on macOS only consults
+            // the admin trust domain and evaluates the anchor under a generic
+            // policy, so login-keychain SSL-only trust is invisible to it and
+            // every HTTPS call fails with `UntrustedRoot`. Trusting for all
+            // policies in the admin domain fixes .NET (and Java, etc.) while
+            // still working for browsers.
             let status = std::process::Command::new("security")
-                .args([
-                    "add-trusted-cert", "-d", "-r", "trustRoot",
-                    "-k", "/Library/Keychains/System.keychain",
-                ])
+                .args(["add-trusted-cert", "-d", "-r", "trustRoot"])
                 .arg(&self.cert_path)
                 .status()?;
             if !status.success() { return Err("security add-trusted-cert failed".into()); }
@@ -90,17 +143,42 @@ impl CertAuthority {
     pub fn uninstall_from_system(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(target_os = "macos")]
         {
-            // Remove from the System keychain (where install_to_system now puts
-            // it). -t also drops the cert's trust settings; -c matches by common
-            // name. Targeting the System keychain needs admin rights, so macOS
-            // prompts for a password — expected when removing trust roots.
+            // macOS splits this into two operations with DIFFERENT auth rules:
+            //
+            // 1. Trust settings (SecTrustSettings*). `remove-trusted-cert -d`
+            //    is the exact inverse of install's `add-trusted-cert -d`. It
+            //    needs *interactive* authorization and must NOT run as root:
+            //    under `osascript ... with administrator privileges` it fails
+            //    with "authorization denied since no user interaction was
+            //    possible". So we call it DIRECTLY, exactly like the trust step
+            //    of install — the Security framework shows the native prompt.
+            //    This is what `is_installed` keys off of (dump-trust-settings).
+            //
+            // 2. Evicting the cert from the root-owned System keychain. This
+            //    needs write access (root) and, unlike add-trusted-cert, does
+            //    NOT pop its own prompt — a plain `delete-certificate` just
+            //    fails with "Write permissions error". So we run it via
+            //    osascript-admin (as root), which DOES work for a pure keychain
+            //    write. Leaving an orphaned cert here is not cosmetic: a later
+            //    install's `add-trusted-cert` chokes on the pre-existing cert
+            //    ("SecCertificateAddToKeychain: Write permissions error") and
+            //    silently fails, so the cert MUST be removed for reinstall.
             let status = std::process::Command::new("security")
+                .args(["remove-trusted-cert", "-d"])
+                .arg(&self.cert_path)
+                .status()?;
+            if !status.success() {
+                return Err("security remove-trusted-cert failed".into());
+            }
+            let del = std::process::Command::new("osascript")
                 .args([
-                    "delete-certificate", "-c", "Tucano Root CA", "-t",
-                    "/Library/Keychains/System.keychain",
+                    "-e",
+                    "do shell script \"security delete-certificate -c 'Tucano Root CA' /Library/Keychains/System.keychain\" with administrator privileges",
                 ])
                 .status()?;
-            if !status.success() { return Err("security delete-certificate failed".into()); }
+            if !del.success() {
+                return Err("security delete-certificate failed".into());
+            }
         }
         #[cfg(target_os = "windows")]
         {
