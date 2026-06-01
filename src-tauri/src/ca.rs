@@ -48,20 +48,27 @@ impl CertAuthority {
     pub fn install_to_system(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(target_os = "macos")]
         {
-            let keychain = format!(
-                "{}/Library/Keychains/login.keychain-db",
-                std::env::var("HOME").unwrap_or_default()
-            );
-            // Add cert to login keychain and mark it as a trusted root. The
-            // -d flag explicitly targets the user trust-settings domain so
-            // that `security dump-trust-settings -d user` shows a non-zero
-            // trust policy — without it macOS ignores the cert for SSL.
-            // -p ssl sets the trust policy explicitly for SSL/TLS so that
-            // macOS registers a non-zero trust-settings entry; without it the
-            // cert lands in the keychain but has no active policy and apps
-            // still reject it with a network-configuration warning.
+            // Install into the SYSTEM keychain with admin-domain trust for ALL
+            // policies (note: no `-p`). This mirrors what Proxyman / Charles /
+            // mkcert do, and it is the only configuration that runtime stacks
+            // like .NET honor on macOS.
+            //
+            // Why not the login keychain + `-p ssl` (the old approach)? Browsers
+            // honor user-domain, SSL-scoped trust, so it *looked* fine. But the
+            // .NET chain builder on macOS only consults the *admin* trust domain
+            // (System keychain), and evaluates the anchor under a generic policy
+            // — so a login-keychain, SSL-only trust is invisible to it and every
+            // HTTPS call through the proxy fails with `UntrustedRoot`. Trusting
+            // for all policies in the admin domain fixes .NET (and Java, etc.)
+            // while still working for browsers.
+            //
+            // Writing to the System keychain requires admin rights; macOS shows
+            // a native authorization prompt the first time.
             let status = std::process::Command::new("security")
-                .args(["add-trusted-cert", "-r", "trustRoot", "-p", "ssl", "-k", &keychain])
+                .args([
+                    "add-trusted-cert", "-d", "-r", "trustRoot",
+                    "-k", "/Library/Keychains/System.keychain",
+                ])
                 .arg(&self.cert_path)
                 .status()?;
             if !status.success() { return Err("security add-trusted-cert failed".into()); }
@@ -83,11 +90,15 @@ impl CertAuthority {
     pub fn uninstall_from_system(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(target_os = "macos")]
         {
-            // -t certificate is the type; -c matches by common name. macOS may
-            // ask for the user's password via a system prompt — that's
-            // expected when removing trust roots.
+            // Remove from the System keychain (where install_to_system now puts
+            // it). -t also drops the cert's trust settings; -c matches by common
+            // name. Targeting the System keychain needs admin rights, so macOS
+            // prompts for a password — expected when removing trust roots.
             let status = std::process::Command::new("security")
-                .args(["delete-certificate", "-c", "Tucano Root CA", "-t"])
+                .args([
+                    "delete-certificate", "-c", "Tucano Root CA", "-t",
+                    "/Library/Keychains/System.keychain",
+                ])
                 .status()?;
             if !status.success() { return Err("security delete-certificate failed".into()); }
         }
@@ -107,12 +118,15 @@ impl CertAuthority {
     pub fn is_installed(&self) -> bool {
         #[cfg(target_os = "macos")]
         {
-            // Checking that the cert exists in the keychain is not enough:
-            // add-trusted-cert without -p ssl leaves Number of trust settings=0
-            // and macOS still rejects the cert. We parse dump-trust-settings
-            // output to confirm the SSL policy is actually present.
+            // We install into the admin trust domain (System keychain) with
+            // trust for all policies (no -p), so the cert shows up under
+            // `dump-trust-settings -d` with "Number of trust settings : 0" — an
+            // empty trust array means "always trust". So presence of our cert in
+            // the admin domain is exactly what we want to detect; there's no SSL
+            // policy line to look for anymore. Reading the admin domain does not
+            // require elevation.
             let out = std::process::Command::new("security")
-                .args(["dump-trust-settings"])
+                .args(["dump-trust-settings", "-d"])
                 .output()
                 .unwrap_or_else(|_| std::process::Output {
                     status: std::process::ExitStatus::default(),
@@ -120,36 +134,10 @@ impl CertAuthority {
                     stderr: vec![],
                 });
             let text = String::from_utf8_lossy(&out.stdout);
-            // Look for our cert block followed by an SSL policy entry.
-            // The output format is:
-            //   Cert N: Tucano Root CA
-            //      Number of trust settings : 1
-            //      Trust Setting 0:
-            //         Policy OID            : SSL
-            let mut in_tucano_block = false;
-            let mut trust_count = 0u32;
-            let mut ssl_found = false;
-            for line in text.lines() {
-                let trimmed = line.trim();
-                if trimmed.starts_with("Cert ") && trimmed.ends_with("Tucano Root CA") {
-                    in_tucano_block = true;
-                    trust_count = 0;
-                    ssl_found = false;
-                    continue;
-                }
-                if in_tucano_block {
-                    if trimmed.starts_with("Cert ") {
-                        break; // moved on to the next cert
-                    }
-                    if let Some(rest) = trimmed.strip_prefix("Number of trust settings :") {
-                        trust_count = rest.trim().parse().unwrap_or(0);
-                    }
-                    if trimmed.contains("Policy OID") && trimmed.contains("SSL") {
-                        ssl_found = true;
-                    }
-                }
-            }
-            in_tucano_block && trust_count > 0 && ssl_found
+            text.lines().any(|l| {
+                let t = l.trim();
+                t.starts_with("Cert ") && t.ends_with("Tucano Root CA")
+            })
         }
         #[cfg(target_os = "windows")]
         {

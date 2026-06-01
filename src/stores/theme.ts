@@ -43,6 +43,7 @@ if (window.matchMedia) {
 // Matches the CSS body backgrounds in styles.css so there's no seam between
 // OS chrome and the TopBar.
 function applyTheme() {
+  const { mode } = useTheme.getState();
   const dark = effectiveTheme() === "dark";
   document.documentElement.classList.toggle("dark", dark);
   const color = dark ? "#0F1014" : "#FBFBF8";
@@ -54,7 +55,13 @@ function applyTheme() {
     // macOS: the native title bar (Transparent style) follows the WINDOW
     // theme, not the background color — without this it stays dark/black while
     // the app is in light mode. setTheme repaints the title bar to match.
-    win.setTheme(dark ? "dark" : "light").catch((e) => {
+    //
+    // In "system" mode we pass null so the window keeps following the OS
+    // appearance. Forcing a concrete theme here would flip the WebView's
+    // prefers-color-scheme to the forced value, firing the matchMedia listener
+    // below and corrupting `systemDark` — which then locks "system" mode onto
+    // whatever was last forced (the dark-stuck bug).
+    win.setTheme(mode === "system" ? null : dark ? "dark" : "light").catch((e) => {
       console.warn("[theme] setTheme failed", e);
     });
   } catch (e) {
