@@ -124,12 +124,6 @@ fn mcp_url(settings: &McpSettings) -> String {
     format!("http://127.0.0.1:{}/mcp", settings.port)
 }
 
-/// URL with the token in the query string, for clients that can't attach a
-/// custom `Authorization` header from their config (Claude Desktop).
-fn mcp_url_with_token(settings: &McpSettings) -> String {
-    format!("http://127.0.0.1:{}/mcp?token={}", settings.port, settings.token)
-}
-
 fn bearer(settings: &McpSettings) -> String {
     format!("Bearer {}", settings.token)
 }
@@ -186,10 +180,15 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
             write_json(&path, &root)
         }
         McpClient::ClaudeDesktop => {
-            // Claude Desktop's config schema accepts an HTTP server (`type` +
-            // `url`) but NOT a `headers` object — including it gets the whole
-            // entry rejected as invalid. Carry the token in the URL query
-            // instead; Tucano's /mcp endpoint accepts `?token=` on loopback.
+            // Claude Desktop's config file ONLY accepts stdio servers
+            // (`command` + `args`); a `type: http` / `url` entry is rejected as
+            // invalid and silently dropped. Rather than depend on Node/npx
+            // (`mcp-remote`), we point it at Tucano's own binary running in
+            // `mcp-stdio` mode, which bridges to the native HTTP /mcp endpoint.
+            let exe = std::env::current_exe()
+                .map_err(|e| format!("resolve current exe: {e}"))?
+                .to_string_lossy()
+                .to_string();
             let mut root = read_json(&path)?;
             if !root.is_object() {
                 root = json!({});
@@ -204,8 +203,12 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
             servers.as_object_mut().unwrap().insert(
                 ENTRY_NAME.to_string(),
                 json!({
-                    "type": "http",
-                    "url": mcp_url_with_token(settings),
+                    "command": exe,
+                    "args": ["mcp-stdio"],
+                    "env": {
+                        "TUCANO_MCP_URL": url,
+                        "TUCANO_MCP_TOKEN": settings.token,
+                    },
                 }),
             );
             write_json(&path, &root)
@@ -315,6 +318,16 @@ pub fn status_all() -> Vec<McpClientStatus> {
 #[tauri::command]
 pub fn list_mcp_clients() -> Vec<McpClientStatus> {
     status_all()
+}
+
+/// Absolute path to Tucano's own executable — the `command` a stdio MCP client
+/// (e.g. Claude Desktop) spawns as `<exe> mcp-stdio`. Surfaced to the UI so the
+/// manual-config snippet shows the real path.
+#[tauri::command]
+pub fn mcp_binary_path() -> Result<String, String> {
+    std::env::current_exe()
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| format!("resolve current exe: {e}"))
 }
 
 #[tauri::command]

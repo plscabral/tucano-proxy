@@ -5,6 +5,7 @@ mod http_client;
 mod mcp_bridge;
 mod mcp_install;
 mod mcp_settings;
+mod mcp_stdio;
 mod proxy;
 mod ssl_settings;
 mod state;
@@ -16,6 +17,12 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
+
+/// Run the stdio↔HTTP MCP bridge instead of the GUI. Invoked when the binary
+/// is launched as `tucano-proxy mcp-stdio` (how Claude Desktop spawns us).
+pub fn run_mcp_stdio() {
+    mcp_stdio::run();
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -145,6 +152,7 @@ pub fn run() {
             commands::set_mcp_settings,
             commands::rotate_mcp_token,
             mcp_install::list_mcp_clients,
+            mcp_install::mcp_binary_path,
             mcp_install::install_mcp_client,
             mcp_install::uninstall_mcp_client,
         ])

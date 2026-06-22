@@ -43,6 +43,7 @@ export const ipc = {
   rotateMcpToken: () =>
     invoke<{ enabled: boolean; port: number; token: string }>("rotate_mcp_token"),
   listMcpClients: () => invoke<McpClientStatus[]>("list_mcp_clients"),
+  mcpBinaryPath: () => invoke<string>("mcp_binary_path"),
   installMcpClient: (client: McpClient) =>
     invoke<McpClientStatus[]>("install_mcp_client", { client }),
   uninstallMcpClient: (client: McpClient) =>

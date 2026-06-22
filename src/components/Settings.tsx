@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor,
   ChevronDown, Lock, RefreshCw, FileText, Film, Music, Database, Plug, FileType,
-  Braces, Type, FileCode2, Bot, Copy, RotateCw, Palette, Shapes,
+  Braces, Type, FileCode2, Bot, Copy, RotateCw, Palette, Shapes, Check, Save,
 } from "lucide-react";
 import { SiJavascript, SiCss, SiHtml5, SiGraphql } from "react-icons/si";
 import {
@@ -60,10 +60,16 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   const [mcpPort, setMcpPort] = useState(7878);
   const [mcpToken, setMcpToken] = useState("");
   const [mcpSaved, setMcpSaved] = useState(false);
+  const [mcpTransport, setMcpTransport] = useState<"http" | "stdio">("http");
+  const [mcpBinPath, setMcpBinPath] = useState("");
   const [mcpCopied, setMcpCopied] = useState<"" | "token" | "config">("");
   const [tokenVisible, setTokenVisible] = useState(false);
   const [mcpClients, setMcpClients] = useState<McpClientStatus[]>([]);
   const [mcpClientBusy, setMcpClientBusy] = useState<McpClient | "">("");
+  // Snapshot of the last persisted MCP settings; `null` until the initial load
+  // finishes. The autosave effect compares against it so it never writes on
+  // open or re-persists unchanged values.
+  const mcpSnap = useRef<string | null>(null);
   const [tab, setTab] = useState<Tab>("general");
 
   useEffect(() => {
@@ -75,10 +81,26 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
         setSkipHosts((s.skipHosts || []).join("\n"));
       } catch {}
       try { setAppVersion(await getVersion()); } catch {}
-      try { const m = await ipc.getMcpSettings(); setMcpEnabled(m.enabled); setMcpPort(m.port); setMcpToken(m.token); } catch {}
+      try {
+        const m = await ipc.getMcpSettings();
+        setMcpEnabled(m.enabled); setMcpPort(m.port); setMcpToken(m.token);
+        mcpSnap.current = JSON.stringify({ enabled: m.enabled, port: m.port, token: m.token });
+      } catch {}
       try { setMcpClients(await ipc.listMcpClients()); } catch {}
+      try { setMcpBinPath(await ipc.mcpBinaryPath()); } catch {}
     })();
   }, []);
+
+  // Persist MCP settings automatically whenever they change — no Save button.
+  // Debounced so typing in the port field doesn't write on every keystroke;
+  // skipped on the initial load and when nothing actually changed.
+  useEffect(() => {
+    if (mcpSnap.current === null) return;
+    const snap = JSON.stringify({ enabled: mcpEnabled, port: mcpPort, token: mcpToken });
+    if (snap === mcpSnap.current) return;
+    const id = setTimeout(() => { mcpSnap.current = snap; saveMcp(); }, 400);
+    return () => clearTimeout(id);
+  }, [mcpEnabled, mcpPort, mcpToken]);
 
   const refreshMcpClients = async () => { try { setMcpClients(await ipc.listMcpClients()); } catch {} };
   const installMcpClient = async (c: McpClient) => {
@@ -100,17 +122,22 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
     const m = await ipc.rotateMcpToken();
     setMcpToken(m.token);
   };
-  const mcpConfigSnippet = (real = false) => JSON.stringify({
-    mcpServers: {
-      tucano: {
-        type: "http",
-        url: `http://127.0.0.1:${mcpPort}/mcp`,
-        headers: {
-          Authorization: `Bearer ${real || tokenVisible ? mcpToken : "•".repeat(mcpToken.length)}`,
-        },
-      },
-    },
-  }, null, 2);
+  const mcpConfigSnippet = (real = false) => {
+    const tok = real || tokenVisible ? mcpToken : "•".repeat(mcpToken.length);
+    const url = `http://127.0.0.1:${mcpPort}/mcp`;
+    const entry = mcpTransport === "stdio"
+      ? {
+          command: mcpBinPath || "/path/to/tucano-proxy",
+          args: ["mcp-stdio"],
+          env: { TUCANO_MCP_URL: url, TUCANO_MCP_TOKEN: tok },
+        }
+      : {
+          type: "http",
+          url,
+          headers: { Authorization: `Bearer ${tok}` },
+        };
+    return JSON.stringify({ mcpServers: { tucano: entry } }, null, 2);
+  };
   const copyMcp = async (kind: "token" | "config") => {
     const text = kind === "token" ? mcpToken : mcpConfigSnippet(true);
     await navigator.clipboard.writeText(text);
@@ -347,7 +374,10 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                       <button onClick={rotateMcpToken} className="h-9 px-3 text-xs rounded-xl border border-red-500/40 text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"><RotateCw size={13} /> {t("set.mcp.rotate")}</button>
                     </div>
                   </div>
-                  <button onClick={saveMcp} className={`self-start h-9 px-5 text-xs rounded-xl font-medium transition ${mcpSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>{mcpSaved ? t("set.mcp.saved") : t("set.mcp.save")}</button>
+                  <div className="self-start flex items-center gap-1.5 h-7 text-[11px] opacity-60">
+                    {mcpSaved ? <Check size={13} className="text-emerald-500" /> : <Save size={12} />}
+                    <span className={mcpSaved ? "text-emerald-500 opacity-100" : ""}>{mcpSaved ? t("set.mcp.saved") : t("set.mcp.autosave")}</span>
+                  </div>
                 </Section>
 
                 <Section icon={<Plug size={14} />} title={t("set.mcp.installTitle")}>
@@ -378,6 +408,22 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                 <Section icon={<Info size={14} />} title={t("set.mcp.configTitle")}>
                   <p className="text-xs opacity-70 leading-relaxed">
                     {t("set.mcp.configHint")}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="inline-flex p-0.5 rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40">
+                      {(["http", "stdio"] as const).map((tr) => (
+                        <button
+                          key={tr}
+                          onClick={() => setMcpTransport(tr)}
+                          className={`h-7 px-3 text-xs rounded-lg font-medium transition ${mcpTransport === tr ? "tcn-accent" : "opacity-60 hover:opacity-100"}`}
+                        >
+                          {tr === "http" ? t("set.mcp.transportHttp") : t("set.mcp.transportStdio")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[11px] opacity-60 leading-relaxed">
+                    {mcpTransport === "stdio" ? t("set.mcp.transportStdioHint") : t("set.mcp.transportHttpHint")}
                   </p>
                   <div className="relative">
                     <pre className="text-[11px] mono p-3 rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 overflow-auto whitespace-pre">{mcpConfigSnippet()}</pre>
