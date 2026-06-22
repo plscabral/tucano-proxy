@@ -149,9 +149,16 @@ export default function ShadowPreview({ html, onFindMount, onFindUnmount, onFind
 
   return (
     <div
-      className="w-full h-full overflow-auto bg-white"
+      className="w-full h-full overflow-auto bg-white relative"
       onMouseEnter={() => { hoveredRef.current = true; }}
       onMouseLeave={() => { hoveredRef.current = false; }}
+      // Captured pages routinely ship `position: fixed` chrome (sticky headers,
+      // cookie banners, modals). Without a containing block those anchor to the
+      // viewport and render OVER the whole Tucano window. `transform` +
+      // `contain` make this wrapper the containing block for fixed/absolute
+      // descendants, and `isolation` gives it its own stacking context, so the
+      // page's overlays stay clipped inside the preview pane.
+      style={{ transform: "translateZ(0)", contain: "layout paint", isolation: "isolate" }}
     >
       <div ref={hostRef} className="min-h-full" />
     </div>

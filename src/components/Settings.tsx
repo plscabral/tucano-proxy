@@ -103,11 +103,10 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   const mcpConfigSnippet = (real = false) => JSON.stringify({
     mcpServers: {
       tucano: {
-        command: "npx",
-        args: ["-y", "tucano-mcp"],
-        env: {
-          TUCANO_TOKEN: real || tokenVisible ? mcpToken : "•".repeat(mcpToken.length),
-          ...(mcpPort !== 7878 ? { TUCANO_URL: `http://127.0.0.1:${mcpPort}` } : {}),
+        type: "http",
+        url: `http://127.0.0.1:${mcpPort}/mcp`,
+        headers: {
+          Authorization: `Bearer ${real || tokenVisible ? mcpToken : "•".repeat(mcpToken.length)}`,
         },
       },
     },

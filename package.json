@@ -1,6 +1,6 @@
 {
   "name": "tucano-proxy",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Open source HTTP/HTTPS debugging proxy — desktop app built with Tauri 2 + React.",

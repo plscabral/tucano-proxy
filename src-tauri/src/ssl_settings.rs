@@ -90,6 +90,12 @@ const PINNED_HOSTS: &[&str] = &[
     "*.anthropic.com",
     "*.claude.ai",
     "*.claude.com",
+    // Brazilian judiciary (PJe / tribunais) — authentication uses A3 smart-card /
+    // token client certificates (mutual TLS). MITM-intercepting these replaces
+    // the client-cert handshake and the courts reject the login, so PJe Office
+    // can't authenticate. `*.jus.br` covers every tribunal + PJe / CNJ / PDPJ
+    // subdomain. Always tunnel so the client-cert handshake reaches them intact.
+    "*.jus.br",
     // Misc known-pinned
     "*.twitter.com",
     "*.x.com",

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Arc;
-use toml_edit::{value, Array, DocumentMut, Item, Table};
+use toml_edit::{value, DocumentMut, Item, Table};
 
 const ENTRY_NAME: &str = "tucano";
 
@@ -113,85 +113,15 @@ fn write_toml(path: &PathBuf, doc: &DocumentMut) -> Result<(), String> {
     std::fs::write(path, doc.to_string()).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
-fn env_object(settings: &McpSettings, node_bin: Option<&str>) -> serde_json::Map<String, Value> {
-    let mut env = serde_json::Map::new();
-    env.insert("TUCANO_TOKEN".to_string(), Value::String(settings.token.clone()));
-    if settings.port != 7878 {
-        env.insert(
-            "TUCANO_URL".to_string(),
-            Value::String(format!("http://127.0.0.1:{}", settings.port)),
-        );
-    }
-    // GUI-launched clients run with a minimal PATH that excludes nvm/homebrew
-    // node. Inject the resolved node bin dir so the spawned npx can find `node`
-    // (its shebang is `#!/usr/bin/env node`).
-    if let Some(bin) = node_bin {
-        env.insert(
-            "PATH".to_string(),
-            Value::String(format!("{bin}:/usr/local/bin:/usr/bin:/bin")),
-        );
-    }
-    env
+/// The Tucano MCP endpoint URL for the configured port. Tucano serves the MCP
+/// protocol natively over Streamable HTTP at `/mcp`, so clients connect
+/// directly — no Node, no npx, no PATH juggling.
+fn mcp_url(settings: &McpSettings) -> String {
+    format!("http://127.0.0.1:{}/mcp", settings.port)
 }
 
-/// Resolve the `npx` command to write into a client config.
-///
-/// On macOS/Linux, GUI apps don't inherit the shell PATH, so a bare "npx" fails
-/// with ENOENT when the client is opened from the Dock/Finder (the classic
-/// "works in the terminal but not in the app" bug). We resolve the absolute path
-/// so the config works regardless of how the client is launched.
-///
-/// On Windows we deliberately keep the bare "npx": the client resolves it to
-/// `npx.cmd` and runs it via `cmd.exe` correctly, and GUI apps inherit the
-/// system PATH (node's installer adds it). An absolute path to the extensionless
-/// `npx` (a POSIX shell script) instead breaks with "'node' is not recognized".
-fn resolve_npx() -> String {
-    #[cfg(target_os = "windows")]
-    {
-        "npx".to_string()
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        if let Some(p) = which_in_path("npx") {
-            return p;
-        }
-        // Ask the user's login shell — it sources ~/.zshrc / ~/.bashrc where
-        // nvm and other version managers put node on PATH.
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        if let Ok(out) = std::process::Command::new(&shell)
-            .args(["-ilc", "command -v npx"])
-            .output()
-        {
-            if out.status.success() {
-                let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if !p.is_empty() && std::path::Path::new(&p).exists() {
-                    return p;
-                }
-            }
-        }
-        "npx".to_string()
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn which_in_path(bin: &str) -> Option<String> {
-    let path = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path) {
-        let cand = dir.join(bin);
-        if cand.is_file() {
-            return Some(cand.to_string_lossy().to_string());
-        }
-    }
-    None
-}
-
-/// The dir holding `node`/`npx`, used to repair PATH for GUI clients.
-/// Empty when npx couldn't be resolved to an absolute path.
-fn node_bin_dir(npx: &str) -> Option<String> {
-    std::path::Path::new(npx)
-        .parent()
-        .map(|p| p.to_string_lossy().to_string())
-        .filter(|s| !s.is_empty())
+fn bearer(settings: &McpSettings) -> String {
+    format!("Bearer {}", settings.token)
 }
 
 fn is_installed(c: McpClient, path: &PathBuf) -> bool {
@@ -221,9 +151,7 @@ fn is_installed(c: McpClient, path: &PathBuf) -> bool {
 
 pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
     let path = client_path(c)?;
-    let npx = resolve_npx();
-    let node_bin_owned = node_bin_dir(&npx);
-    let node_bin = node_bin_owned.as_deref();
+    let url = mcp_url(settings);
     match c {
         McpClient::ClaudeDesktop | McpClient::ClaudeCode => {
             let mut root = read_json(&path)?;
@@ -240,9 +168,9 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
             servers.as_object_mut().unwrap().insert(
                 ENTRY_NAME.to_string(),
                 json!({
-                    "command": npx,
-                    "args": ["-y", "tucano-mcp"],
-                    "env": env_object(settings, node_bin),
+                    "type": "http",
+                    "url": url,
+                    "headers": { "Authorization": bearer(settings) },
                 }),
             );
             write_json(&path, &root)
@@ -262,10 +190,10 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
             mcp.as_object_mut().unwrap().insert(
                 ENTRY_NAME.to_string(),
                 json!({
-                    "type": "local",
-                    "command": [npx, "-y", "tucano-mcp"],
+                    "type": "remote",
+                    "url": url,
                     "enabled": true,
-                    "environment": env_object(settings, node_bin),
+                    "headers": { "Authorization": bearer(settings) },
                 }),
             );
             write_json(&path, &root)
@@ -280,26 +208,10 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
                 .ok_or_else(|| "mcp_servers is not a table".to_string())?;
             servers.set_implicit(true);
             let mut entry = Table::new();
-            entry["command"] = value(npx.as_str());
-            let mut args = Array::new();
-            args.push("-y");
-            args.push("tucano-mcp");
-            entry["args"] = value(args);
-            let mut env_tbl = toml_edit::InlineTable::new();
-            env_tbl.insert("TUCANO_TOKEN", settings.token.clone().into());
-            if settings.port != 7878 {
-                env_tbl.insert(
-                    "TUCANO_URL",
-                    format!("http://127.0.0.1:{}", settings.port).into(),
-                );
-            }
-            if let Some(bin) = node_bin {
-                env_tbl.insert(
-                    "PATH",
-                    format!("{bin}:/usr/local/bin:/usr/bin:/bin").into(),
-                );
-            }
-            entry["env"] = value(env_tbl);
+            entry["url"] = value(url.as_str());
+            let mut headers = toml_edit::InlineTable::new();
+            headers.insert("Authorization", bearer(settings).into());
+            entry["http_headers"] = value(headers);
             servers.insert(ENTRY_NAME, Item::Table(entry));
             write_toml(&path, &doc)
         }
