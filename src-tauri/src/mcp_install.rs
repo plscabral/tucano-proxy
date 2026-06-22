@@ -14,6 +14,10 @@ pub enum McpClient {
     ClaudeDesktop,
     ClaudeCode,
     Codex,
+    // `rename_all = "camelCase"` would map this to `openCode`, but the frontend
+    // (and `client_meta`'s id) use the lowercase `opencode`. Pin it so the
+    // round-trip matches and install/uninstall don't fail to deserialize.
+    #[serde(rename = "opencode")]
     OpenCode,
 }
 
@@ -120,6 +124,12 @@ fn mcp_url(settings: &McpSettings) -> String {
     format!("http://127.0.0.1:{}/mcp", settings.port)
 }
 
+/// URL with the token in the query string, for clients that can't attach a
+/// custom `Authorization` header from their config (Claude Desktop).
+fn mcp_url_with_token(settings: &McpSettings) -> String {
+    format!("http://127.0.0.1:{}/mcp?token={}", settings.port, settings.token)
+}
+
 fn bearer(settings: &McpSettings) -> String {
     format!("Bearer {}", settings.token)
 }
@@ -153,7 +163,7 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
     let path = client_path(c)?;
     let url = mcp_url(settings);
     match c {
-        McpClient::ClaudeDesktop | McpClient::ClaudeCode => {
+        McpClient::ClaudeCode => {
             let mut root = read_json(&path)?;
             if !root.is_object() {
                 root = json!({});
@@ -171,6 +181,31 @@ pub fn install(c: McpClient, settings: &McpSettings) -> Result<(), String> {
                     "type": "http",
                     "url": url,
                     "headers": { "Authorization": bearer(settings) },
+                }),
+            );
+            write_json(&path, &root)
+        }
+        McpClient::ClaudeDesktop => {
+            // Claude Desktop's config schema accepts an HTTP server (`type` +
+            // `url`) but NOT a `headers` object — including it gets the whole
+            // entry rejected as invalid. Carry the token in the URL query
+            // instead; Tucano's /mcp endpoint accepts `?token=` on loopback.
+            let mut root = read_json(&path)?;
+            if !root.is_object() {
+                root = json!({});
+            }
+            let map = root.as_object_mut().unwrap();
+            let servers = map
+                .entry("mcpServers".to_string())
+                .or_insert_with(|| json!({}));
+            if !servers.is_object() {
+                *servers = json!({});
+            }
+            servers.as_object_mut().unwrap().insert(
+                ENTRY_NAME.to_string(),
+                json!({
+                    "type": "http",
+                    "url": mcp_url_with_token(settings),
                 }),
             );
             write_json(&path, &root)

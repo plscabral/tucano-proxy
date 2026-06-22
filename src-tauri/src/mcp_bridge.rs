@@ -72,15 +72,34 @@ async fn run(
 }
 
 async fn check_auth(req: Request, next: Next, token: String) -> Result<Response, StatusCode> {
+    // Accept the token via the `Authorization: Bearer` header (preferred) OR a
+    // `?token=`/`?key=` query param. The query form exists for clients that
+    // can't attach custom headers from their config (e.g. Claude Desktop, which
+    // only takes a bare `url`). It's loopback-only, so it's no weaker than the
+    // header — the URL never leaves the machine.
     let expected = format!("Bearer {token}");
-    let got = req
+    let header_ok = req
         .headers()
         .get("authorization")
-        .and_then(|v| v.to_str().ok());
-    if got != Some(expected.as_str()) {
+        .and_then(|v| v.to_str().ok())
+        == Some(expected.as_str());
+    let query_ok = req
+        .uri()
+        .query()
+        .map(|q| query_token_matches(q, &token))
+        .unwrap_or(false);
+    if !header_ok && !query_ok {
         return Err(StatusCode::UNAUTHORIZED);
     }
     Ok(next.run(req).await)
+}
+
+/// True if the query string carries `token=<token>` or `key=<token>`.
+fn query_token_matches(query: &str, token: &str) -> bool {
+    query.split('&').any(|pair| {
+        let (k, v) = pair.split_once('=').unwrap_or((pair, ""));
+        (k == "token" || k == "key") && v == token
+    })
 }
 
 // ─── JSON-RPC / Streamable-HTTP transport ─────────────────────────────────────
