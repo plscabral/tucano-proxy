@@ -9,6 +9,10 @@ use std::time::{Duration, Instant};
 pub struct ClientInfo {
     pub name: Option<String>,
     pub icon_data_url: Option<String>,
+    /// Full process command line (e.g. `java -jar .../pjeoffice-pro.jar`). Used
+    /// to match app-level SSL bypass rules — the short name is often a generic
+    /// runtime ("java") that can't identify the real app.
+    pub cmdline: Option<String>,
 }
 
 static ICON_CACHE: Lazy<Mutex<HashMap<String, Option<String>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
@@ -64,7 +68,14 @@ mod macos {
         let name = bundle.as_ref().map(|b| bundle_display_name(b))
             .or_else(|| process_name(pid));
         let icon = bundle.as_ref().and_then(|b| icon_for_bundle(b));
-        ClientInfo { name, icon_data_url: icon }
+        ClientInfo { name, icon_data_url: icon, cmdline: command_line(pid) }
+    }
+
+    fn command_line(pid: u32) -> Option<String> {
+        let out = Command::new("ps").args(["-p", &pid.to_string(), "-o", "command="]).output().ok()?;
+        if !out.status.success() { return None; }
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if s.is_empty() { None } else { Some(s) }
     }
 
     fn pid_for_port(port: u16) -> Option<u32> {
@@ -290,7 +301,15 @@ mod windows {
     pub fn resolve(port: u16) -> ClientInfo {
         let Some(pid) = pid_for_port(port) else { return ClientInfo::default() };
         let name = process_name(pid);
-        ClientInfo { name, icon_data_url: None }
+        ClientInfo { name, icon_data_url: None, cmdline: command_line(pid) }
+    }
+    fn command_line(pid: u32) -> Option<String> {
+        let out = Command::new("wmic")
+            .args(["process", "where", &format!("ProcessId={pid}"), "get", "CommandLine", "/value"])
+            .creation_flags(CREATE_NO_WINDOW).output().ok()?;
+        let s = String::from_utf8_lossy(&out.stdout);
+        s.lines().find_map(|l| l.trim().strip_prefix("CommandLine=").map(|v| v.trim().to_string()))
+            .filter(|v| !v.is_empty())
     }
     fn pid_for_port(port: u16) -> Option<u32> {
         // netstat lines look like:

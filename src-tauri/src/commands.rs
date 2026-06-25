@@ -135,6 +135,7 @@ pub fn export_ca(state: tauri::State<'_, Arc<AppState>>) -> Result<String, Strin
     Ok(state.ca.cert_pem.clone())
 }
 
+
 #[tauri::command]
 pub fn toggle_system_proxy(state: tauri::State<'_, Arc<AppState>>, on: bool) -> Result<(), String> {
     let port = state.port.load(Ordering::SeqCst);
@@ -428,6 +429,13 @@ pub fn set_ssl_settings(state: tauri::State<'_, Arc<AppState>>, settings: SslSet
     settings.save(&state.data_dir).map_err(err)?;
     *state.ssl.lock() = settings;
     Ok(())
+}
+
+/// The hardcoded base bypass list (always tunneled, never decrypted), shown
+/// read-only in the UI so users understand what Tucano never intercepts.
+#[tauri::command]
+pub fn get_pinned_hosts() -> Vec<String> {
+    SslSettings::pinned_hosts()
 }
 
 #[tauri::command]

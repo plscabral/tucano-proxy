@@ -87,15 +87,18 @@ mod macos {
         let port_s = port.to_string();
         if on {
             // Snapshot current bypass list per service so we can restore on OFF,
-            // then replace it with a loopback-only bypass. We deliberately keep
-            // 127.0.0.1 / localhost / ::1 OUT of the proxy: routing loopback
-            // through Tucano interferes with local services that own their TLS
-            // (PJe Office's local signer, databases, dev tooling) without
-            // actually helping — browsers hard-bypass loopback regardless.
-            // localhost capture is done via the `tucano.local` / `tucano.test`
-            // alias (a non-loopback hostname rewritten to 127.0.0.1 upstream),
-            // so we must NOT bypass `*.local` here or the alias would never
-            // reach the proxy. We also keep link-local (169.254/16) bypassed.
+            // then clear it. macOS ships with `*.local 169.254/16` by default,
+            // and many setups also bypass localhost — which would prevent us
+            // from capturing dev servers and local apps. Force everything
+            // through the proxy while we're active, including localhost /
+            // 127.0.0.1. Local services that break under interception (PJe
+            // Office's A3 mutual-TLS to *.jus.br, banks, cert-pinned clients)
+            // are handled at the TLS layer instead: they're tunneled — never
+            // MITM'd — via the SSL skip-list, which is seeded with the known
+            // ones and grows automatically when a handshake fails. Routing
+            // their bytes through the proxy is harmless; only decrypting them
+            // is. This keeps localhost capture working without the
+            // `tucano.local` alias.
             let mut snap: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
             for svc in &svcs {
                 snap.insert(svc.clone(), get_bypass(svc));
@@ -105,7 +108,9 @@ mod macos {
             for svc in &svcs {
                 run(&["-setwebproxy", svc, "127.0.0.1", &port_s]);
                 run(&["-setsecurewebproxy", svc, "127.0.0.1", &port_s]);
-                run(&["-setproxybypassdomains", svc, "127.0.0.1", "localhost", "::1", "169.254/16"]);
+                // Empty bypass list — capture absolutely everything, including
+                // localhost / 127.0.0.1 (dev servers, PJe Office signer, etc.).
+                run(&["-setproxybypassdomains", svc, ""]);
             }
         } else {
             let snap = load_snapshot();
@@ -141,12 +146,12 @@ mod windows {
         if on {
             let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "1", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
             let _ = Command::new("reg").args(["add", key, "/v", "ProxyServer", "/t", "REG_SZ", "/d", &format!("127.0.0.1:{}", port), "/f"]).creation_flags(CREATE_NO_WINDOW).status();
-            // Bypass loopback only. Routing 127.0.0.1 / localhost through the
-            // proxy interferes with local services that own their TLS (PJe
-            // Office's signer, etc.) without helping capture. Dev-server capture
-            // goes through the `tucano.local` / `tucano.test` alias, which has a
-            // dot and is NOT covered by these entries, so it still reaches us.
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "localhost;127.0.0.1;[::1]", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
+            // Force everything through the proxy, including localhost — Windows
+            // by default bypasses <local>, which would hide dev/local traffic.
+            // Cert-pinned / mutual-TLS hosts (PJe Office's *.jus.br, banks) are
+            // tunneled un-decrypted via the SSL skip-list, so routing them here
+            // is harmless — only MITM interception breaks them, not proxying.
+            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
         } else {
             let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
             let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "<local>", "/f"]).creation_flags(CREATE_NO_WINDOW).status();

@@ -9,6 +9,7 @@ import {
   FaFileImage, FaCode, FaFileImport, FaPencil, FaPenToSquare, FaTrash, FaEye, FaGear, FaWrench,
 } from "react-icons/fa6";
 import { getVersion } from "@tauri-apps/api/app";
+import { listen } from "@tauri-apps/api/event";
 import { useFlows } from "@/stores/flows";
 import { useUpdater } from "@/stores/updater";
 import { usePrefs } from "@/stores/prefs";
@@ -42,7 +43,7 @@ const SHORTCUTS: [string, string][] = [
 async function refresh() { useFlows.getState().setStatus(await ipc.status()); }
 
 type SslMode = "all" | "allowlist" | "blocklist";
-type Tab = "general" | "proxy" | "localhost" | "cert" | "mcp" | "about" | "shortcuts" | "icons";
+type Tab = "general" | "proxy" | "cert" | "mcp" | "about" | "shortcuts" | "icons";
 
 export default function Settings({ open, onClose }: { open: boolean; onClose: () => void }) {
   const status = useFlows((s) => s.status);
@@ -54,6 +55,8 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   const [sslMode, setSslMode] = useState<SslMode>("allowlist");
   const [sslHosts, setSslHosts] = useState("");
   const [skipHosts, setSkipHosts] = useState("");
+  const [pinnedHosts, setPinnedHosts] = useState<string[]>([]);
+  const [autoBypassed, setAutoBypassed] = useState<string>("");
   const [sslSaved, setSslSaved] = useState(false);
   const [appVersion, setAppVersion] = useState("");
   const [mcpEnabled, setMcpEnabled] = useState(false);
@@ -80,6 +83,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
         setSslHosts((s.hosts || []).join("\n"));
         setSkipHosts((s.skipHosts || []).join("\n"));
       } catch {}
+      try { setPinnedHosts(await ipc.getPinnedHosts()); } catch {}
       try { setAppVersion(await getVersion()); } catch {}
       try {
         const m = await ipc.getMcpSettings();
@@ -89,6 +93,22 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
       try { setMcpClients(await ipc.listMcpClients()); } catch {}
       try { setMcpBinPath(await ipc.mcpBinaryPath()); } catch {}
     })();
+  }, []);
+
+  // The proxy auto-adds a host to the bypass list when its TLS handshake fails
+  // (cert pinning / mutual-TLS). Reflect it live so the textarea stays in sync
+  // and flag which host was just bypassed.
+  useEffect(() => {
+    const un = listen<string>("ssl:auto-bypass", async (e) => {
+      const host = e.payload;
+      try {
+        const s = await ipc.getSslSettings();
+        setSkipHosts((s.skipHosts || []).join("\n"));
+      } catch {}
+      setAutoBypassed(host);
+      setTimeout(() => setAutoBypassed((h) => (h === host ? "" : h)), 6000);
+    });
+    return () => { un.then((f) => f()); };
   }, []);
 
   // Persist MCP settings automatically whenever they change — no Save button.
@@ -178,7 +198,6 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
     ] },
     { label: t("set.group.capture"), items: [
       { id: "proxy", icon: <Network size={14} />, label: t("set.proxy") },
-      { id: "localhost", icon: <Globe size={14} />, label: t("set.localhost") },
       { id: "cert", icon: <ShieldCheck size={14} />, label: t("set.cert") },
     ] },
     { label: t("set.group.integrations"), items: [
@@ -275,13 +294,6 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
               </Section>
             )}
 
-            {tab === "localhost" && (
-              <Section icon={<Globe size={14} />} title={t("set.localhost")}>
-                <p className="text-xs opacity-70 leading-relaxed">{t("set.localhostHint")}</p>
-                <LocalhostBlock port={status.port} />
-              </Section>
-            )}
-
             {tab === "cert" && (
               <>
                 <Section icon={<ShieldCheck size={14} />} title={t("set.cert")}>
@@ -324,18 +336,43 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                       />
                     </div>
                   )}
-                  {sslMode === "all" && (
-                    <div>
-                      <div className="text-[11px] uppercase tracking-wider opacity-60 mono mb-1">{t("set.sslBypass")}</div>
-                      <textarea
-                        value={skipHosts}
-                        onChange={(e) => setSkipHosts(e.currentTarget.value)}
-                        placeholder={"*.example.com\napi.pinned-app.com"}
-                        className="w-full h-24 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
-                      />
-                      <div className="text-[10px] opacity-50 mt-1">{t("set.sslWildcard")}</div>
+                  {/* Bypass list — applies in every mode. Hosts here are always
+                      tunneled raw (never decrypted), so client-cert / pinned
+                      apps (PJe Office's *.jus.br, banks) keep working. */}
+                  <div className="rounded-xl border border-ink-200 dark:border-ink-400/40 p-3 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <Network size={13} className="opacity-60" />
+                      <span className="text-xs font-medium">{t("set.sslBypassTitle")}</span>
                     </div>
-                  )}
+                    <p className="text-[11px] opacity-60 leading-relaxed">{t("set.sslBypassHint")}</p>
+
+                    {autoBypassed && (
+                      <div className="text-[11px] rounded-lg px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/40 text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                        <ShieldCheck size={12} />
+                        <span>{t("set.sslAutoBypass").replace("{host}", autoBypassed)}</span>
+                      </div>
+                    )}
+
+                    <textarea
+                      value={skipHosts}
+                      onChange={(e) => setSkipHosts(e.currentTarget.value)}
+                      placeholder={"*.jus.br\nlocalhost:8800\napi.pinned-app.com"}
+                      className="w-full h-24 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y"
+                    />
+                    <div className="text-[10px] opacity-50">{t("set.sslWildcard")}</div>
+
+                    {pinnedHosts.length > 0 && (
+                      <div className="mt-1">
+                        <div className="text-[10px] uppercase tracking-wider opacity-50 mono mb-1.5">{t("set.sslPinnedTitle")}</div>
+                        <div className="flex flex-wrap gap-1">
+                          {pinnedHosts.map((h) => (
+                            <span key={h} className="text-[10px] mono px-1.5 py-0.5 rounded-md bg-ink-100 dark:bg-white/[0.06] opacity-70">{h}</span>
+                          ))}
+                        </div>
+                        <div className="text-[10px] opacity-40 mt-1.5">{t("set.sslPinnedHint")}</div>
+                      </div>
+                    )}
+                  </div>
                   <button onClick={saveSsl} className={`self-start h-9 px-5 text-xs rounded-xl font-medium transition ${sslSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>
                     {sslSaved ? t("set.sslSaved") : t("set.sslSave")}
                   </button>
@@ -610,41 +647,3 @@ function Row({ icon, title, hint, children }: { icon?: React.ReactNode; title: s
   );
 }
 
-function CopyLine({ value, hint }: { value: string; hint?: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(value); } catch {}
-    setCopied(true); setTimeout(() => setCopied(false), 1200);
-  };
-  return (
-    <div className="flex items-center gap-2">
-      <code className="flex-1 min-w-0 truncate mono text-xs px-3 h-9 grid items-center rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40">{value}</code>
-      <button onClick={copy} title={hint} className="h-9 px-3 rounded-xl border text-xs flex items-center gap-1.5 border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 hover:text-toucan-400 transition">
-        <Copy size={12} /> {copied ? t("set.copied") : t("set.copy")}
-      </button>
-    </div>
-  );
-}
-
-function LocalhostBlock({ port }: { port: number }) {
-  const alias = "tucano.local";
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1.5">
-        <div className="text-[11px] uppercase tracking-wider opacity-60 mono font-medium">{t("set.localhost.aliasLabel")}</div>
-        <CopyLine value={`http://${alias}:3000`} />
-        <div className="text-[11px] opacity-60 leading-relaxed">{t("set.localhost.aliasHelp")}</div>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <div className="text-[11px] uppercase tracking-wider opacity-60 mono font-medium">{t("set.localhost.cliLabel")}</div>
-        <CopyLine value={`export HTTPS_PROXY=http://127.0.0.1:${port} HTTP_PROXY=http://127.0.0.1:${port}`} />
-        <div className="text-[11px] opacity-60 leading-relaxed">{t("set.localhost.cliHelp")}</div>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <div className="text-[11px] uppercase tracking-wider opacity-60 mono font-medium">{t("set.localhost.chromeLabel")}</div>
-        <CopyLine value={`open -na "Google Chrome" --args --proxy-server=http://127.0.0.1:${port} --proxy-bypass-list='<-loopback>'`} />
-        <div className="text-[11px] opacity-60 leading-relaxed">{t("set.localhost.chromeHelp")}</div>
-      </div>
-    </div>
-  );
-}
