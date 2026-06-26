@@ -21,10 +21,6 @@ use tauri::Emitter;
 pub struct TucanoHandler {
     pub state: Arc<AppState>,
     pub pending: Arc<Mutex<HashMap<SocketAddr, VecDeque<Flow>>>>,
-    /// Last CONNECT target (host, port) per client address. `handle_error` only
-    /// receives the client addr, so we stash the host here at intercept time to
-    /// know what to auto-bypass when a MITM'd handshake later fails.
-    pub last_target: Arc<Mutex<HashMap<SocketAddr, (String, u16)>>>,
 }
 
 pub(crate) fn now_ms() -> i64 {
@@ -111,28 +107,6 @@ fn body_from_bytes(b: Bytes) -> Body {
     Full::new(b).map_err(|e: std::convert::Infallible| match e {}).boxed().into()
 }
 
-/// Whether a failed upstream request looks like a TLS/handshake/client-cert
-/// problem (vs. plain connectivity). Walks the full error source chain so we
-/// catch the rustls error nested under hyper's connection error. Conservative:
-/// connectivity failures (connection refused, DNS, timeout) must NOT match, or
-/// a briefly-down server would get permanently un-decrypted.
-fn is_tls_failure(err: &dyn std::error::Error) -> bool {
-    let mut msg = String::new();
-    let mut cur: Option<&dyn std::error::Error> = Some(err);
-    while let Some(e) = cur {
-        msg.push_str(&e.to_string());
-        msg.push(' ');
-        cur = e.source();
-    }
-    let m = msg.to_lowercase();
-    m.contains("tls")
-        || m.contains("handshake")
-        || m.contains("certificate")
-        || m.contains("alert")
-        || m.contains("decrypt")
-        || m.contains("unknown ca")
-}
-
 impl HttpHandler for TucanoHandler {
     /// Decide per-CONNECT whether to MITM-intercept. For hosts in the SSL
     /// blocklist (or outside an allowlist) we tunnel raw bytes — so client
@@ -147,15 +121,7 @@ impl HttpHandler for TucanoHandler {
             match req.uri().authority() {
                 Some(authority) => {
                     let host = authority.host().to_string();
-                    let port = authority.port_u16().unwrap_or(443);
-                    // Remember the target so handle_error can auto-bypass it if
-                    // the upstream TLS handshake fails (mutual-TLS, pinning).
-                    {
-                        let mut t = self.last_target.lock();
-                        if t.len() > 2048 { t.clear(); } // bound growth from successful conns
-                        t.insert(ctx.client_addr, (host.clone(), port));
-                    }
-                    let mut intercept = self.state.ssl.lock().should_intercept(&host, port);
+                    let mut intercept = self.state.ssl.lock().should_intercept(&host);
                     // App-level bypass: some clients (PJe Office and other Java
                     // apps with their own truststore) reject our MITM cert and
                     // break under interception. Resolve the originating process
@@ -173,11 +139,11 @@ impl HttpHandler for TucanoHandler {
                             info.cmdline.as_deref().unwrap_or(""),
                         );
                         if ident.trim() != "" && self.state.ssl.lock().should_skip_app(&ident) {
-                            tracing::info!("should_intercept: host={}:{} -> false (app bypass: {})", host, port, info.name.as_deref().unwrap_or("?"));
+                            tracing::info!("should_intercept: host={} -> false (app bypass: {})", host, info.name.as_deref().unwrap_or("?"));
                             intercept = false;
                         }
                     }
-                    tracing::info!("should_intercept: host={}:{} -> {}", host, port, intercept);
+                    tracing::info!("should_intercept: host={} -> {}", host, intercept);
                     intercept
                 }
                 None => true,
@@ -239,45 +205,6 @@ impl HttpHandler for TucanoHandler {
         }
 
         async move { should }
-    }
-
-    /// A MITM'd request failed to reach upstream. When the failure looks like a
-    /// TLS/handshake/client-cert problem (the host can't be intercepted —
-    /// mutual-TLS like PJe Office's A3 card, cert-pinned clients, banks), add it
-    /// to the SSL skip-list so the *next* connection is tunneled raw and works.
-    /// The current request still fails; the client retries and succeeds. We
-    /// ignore plain connectivity errors (refused, DNS, timeout) so a momentarily
-    /// down server never gets permanently un-decrypted.
-    fn handle_error(
-        &mut self,
-        ctx: &HttpContext,
-        err: hyper_util::client::legacy::Error,
-    ) -> impl Future<Output = Response<Body>> + Send {
-        let target = self.last_target.lock().get(&ctx.client_addr).cloned();
-        if is_tls_failure(&err) {
-            if let Some((host, port)) = target {
-                // Pin the exact host:port so we don't accidentally stop
-                // decrypting an unrelated port on the same host (e.g. one bad
-                // localhost service shouldn't blind us to every dev server).
-                let entry = format!("{host}:{port}");
-                let added = { self.state.ssl.lock().add_skip(&entry) };
-                if added {
-                    let snapshot = self.state.ssl.lock().clone();
-                    let _ = snapshot.save(&self.state.data_dir);
-                    let _ = self.state.app.emit("ssl:auto-bypass", &entry);
-                    tracing::warn!("auto-bypass: tunneling {} after TLS failure: {}", entry, err);
-                }
-            }
-        }
-        async move {
-            Response::builder()
-                .status(http::StatusCode::BAD_GATEWAY)
-                .header(http::header::CONTENT_TYPE, "text/plain; charset=utf-8")
-                .body(body_from_bytes(Bytes::from_static(
-                    b"Tucano: handshake failed; this host was added to the SSL bypass list. Reload to continue.",
-                )))
-                .unwrap_or_else(|_| Response::new(body_from_bytes(Bytes::new())))
-        }
     }
 
     fn handle_request(
@@ -492,11 +419,7 @@ pub async fn run(state: Arc<AppState>, port: u16, stop_rx: tokio::sync::oneshot:
     let ca = RcgenAuthority::new(key, ca_cert, 1_000);
 
     let addr: SocketAddr = ([127, 0, 0, 1], port).into();
-    let handler = TucanoHandler {
-        state: state.clone(),
-        pending: Arc::new(Mutex::new(HashMap::new())),
-        last_target: Arc::new(Mutex::new(HashMap::new())),
-    };
+    let handler = TucanoHandler { state: state.clone(), pending: Arc::new(Mutex::new(HashMap::new())) };
 
     // Build a hyper client that accepts every upstream cert. This lets us
     // MITM hosts with self-signed / untrusted certs (PJe Office on

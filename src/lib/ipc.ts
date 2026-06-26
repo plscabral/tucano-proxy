@@ -34,7 +34,6 @@ export const ipc = {
     invoke<{ mode: "all" | "allowlist" | "blocklist"; hosts: string[]; skipHosts: string[] }>("get_ssl_settings"),
   setSslSettings: (settings: { mode: "all" | "allowlist" | "blocklist"; hosts: string[]; skipHosts: string[] }) =>
     invoke<void>("set_ssl_settings", { settings }),
-  getPinnedHosts: () => invoke<string[]>("get_pinned_hosts"),
   getKeepLimit: () => invoke<number>("get_keep_limit"),
   setKeepLimit: (limit: number) => invoke<void>("set_keep_limit", { limit }),
   getMcpSettings: () =>

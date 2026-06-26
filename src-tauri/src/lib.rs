@@ -145,7 +145,6 @@ pub fn run() {
             commands::quit_app,
             commands::get_ssl_settings,
             commands::set_ssl_settings,
-            commands::get_pinned_hosts,
             commands::get_keep_limit,
             commands::set_keep_limit,
             commands::compose_request,

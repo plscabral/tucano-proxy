@@ -431,13 +431,6 @@ pub fn set_ssl_settings(state: tauri::State<'_, Arc<AppState>>, settings: SslSet
     Ok(())
 }
 
-/// The hardcoded base bypass list (always tunneled, never decrypted), shown
-/// read-only in the UI so users understand what Tucano never intercepts.
-#[tauri::command]
-pub fn get_pinned_hosts() -> Vec<String> {
-    SslSettings::pinned_hosts()
-}
-
 #[tauri::command]
 pub fn get_mcp_settings(state: tauri::State<'_, Arc<AppState>>) -> McpSettings {
     state.mcp_settings.lock().clone()
