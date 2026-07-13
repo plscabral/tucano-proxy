@@ -18,6 +18,9 @@ pub struct AppState {
     pub app: AppHandle,
     /// Maximum number of flows to keep in storage. 0 = unlimited.
     pub keep_limit: AtomicUsize,
+    /// Private capture never emits or writes captured traffic. This lives in
+    /// native state so MCP and the proxy cannot bypass the UI preference.
+    pub private_mode: AtomicBool,
     pub mcp_settings: Mutex<McpSettings>,
     pub mcp_stop_tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
@@ -29,6 +32,9 @@ impl AppState {
             .app_data_dir()
             .unwrap_or_else(|_| std::env::temp_dir().join("tucano"));
         std::fs::create_dir_all(&data_dir)?;
+        if let Err(error) = crate::system_proxy::recover_if_needed(&data_dir) {
+            tracing::error!("could not restore a stale system proxy snapshot: {error}");
+        }
         let ca = CertAuthority::load_or_create(&data_dir)?;
         let mut storage = Storage::open(&data_dir.join("flows.db"))?;
         let _ = storage.clear();
@@ -45,6 +51,7 @@ impl AppState {
             ssl: Mutex::new(ssl),
             app,
             keep_limit: AtomicUsize::new(0),
+            private_mode: AtomicBool::new(false),
             mcp_settings: Mutex::new(mcp),
             mcp_stop_tx: Mutex::new(None),
         })

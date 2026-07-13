@@ -16,6 +16,11 @@ use std::sync::atomic::Ordering;
 use std::time::SystemTime;
 use tauri::Emitter;
 
+/// Hard ceilings for buffered capture data. This prevents a malformed or
+/// malicious peer from making the desktop process allocate without bound.
+pub const MAX_RAW_BODY_BYTES: usize = 10 * 1024 * 1024;
+pub const MAX_DECOMPRESSED_BODY_BYTES: usize = 25 * 1024 * 1024;
+const BODY_OMITTED: &[u8] = b"[body omitted: capture size limit exceeded]";
 
 #[derive(Clone)]
 pub struct TucanoHandler {
@@ -59,28 +64,29 @@ pub(crate) fn decompress(bytes: &Bytes, encoding: Option<&str>) -> Bytes {
     let res: std::io::Result<()> = (|| {
         match enc {
             "gzip" | "x-gzip" => {
-                let mut d = flate2::read::GzDecoder::new(&bytes[..]);
-                d.read_to_end(&mut out).map(|_| ())
+                let d = flate2::read::GzDecoder::new(&bytes[..]);
+                d.take((MAX_DECOMPRESSED_BODY_BYTES + 1) as u64).read_to_end(&mut out).map(|_| ())
             }
             "deflate" => {
-                let mut d = flate2::read::ZlibDecoder::new(&bytes[..]);
-                if d.read_to_end(&mut out).is_err() {
+                let d = flate2::read::ZlibDecoder::new(&bytes[..]);
+                if d.take((MAX_DECOMPRESSED_BODY_BYTES + 1) as u64).read_to_end(&mut out).is_err() {
                     out.clear();
-                    let mut d = flate2::read::DeflateDecoder::new(&bytes[..]);
-                    d.read_to_end(&mut out).map(|_| ())
+                    let d = flate2::read::DeflateDecoder::new(&bytes[..]);
+                    d.take((MAX_DECOMPRESSED_BODY_BYTES + 1) as u64).read_to_end(&mut out).map(|_| ())
                 } else { Ok(()) }
             }
             "br" => {
-                let mut d = brotli::Decompressor::new(&bytes[..], 4096);
-                d.read_to_end(&mut out).map(|_| ())
+                let d = brotli::Decompressor::new(&bytes[..], 4096);
+                d.take((MAX_DECOMPRESSED_BODY_BYTES + 1) as u64).read_to_end(&mut out).map(|_| ())
             }
             "zstd" => {
-                let mut d = zstd::stream::read::Decoder::new(&bytes[..])?;
-                d.read_to_end(&mut out).map(|_| ())
+                let d = zstd::stream::read::Decoder::new(&bytes[..])?;
+                d.take((MAX_DECOMPRESSED_BODY_BYTES + 1) as u64).read_to_end(&mut out).map(|_| ())
             }
             _ => { out = bytes.to_vec(); Ok(()) }
         }
     })();
+    if out.len() > MAX_DECOMPRESSED_BODY_BYTES { return Bytes::from_static(BODY_OMITTED); }
     if res.is_ok() && !out.is_empty() { Bytes::from(out) } else { bytes.clone() }
 }
 
@@ -192,13 +198,15 @@ impl HttpHandler for TucanoHandler {
                     client_icon: None,
                     note: None,
                 };
-                let _ = state.app.emit("flow:new", &flow);
-                let _ = state.storage.lock().upsert(&flow);
-                let limit = state.keep_limit.load(Ordering::Relaxed);
-                if limit > 0 {
-                    let trimmed = state.storage.lock().trim_to_limit(limit);
-                    if !trimmed.is_empty() {
-                        let _ = state.app.emit("flows:trimmed", &trimmed);
+                if !state.private_mode.load(Ordering::SeqCst) {
+                    let _ = state.app.emit("flow:new", &flow);
+                    let _ = state.storage.lock().upsert(&flow);
+                    let limit = state.keep_limit.load(Ordering::Relaxed);
+                    if limit > 0 {
+                        let trimmed = state.storage.lock().trim_to_limit(limit);
+                        if !trimmed.is_empty() {
+                            let _ = state.app.emit("flows:trimmed", &trimmed);
+                        }
                     }
                 }
             }
@@ -225,7 +233,15 @@ impl HttpHandler for TucanoHandler {
                 return RequestOrResponse::Request(Request::from_parts(parts, body_from_bytes(bytes)));
             }
 
-            let bytes = body.collect().await.map(|b| b.to_bytes()).unwrap_or_default();
+            let bytes = match http_body_util::Limited::new(body, MAX_RAW_BODY_BYTES).collect().await {
+                Ok(body) => body.to_bytes(),
+                Err(_) => {
+                    return RequestOrResponse::Response(Response::builder()
+                        .status(http::StatusCode::PAYLOAD_TOO_LARGE)
+                        .body(body_from_bytes(Bytes::from_static(BODY_OMITTED)))
+                        .expect("valid payload-limit response"));
+                }
+            };
             let req_enc = content_encoding(&parts.headers);
             let display_bytes = decompress(&bytes, req_enc.as_deref());
 
@@ -280,7 +296,7 @@ impl HttpHandler for TucanoHandler {
                 crate::client_proc::resolve(client_port)
             }).await.unwrap_or_default();
 
-            let flow = Flow {
+            let mut flow = Flow {
                 id: id.clone(),
                 index: idx,
                 started_at: now_ms(),
@@ -311,19 +327,22 @@ impl HttpHandler for TucanoHandler {
                 note: None,
             };
 
-            let _ = self.state.app.emit("flow:new", &flow);
-            let _ = self.state.storage.lock().upsert(&flow);
+            crate::storage::redact_flow(&mut flow);
 
-            // Trim oldest flows if a keep-limit is set.
-            let limit = self.state.keep_limit.load(Ordering::Relaxed);
-            if limit > 0 {
-                let trimmed = self.state.storage.lock().trim_to_limit(limit);
-                if !trimmed.is_empty() {
-                    let _ = self.state.app.emit("flows:trimmed", &trimmed);
+            if !self.state.private_mode.load(Ordering::SeqCst) {
+                let _ = self.state.app.emit("flow:new", &flow);
+                let _ = self.state.storage.lock().upsert(&flow);
+
+                // Trim oldest flows if a keep-limit is set.
+                let limit = self.state.keep_limit.load(Ordering::Relaxed);
+                if limit > 0 {
+                    let trimmed = self.state.storage.lock().trim_to_limit(limit);
+                    if !trimmed.is_empty() {
+                        let _ = self.state.app.emit("flows:trimmed", &trimmed);
+                    }
                 }
+                self.pending.lock().entry(client).or_default().push_back(flow);
             }
-
-            self.pending.lock().entry(client).or_default().push_back(flow);
 
             // Localhost alias: rewrite the upstream authority from
             // `tucano.local[:port]` to `127.0.0.1[:port]` so hudsucker's
@@ -362,7 +381,15 @@ impl HttpHandler for TucanoHandler {
         let client = ctx.client_addr;
         async move {
             let (parts, body) = res.into_parts();
-            let bytes = body.collect().await.map(|b| b.to_bytes()).unwrap_or_default();
+            let bytes = match http_body_util::Limited::new(body, MAX_RAW_BODY_BYTES).collect().await {
+                Ok(body) => body.to_bytes(),
+                Err(_) => {
+                    return Response::builder()
+                        .status(http::StatusCode::BAD_GATEWAY)
+                        .body(body_from_bytes(Bytes::from_static(BODY_OMITTED)))
+                        .expect("valid payload-limit response");
+                }
+            };
             let res_enc = content_encoding(&parts.headers);
             let display_bytes = decompress(&bytes, res_enc.as_deref());
 
@@ -377,12 +404,8 @@ impl HttpHandler for TucanoHandler {
             let mut pending = self.pending.lock();
             let mut flow = pending.get_mut(&client).and_then(|q| q.pop_front());
             let host_for_check = flow.as_ref().map(|f| (f.scheme.clone(), f.host.clone()));
-            if flow.is_none() {
-                // fallback: any oldest pending across clients (shouldn't normally happen)
-                if let Some((_, q)) = pending.iter_mut().find(|(_, q)| !q.is_empty()) {
-                    flow = q.pop_front();
-                }
-            }
+            // Do not fall back to another client's queue: concurrent responses
+            // could otherwise be persisted against the wrong request.
             let ssl_capture = match host_for_check {
                 Some((s, h)) if s == "https" => self.state.ssl.lock().should_capture(&h),
                 _ => true,
@@ -399,6 +422,7 @@ impl HttpHandler for TucanoHandler {
                 f.res_size = display_bytes.len() as i64;
                 f.ended_at = Some(now_ms());
                 f.duration_ms = Some(f.ended_at.unwrap() - f.started_at);
+                crate::storage::redact_flow(f);
                 let _ = self.state.app.emit("flow:update", &*f);
                 let _ = self.state.storage.lock().upsert(f);
             }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor,
+  X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor, EyeOff,
   ChevronDown, Lock, RefreshCw, FileText, Film, Music, Database, Plug, FileType,
   Braces, Type, FileCode2, Bot, Copy, RotateCw, Palette, Shapes, Check, Save,
 } from "lucide-react";
@@ -47,6 +47,7 @@ type Tab = "general" | "proxy" | "localhost" | "cert" | "mcp" | "about" | "short
 export default function Settings({ open, onClose }: { open: boolean; onClose: () => void }) {
   const status = useFlows((s) => s.status);
   const autoCapture = usePrefs((s) => s.autoCapture);
+  const privateMode = usePrefs((s) => s.privateMode);
   const locale = useLocale((s) => s.locale);
 
   const [port, setPort] = useState(status.port);
@@ -149,6 +150,17 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
     const skipHostsList = skipHosts.split("\n").map((s) => s.trim()).filter(Boolean);
     await ipc.setSslSettings({ mode: sslMode, hosts, skipHosts: skipHostsList });
     setSslSaved(true); setTimeout(() => setSslSaved(false), 1500);
+  };
+
+  const setPrivateMode = async (enabled: boolean) => {
+    if (enabled && !confirm("Private mode clears current captures and stops retaining new traffic. Continue?")) return;
+    setBusy(true);
+    try {
+      await ipc.setPrivateMode(enabled);
+      usePrefs.getState().setPrivateMode(enabled);
+      if (enabled) useFlows.getState().clear();
+    } catch (e) { alert(String(e)); }
+    finally { setBusy(false); }
   };
 
   const installCa = async () => {
@@ -272,6 +284,10 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                 <Row icon={<Globe size={14} />} title={t("set.autoCapture")} hint={t("set.autoCaptureHint")}>
                   <Toggle checked={autoCapture} onChange={(v) => usePrefs.getState().setAutoCapture(v)} label={t("set.autoCapture")} />
                 </Row>
+                <Row icon={<EyeOff size={14} />} title="Private capture" hint="Clears current captures and forwards traffic without saving it to Tucano or exposing it to MCP.">
+                  <Toggle checked={privateMode} onChange={setPrivateMode} disabled={busy} label="Private capture" />
+                </Row>
+                <p className="text-[11px] opacity-60 leading-relaxed">Use the Keep menu in the capture toolbar to automatically remove older captures. Captures are cleared when Tucano starts unless you save a session.</p>
               </Section>
             )}
 
@@ -286,6 +302,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
               <>
                 <Section icon={<ShieldCheck size={14} />} title={t("set.cert")}>
                   <p className="text-xs opacity-70 leading-relaxed">{t("set.certHint")}</p>
+                  <p className="text-[11px] opacity-60 leading-relaxed">Tucano generates this root certificate and its private key only on this device. Installing it lets Tucano create temporary per-site certificates so HTTPS can be inspected; uninstalling removes that trust and immediately stops HTTPS interception.</p>
                   <div className="flex items-center gap-2">
                     <button onClick={installCa} disabled={busy}
                       className={`h-9 px-4 text-xs rounded-xl flex items-center gap-1.5 border transition ${status.caInstalled ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-500" : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}>
@@ -560,14 +577,15 @@ function IconRow({ icon, label, hint }: { icon: React.ReactNode; label: string; 
   );
 }
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
+function Toggle({ checked, onChange, label, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; label?: string; disabled?: boolean }) {
   return (
     <button
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-toucan-400/60 ${checked ? "bg-toucan-400" : "bg-ink-200 dark:bg-ink-400/40"}`}
+      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-toucan-400/60 disabled:opacity-50 ${checked ? "bg-toucan-400" : "bg-ink-200 dark:bg-ink-400/40"}`}
     >
       <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform ${checked ? "translate-x-[22px]" : "translate-x-0.5"}`} />
     </button>
@@ -648,4 +666,3 @@ function LocalhostBlock({ port }: { port: number }) {
     </div>
   );
 }
-

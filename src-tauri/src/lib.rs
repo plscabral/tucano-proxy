@@ -131,6 +131,8 @@ pub fn run() {
             commands::uninstall_ca,
             commands::export_ca,
             commands::toggle_system_proxy,
+            commands::get_private_mode,
+            commands::set_private_mode,
             commands::clear_flows,
             commands::delete_flows,
             commands::restore_flows,
@@ -190,8 +192,7 @@ pub fn cleanup_state(state: &Arc<AppState>) {
     );
     // ALWAYS try to disable the OS proxy on shutdown, even if our internal
     // flag desynced — leaves the user with working internet.
-    let port = state.port.load(Ordering::SeqCst);
-    let _ = system_proxy::set(false, port);
+    let _ = system_proxy::restore(&state.data_dir);
     state.system_proxy_on.store(false, Ordering::SeqCst);
     if let Some(tx) = state.stop_tx.lock().take() { let _ = tx.send(()); }
     if let Some(tx) = state.mcp_stop_tx.lock().take() { let _ = tx.send(()); }

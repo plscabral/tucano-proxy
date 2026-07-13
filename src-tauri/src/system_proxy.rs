@@ -1,150 +1,189 @@
-pub fn set(on: bool, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    eprintln!("[tucano] system_proxy::set on={on} port={port}");
+//! System proxy changes are deliberately transactional.  A stale snapshot is
+//! restored on the next launch, which is the only reliable recovery path after
+//! a power loss or force-quit (the process cannot run cleanup in that case).
+use std::path::Path;
+
+pub fn enable(data_dir: &Path, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     #[cfg(target_os = "macos")]
-    { macos::set(on, port) }
+    { macos::enable(data_dir, port) }
     #[cfg(target_os = "windows")]
-    { windows::set(on, port) }
+    { windows::enable(data_dir, port) }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    { let _ = (on, port); Ok(()) }
+    { let _ = (data_dir, port); Ok(()) }
+}
+
+pub fn restore(data_dir: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    #[cfg(target_os = "macos")]
+    { macos::restore(data_dir) }
+    #[cfg(target_os = "windows")]
+    { windows::restore(data_dir) }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    { let _ = data_dir; Ok(()) }
+}
+
+/// Best-effort startup recovery.  Failure is returned to the caller so it is
+/// visible in logs, but must not prevent the app from opening.
+pub fn recover_if_needed(data_dir: &Path) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    #[cfg(target_os = "macos")]
+    { macos::recover_if_needed(data_dir) }
+    #[cfg(target_os = "windows")]
+    { windows::recover_if_needed(data_dir) }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    { let _ = data_dir; Ok(false) }
 }
 
 #[cfg(target_os = "macos")]
 mod macos {
+    use serde::{Deserialize, Serialize};
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::{Path, PathBuf};
     use std::process::Command;
 
-    fn services() -> Vec<String> {
-        let out = Command::new("networksetup").arg("-listallnetworkservices").output();
-        let stdout = match out {
-            Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
-            Err(e) => { eprintln!("[tucano] networksetup -listallnetworkservices failed: {e}"); return vec![]; }
-        };
-        stdout
-            .lines()
-            .skip(1)
-            .filter(|l| !l.starts_with('*'))
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect()
+    #[derive(Clone, Default, Serialize, Deserialize)]
+    struct Endpoint { enabled: bool, server: String, port: u16 }
+    #[derive(Clone, Default, Serialize, Deserialize)]
+    struct Pac { enabled: bool, url: String }
+    #[derive(Default, Serialize, Deserialize)]
+    struct ServiceSnapshot { web: Endpoint, secure: Endpoint, pac: Pac, bypass: Vec<String> }
+    #[derive(Default, Serialize, Deserialize)]
+    struct Snapshot { services: HashMap<String, ServiceSnapshot> }
+
+    fn snapshot_path(data_dir: &Path) -> PathBuf { data_dir.join("system-proxy-snapshot.json") }
+
+    fn services() -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+        let out = Command::new("networksetup").arg("-listallnetworkservices").output()?;
+        if !out.status.success() { return Err(format!("networksetup -listallnetworkservices: {}", String::from_utf8_lossy(&out.stderr).trim()).into()); }
+        Ok(String::from_utf8_lossy(&out.stdout).lines().skip(1)
+            .filter(|l| !l.starts_with('*')).map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()).collect())
     }
 
-    fn run(args: &[&str]) {
-        let out = Command::new("networksetup").args(args).output();
-        match out {
-            Ok(o) if o.status.success() => {}
-            Ok(o) => eprintln!(
-                "[tucano] networksetup {:?} failed: {} {}",
-                args,
-                String::from_utf8_lossy(&o.stdout).trim(),
-                String::from_utf8_lossy(&o.stderr).trim(),
-            ),
-            Err(e) => eprintln!("[tucano] networksetup {:?} error: {e}", args),
+    fn output(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let out = Command::new("networksetup").args(args).output()?;
+        if !out.status.success() { return Err(format!("networksetup {:?}: {}", args, String::from_utf8_lossy(&out.stderr).trim()).into()); }
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+    fn run(args: &[&str]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> { output(args).map(|_| ()) }
+    fn value(text: &str, key: &str) -> String {
+        text.lines().find_map(|l| l.trim().strip_prefix(key).map(|v| v.trim().to_string())).unwrap_or_default()
+    }
+    fn enabled(text: &str) -> bool { value(text, "Enabled:").eq_ignore_ascii_case("yes") }
+    fn endpoint(flag: &str, svc: &str) -> Result<Endpoint, Box<dyn std::error::Error + Send + Sync>> {
+        let text = output(&[flag, svc])?;
+        Ok(Endpoint { enabled: enabled(&text), server: value(&text, "Server:"), port: value(&text, "Port:").parse().unwrap_or(0) })
+    }
+    fn pac(svc: &str) -> Result<Pac, Box<dyn std::error::Error + Send + Sync>> {
+        let text = output(&["-getautoproxyurl", svc])?;
+        Ok(Pac { enabled: enabled(&text), url: value(&text, "URL:") })
+    }
+    fn bypass(svc: &str) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(output(&["-getproxybypassdomains", svc])?.lines().map(str::trim).filter(|s| !s.is_empty() && !s.starts_with("There aren't any")).map(str::to_string).collect())
+    }
+    fn capture() -> Result<Snapshot, Box<dyn std::error::Error + Send + Sync>> {
+        let mut services_out = HashMap::new();
+        for svc in services()? {
+            services_out.insert(svc.clone(), ServiceSnapshot { web: endpoint("-getwebproxy", &svc)?, secure: endpoint("-getsecurewebproxy", &svc)?, pac: pac(&svc)?, bypass: bypass(&svc)? });
         }
+        Ok(Snapshot { services: services_out })
     }
-
-    /// Read the current proxy bypass domains for a network service.
-    fn get_bypass(svc: &str) -> Vec<String> {
-        let out = Command::new("networksetup")
-            .args(["-getproxybypassdomains", svc])
-            .output();
-        let stdout = match out {
-            Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
-            Err(_) => return vec![],
-        };
-        stdout
-            .lines()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty() && !s.starts_with("There aren't any"))
-            .collect()
+    fn write_snapshot(data_dir: &Path, snapshot: &Snapshot) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        fs::create_dir_all(data_dir)?;
+        let final_path = snapshot_path(data_dir);
+        let temp = final_path.with_extension("tmp");
+        fs::write(&temp, serde_json::to_vec(snapshot)?)?;
+        fs::rename(temp, final_path)?;
+        Ok(())
     }
-
-    fn snapshot_path() -> std::path::PathBuf {
-        dirs::data_dir()
-            .unwrap_or_else(std::env::temp_dir)
-            .join("tucano")
-            .join("bypass-snapshot.json")
+    fn read_snapshot(data_dir: &Path) -> Result<Option<Snapshot>, Box<dyn std::error::Error + Send + Sync>> {
+        let path = snapshot_path(data_dir);
+        if !path.exists() { return Ok(None); }
+        Ok(Some(serde_json::from_slice(&fs::read(path)?)?))
     }
-
-    fn save_snapshot(map: &std::collections::HashMap<String, Vec<String>>) {
-        let path = snapshot_path();
-        if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
-        if let Ok(json) = serde_json::to_string(map) {
-            let _ = std::fs::write(&path, json);
-        }
+    fn restore_endpoint(svc: &str, set_flag: &str, state_flag: &str, saved: &Endpoint) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Restore endpoint details before its enabled state.  This preserves a
+        // disabled corporate proxy instead of leaving Tucano's localhost value
+        // waiting to be accidentally re-enabled later.
+        if !saved.server.is_empty() && saved.port > 0 { run(&[set_flag, svc, &saved.server, &saved.port.to_string()])?; }
+        run(&[state_flag, svc, if saved.enabled { "on" } else { "off" }])
     }
-
-    fn load_snapshot() -> std::collections::HashMap<String, Vec<String>> {
-        std::fs::read_to_string(snapshot_path())
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
-    }
-
-    pub fn set(on: bool, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let svcs = services();
-        if svcs.is_empty() {
-            eprintln!("[tucano] no network services found");
-        }
-        let port_s = port.to_string();
-        if on {
-            // Snapshot current bypass list per service so we can restore on OFF,
-            // then clear it. macOS ships with `*.local 169.254/16` by default,
-            // and many setups also bypass localhost — which would prevent us
-            // from capturing dev servers and local apps. Force everything
-            // through the proxy while we're active.
-            let mut snap: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
-            for svc in &svcs {
-                snap.insert(svc.clone(), get_bypass(svc));
-            }
-            save_snapshot(&snap);
-
-            for svc in &svcs {
-                run(&["-setwebproxy", svc, "127.0.0.1", &port_s]);
-                run(&["-setsecurewebproxy", svc, "127.0.0.1", &port_s]);
-                // Empty bypass list — capture absolutely everything, including
-                // localhost / 127.0.0.1 (PJe Office, dev servers, etc.).
-                run(&["-setproxybypassdomains", svc, ""]);
-            }
-        } else {
-            let snap = load_snapshot();
-            for svc in &svcs {
-                run(&["-setwebproxystate", svc, "off"]);
-                run(&["-setsecurewebproxystate", svc, "off"]);
-
-                // Restore prior bypass list, falling back to the macOS default.
-                let prior = snap.get(svc).cloned().unwrap_or_else(|| {
-                    vec!["*.local".to_string(), "169.254/16".to_string()]
-                });
-                let mut args: Vec<&str> = vec!["-setproxybypassdomains", svc];
-                if prior.is_empty() {
-                    args.push("");
-                } else {
-                    for d in &prior { args.push(d.as_str()); }
-                }
-                run(&args);
-            }
+    fn restore_snapshot(snapshot: &Snapshot) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        for (svc, saved) in &snapshot.services {
+            restore_endpoint(svc, "-setwebproxy", "-setwebproxystate", &saved.web)?;
+            restore_endpoint(svc, "-setsecurewebproxy", "-setsecurewebproxystate", &saved.secure)?;
+            if !saved.pac.url.is_empty() { run(&["-setautoproxyurl", svc, &saved.pac.url])?; }
+            run(&["-setautoproxystate", svc, if saved.pac.enabled { "on" } else { "off" }])?;
+            let mut args = vec!["-setproxybypassdomains", svc.as_str()];
+            if saved.bypass.is_empty() { args.push(""); } else { args.extend(saved.bypass.iter().map(String::as_str)); }
+            run(&args)?;
         }
         Ok(())
+    }
+
+    pub fn enable(data_dir: &Path, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // A snapshot left behind means a crash. Recover it first, then take a
+        // fresh snapshot; never overwrite the user's original configuration.
+        if read_snapshot(data_dir)?.is_some() { restore(data_dir)?; }
+        let snapshot = capture()?;
+        write_snapshot(data_dir, &snapshot)?;
+        let port = port.to_string();
+        for svc in snapshot.services.keys() {
+            run(&["-setautoproxystate", svc, "off"])?;
+            run(&["-setwebproxy", svc, "127.0.0.1", &port])?;
+            run(&["-setsecurewebproxy", svc, "127.0.0.1", &port])?;
+            run(&["-setwebproxystate", svc, "on"])?;
+            run(&["-setsecurewebproxystate", svc, "on"])?;
+            run(&["-setproxybypassdomains", svc, ""])?;
+        }
+        Ok(())
+    }
+    pub fn restore(data_dir: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let Some(snapshot) = read_snapshot(data_dir)? else { return Ok(()); };
+        restore_snapshot(&snapshot)?;
+        fs::remove_file(snapshot_path(data_dir))?;
+        Ok(())
+    }
+    pub fn recover_if_needed(data_dir: &Path) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if read_snapshot(data_dir)?.is_none() { return Ok(false); }
+        restore(data_dir)?;
+        Ok(true)
     }
 }
 
 #[cfg(target_os = "windows")]
 mod windows {
+    use std::fs;
+    use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-    pub fn set(on: bool, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let key = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings";
-        if on {
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "1", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyServer", "/t", "REG_SZ", "/d", &format!("127.0.0.1:{}", port), "/f"]).creation_flags(CREATE_NO_WINDOW).status();
-            // Force everything through the proxy, including localhost — Windows
-            // by default bypasses <local>, which would hide dev/local traffic.
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
-        } else {
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
-            let _ = Command::new("reg").args(["add", key, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "<local>", "/f"]).creation_flags(CREATE_NO_WINDOW).status();
-        }
+    const KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings";
+    fn snapshot_path(data_dir: &Path) -> PathBuf { data_dir.join("system-proxy-snapshot.reg") }
+    fn run(args: &[&str]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let out = Command::new("reg").args(args).creation_flags(CREATE_NO_WINDOW).output()?;
+        if !out.status.success() { return Err(format!("reg {:?}: {}", args, String::from_utf8_lossy(&out.stderr).trim()).into()); }
         Ok(())
+    }
+    pub fn enable(data_dir: &Path, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if snapshot_path(data_dir).exists() { restore(data_dir)?; }
+        fs::create_dir_all(data_dir)?;
+        let snapshot = snapshot_path(data_dir).to_string_lossy().into_owned();
+        run(&["export", KEY, &snapshot, "/y"])?;
+        run(&["add", KEY, "/v", "AutoConfigURL", "/t", "REG_SZ", "/d", "", "/f"])?;
+        run(&["add", KEY, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "1", "/f"])?;
+        run(&["add", KEY, "/v", "ProxyServer", "/t", "REG_SZ", "/d", &format!("127.0.0.1:{port}"), "/f"])?;
+        run(&["add", KEY, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "", "/f"])
+    }
+    pub fn restore(data_dir: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let path = snapshot_path(data_dir);
+        if !path.exists() { return Ok(()); }
+        let snapshot = path.to_string_lossy().into_owned();
+        run(&["import", &snapshot])?;
+        fs::remove_file(path)?;
+        Ok(())
+    }
+    pub fn recover_if_needed(data_dir: &Path) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if !snapshot_path(data_dir).exists() { return Ok(false); }
+        restore(data_dir)?; Ok(true)
     }
 }

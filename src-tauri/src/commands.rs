@@ -60,8 +60,7 @@ pub fn stop_proxy(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> 
     // Auto-revert the OS proxy: leaving it pointing at a stopped 127.0.0.1:8888
     // would break the user's internet.
     if state.system_proxy_on.load(Ordering::SeqCst) {
-        let port = state.port.load(Ordering::SeqCst);
-        let _ = system_proxy::set(false, port);
+        let _ = system_proxy::restore(&state.data_dir);
         state.system_proxy_on.store(false, Ordering::SeqCst);
     }
     Ok(())
@@ -91,10 +90,21 @@ pub(crate) async fn start_capture_internal(state: Arc<AppState>, port: u16) -> R
         });
     }
     let active_port = state.port.load(Ordering::SeqCst);
-    tokio::task::spawn_blocking(move || system_proxy::set(true, active_port))
+    let data_dir = state.data_dir.clone();
+    let configured = tokio::task::spawn_blocking(move || system_proxy::enable(&data_dir, active_port))
         .await
-        .map_err(|e| format!("spawn_blocking: {e}"))?
-        .map_err(|e| { tracing::error!("system_proxy set failed: {e}"); format!("system proxy: {e}") })?;
+        .map_err(|e| format!("spawn_blocking: {e}"))?;
+    if let Err(error) = configured {
+        // `enable` writes the recovery snapshot before touching the OS. If a
+        // later system command fails, immediately roll that partial change
+        // back instead of leaving the machine in an unknown proxy state.
+        let rollback_dir = state.data_dir.clone();
+        let _ = tokio::task::spawn_blocking(move || system_proxy::restore(&rollback_dir)).await;
+        if let Some(tx) = state.stop_tx.lock().take() { let _ = tx.send(()); }
+        state.running.store(false, Ordering::SeqCst);
+        tracing::error!("system proxy set failed: {error}");
+        return Err(format!("system proxy: {error}"));
+    }
     state.system_proxy_on.store(true, Ordering::SeqCst);
     Ok(())
 }
@@ -107,9 +117,9 @@ pub async fn stop_capture(state: tauri::State<'_, Arc<AppState>>) -> Result<(), 
 }
 
 pub(crate) async fn stop_capture_internal(state: Arc<AppState>) -> Result<(), String> {
-    let port = state.port.load(Ordering::SeqCst);
     if state.system_proxy_on.load(Ordering::SeqCst) {
-        tokio::task::spawn_blocking(move || system_proxy::set(false, port))
+        let data_dir = state.data_dir.clone();
+        tokio::task::spawn_blocking(move || system_proxy::restore(&data_dir))
             .await
             .map_err(|e| format!("spawn_blocking: {e}"))?
             .map_err(|e| format!("system proxy: {e}"))?;
@@ -139,7 +149,8 @@ pub fn export_ca(state: tauri::State<'_, Arc<AppState>>) -> Result<String, Strin
 #[tauri::command]
 pub fn toggle_system_proxy(state: tauri::State<'_, Arc<AppState>>, on: bool) -> Result<(), String> {
     let port = state.port.load(Ordering::SeqCst);
-    system_proxy::set(on, port).map_err(err)?;
+    if on { system_proxy::enable(&state.data_dir, port).map_err(err)?; }
+    else { system_proxy::restore(&state.data_dir).map_err(err)?; }
     state.system_proxy_on.store(on, Ordering::SeqCst);
     Ok(())
 }
@@ -147,6 +158,20 @@ pub fn toggle_system_proxy(state: tauri::State<'_, Arc<AppState>>, on: bool) -> 
 #[tauri::command]
 pub fn clear_flows(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
     state.storage.lock().clear().map_err(err)
+}
+
+#[tauri::command]
+pub fn get_private_mode(state: tauri::State<'_, Arc<AppState>>) -> bool {
+    state.private_mode.load(Ordering::SeqCst)
+}
+
+/// Turning on private capture also erases retained traffic. That makes the
+/// promise true immediately, rather than only for flows seen after the toggle.
+#[tauri::command]
+pub fn set_private_mode(state: tauri::State<'_, Arc<AppState>>, enabled: bool) -> Result<(), String> {
+    state.private_mode.store(enabled, Ordering::SeqCst);
+    if enabled { state.storage.lock().clear().map_err(err)?; }
+    Ok(())
 }
 
 #[tauri::command]
@@ -308,7 +333,7 @@ pub(crate) async fn send_request(
         (Some(s), e)
     };
 
-    let new_flow = Flow {
+    let mut new_flow = Flow {
         id: uuid::Uuid::new_v4().to_string(),
         index: idx,
         started_at,
@@ -338,6 +363,8 @@ pub(crate) async fn send_request(
         client_icon: None,
         note: Some(format!("#{} via {source_label}", flow.index)),
     };
+
+    crate::storage::redact_flow(&mut new_flow);
 
     let new_id = new_flow.id.clone();
     let _ = state.app.emit("flow:new", &new_flow);

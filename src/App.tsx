@@ -127,6 +127,9 @@ export default function App() {
       const flowsStore = useFlows.getState();
       try {
         flowsStore.setStatus(await ipc.status());
+        // Native proxy code reads this before it emits or writes any flow;
+        // synchronize it before auto-capture can start.
+        await ipc.setPrivateMode(usePrefs.getState().privateMode);
         flowsStore.setFlows(await ipc.listFlows());
         flowsStore.rebuildIndex();
         const st = flowsStore.status;
