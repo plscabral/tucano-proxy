@@ -1,4 +1,6 @@
 use rusqlite::{params, Connection};
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -44,6 +46,50 @@ pub struct Flow {
 
 pub struct Storage { conn: Connection }
 
+const REDACTED: &str = "[REDACTED]";
+
+static JSON_SECRET: Lazy<Regex> = Lazy::new(|| Regex::new(
+    r#"(?i)(\"(?:authorization|cookie|set-cookie|token|access_token|refresh_token|id_token|api[_-]?key|secret|password)\"\s*:\s*\")[^\"]*"#,
+).expect("valid redaction regex"));
+static FORM_SECRET: Lazy<Regex> = Lazy::new(|| Regex::new(
+    r"(?i)((?:^|[?&\s])(?:token|access_token|refresh_token|id_token|api[_-]?key|secret|password)=)[^&\s]+",
+).expect("valid redaction regex"));
+static BEARER_SECRET: Lazy<Regex> = Lazy::new(|| Regex::new(
+    r"(?i)(\bbearer\s+)[a-z0-9._~+/=-]+",
+).expect("valid redaction regex"));
+
+fn is_secret_header(name: &str) -> bool {
+    matches!(name.to_ascii_lowercase().as_str(),
+        "authorization" | "proxy-authorization" | "cookie" | "set-cookie" |
+        "x-api-key" | "x-auth-token" | "x-access-token")
+}
+
+/// Produce the representation that may leave the process (UI events, SQLite,
+/// sessions and MCP exports). The bytes forwarded on the wire are never
+/// modified; only retained copies are redacted.
+pub fn redact_flow(flow: &mut Flow) {
+    for (name, value) in flow.req_headers.iter_mut().chain(flow.res_headers.iter_mut()) {
+        if is_secret_header(name) {
+            *value = REDACTED.into();
+        } else {
+            *value = BEARER_SECRET.replace_all(value, "${1}[REDACTED]").into_owned();
+        }
+    }
+    for (body, encoding) in [
+        (&mut flow.req_body, flow.req_body_encoding.as_str()),
+        (&mut flow.res_body, flow.res_body_encoding.as_str()),
+    ] {
+        if let Some(value) = body {
+            if encoding == "base64" {
+                *value = "[REDACTED BINARY BODY]".into();
+            } else {
+                let redacted_body = JSON_SECRET.replace_all(value, "${1}[REDACTED]");
+                *value = FORM_SECRET.replace_all(&redacted_body, "${1}[REDACTED]").into_owned();
+            }
+        }
+    }
+}
+
 impl Storage {
     pub fn open(path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let conn = Connection::open(path)?;
@@ -59,7 +105,9 @@ impl Storage {
     }
 
     pub fn upsert(&mut self, f: &Flow) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let json = serde_json::to_string(f)?;
+        let mut safe = f.clone();
+        redact_flow(&mut safe);
+        let json = serde_json::to_string(&safe)?;
         self.conn.execute(
             "INSERT INTO flows(id, idx, data) VALUES(?1, ?2, ?3)
              ON CONFLICT(id) DO UPDATE SET data=excluded.data",
