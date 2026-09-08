@@ -140,12 +140,25 @@ async fn mcp_post(State(state): State<Arc<AppState>>, body: Json<Value>) -> Resp
     Json(Value::Array(responses)).into_response()
 }
 
-fn rpc_ok(id: Value, result: Value) -> Value {
+pub(crate) fn rpc_ok(id: Value, result: Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
 
-fn rpc_err(id: Value, code: i64, message: &str) -> Value {
+pub(crate) fn rpc_err(id: Value, code: i64, message: &str) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
+}
+
+/// Shape returned for `initialize`, shared with the stdio bridge so both
+/// transports advertise the exact same server identity. `requested_proto`
+/// is the client's pinned `protocolVersion`, if any — we echo it back.
+pub(crate) fn initialize_result(requested_proto: Option<&str>) -> Value {
+    let proto = requested_proto.unwrap_or(PROTOCOL_VERSION);
+    json!({
+        "protocolVersion": proto,
+        "capabilities": { "tools": { "listChanged": false } },
+        "serverInfo": { "name": "tucano", "version": SERVER_VERSION },
+        "instructions": "Tucano Proxy — inspect, search, replay and compose captured HTTP/HTTPS traffic.",
+    })
 }
 
 /// Handle one JSON-RPC message. Returns `None` for notifications (no `id`),
@@ -161,20 +174,8 @@ async fn handle_rpc(state: &Arc<AppState>, msg: Value) -> Option<Value> {
     match method {
         "initialize" => {
             // Echo the client's requested protocol version when it pins one.
-            let proto = params
-                .get("protocolVersion")
-                .and_then(|v| v.as_str())
-                .unwrap_or(PROTOCOL_VERSION)
-                .to_string();
-            Some(rpc_ok(
-                id,
-                json!({
-                    "protocolVersion": proto,
-                    "capabilities": { "tools": { "listChanged": false } },
-                    "serverInfo": { "name": "tucano", "version": SERVER_VERSION },
-                    "instructions": "Tucano Proxy — inspect, search, replay and compose captured HTTP/HTTPS traffic.",
-                }),
-            ))
+            let proto = params.get("protocolVersion").and_then(|v| v.as_str());
+            Some(rpc_ok(id, initialize_result(proto)))
         }
         "ping" => Some(rpc_ok(id, json!({}))),
         "tools/list" => Some(rpc_ok(id, json!({ "tools": tools_list() }))),
@@ -1282,7 +1283,7 @@ fn tool_export_har(state: &Arc<AppState>, args: Value) -> Result<Value, String> 
 // ─── tool catalog ─────────────────────────────────────────────────────────────
 
 /// The advertised tool list. Mirrors the inputs accepted by the handlers above.
-fn tools_list() -> Value {
+pub(crate) fn tools_list() -> Value {
     let pair = json!({ "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 });
     json!([
         {

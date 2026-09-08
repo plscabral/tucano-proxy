@@ -1,6 +1,6 @@
 [package]
 name = "tucano"
-version = "0.2.5"
+version = "0.2.6"
 description = "Tucano — open source HTTP/HTTPS debugging proxy"
 authors = ["Paulo Cabral"]
 license = "MIT"
@@ -51,6 +51,9 @@ parking_lot = "0.12"
 ctrlc = "3"
 axum = "0.7"
 toml_edit = "0.22"
+
+[dev-dependencies]
+tempfile = "3"
 
 [features]
 default = ["custom-protocol"]

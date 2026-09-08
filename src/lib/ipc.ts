@@ -38,12 +38,9 @@ export const ipc = {
     invoke<void>("set_ssl_settings", { settings }),
   getKeepLimit: () => invoke<number>("get_keep_limit"),
   setKeepLimit: (limit: number) => invoke<void>("set_keep_limit", { limit }),
-  getMcpSettings: () =>
-    invoke<{ enabled: boolean; port: number; token: string }>("get_mcp_settings"),
-  setMcpSettings: (settings: { enabled: boolean; port: number; token: string }) =>
-    invoke<void>("set_mcp_settings", { settings }),
-  rotateMcpToken: () =>
-    invoke<{ enabled: boolean; port: number; token: string }>("rotate_mcp_token"),
+  getMcpSettings: () => invoke<McpSettings>("get_mcp_settings"),
+  setMcpSettings: (settings: McpSettings) => invoke<void>("set_mcp_settings", { settings }),
+  rotateMcpToken: () => invoke<McpSettings>("rotate_mcp_token"),
   listMcpClients: () => invoke<McpClientStatus[]>("list_mcp_clients"),
   mcpBinaryPath: () => invoke<string>("mcp_binary_path"),
   installMcpClient: (client: McpClient) =>
@@ -52,12 +49,20 @@ export const ipc = {
     invoke<McpClientStatus[]>("uninstall_mcp_client", { client }),
 };
 
-export type McpClient = "claudeDesktop" | "claudeCode" | "codex" | "opencode";
+export type McpClient = "claudeDesktop" | "claudeCode" | "codexDesktop" | "codex" | "opencode" | "opencodeDesktop" | "grok" | "gemini" | "pi" | "antigravity" | "ohMyPi";
 export type McpClientStatus = {
   id: McpClient;
   label: string;
   path: string;
   installed: boolean;
+};
+export type McpTransport = "http" | "stdio";
+export type McpSettings = {
+  enabled: boolean;
+  port: number;
+  token: string;
+  transport: McpTransport;
+  autolaunch: boolean;
 };
 
 export const onFlowNew = (cb: (f: Flow) => void): Promise<UnlistenFn> =>

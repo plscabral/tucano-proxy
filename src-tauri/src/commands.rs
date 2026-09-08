@@ -465,8 +465,15 @@ pub fn get_mcp_settings(state: tauri::State<'_, Arc<AppState>>) -> McpSettings {
 
 #[tauri::command]
 pub async fn set_mcp_settings(state: tauri::State<'_, Arc<AppState>>, settings: McpSettings) -> Result<(), String> {
+    let previous = state.mcp_settings.lock().clone();
+    if previous.autolaunch != settings.autolaunch || previous.port != settings.port || previous.token != settings.token {
+        crate::mcp_install::refresh_installed(&settings)?;
+    }
     settings.save(&state.data_dir).map_err(err)?;
     *state.mcp_settings.lock() = settings.clone();
+    if previous.enabled == settings.enabled && previous.port == settings.port && previous.token == settings.token {
+        return Ok(());
+    }
     // Stop existing bridge (if any). Idempotent.
     if let Some(tx) = state.mcp_stop_tx.lock().take() { let _ = tx.send(()); }
     if settings.enabled {

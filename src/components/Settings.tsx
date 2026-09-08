@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   X, ShieldCheck, Globe, Download, Keyboard, Network, Info, Sun, Moon, Monitor, EyeOff,
   ChevronDown, Lock, RefreshCw, FileText, Film, Music, Database, Plug, FileType,
-  Braces, Type, FileCode2, Bot, Copy, RotateCw, Palette, Shapes, Check, Save,
+  Braces, Type, FileCode2, Bot, Copy, RotateCw, Palette, Shapes, Check, Save, Terminal,
 } from "lucide-react";
 import { SiJavascript, SiCss, SiHtml5, SiGraphql } from "react-icons/si";
 import {
@@ -16,9 +16,16 @@ import { ipc, type McpClient, type McpClientStatus } from "@/lib/ipc";
 import { t, LOCALES, useLocale, setLocale, type Locale } from "@/lib/i18n";
 import { useTheme, setTheme, type ThemeMode } from "@/stores/theme";
 import proxyMark from "@/assets/tucano-proxy-mark.svg";
+import McpClientLogo from "./McpClientLogo";
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 const MOD = IS_MAC ? "⌘" : "Ctrl";
+
+const MCP_CLIENT_GROUP: Record<McpClient, "apps" | "cli"> = {
+  claudeDesktop: "apps", codexDesktop: "apps", opencodeDesktop: "apps", antigravity: "apps",
+  claudeCode: "cli", codex: "cli", opencode: "cli", grok: "cli",
+  gemini: "cli", pi: "cli", ohMyPi: "cli",
+};
 
 const SHORTCUTS: [string, string][] = [
   [`${MOD} + K`, "sk.focusFilter"],
@@ -61,9 +68,8 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   const [mcpPort, setMcpPort] = useState(7878);
   const [mcpToken, setMcpToken] = useState("");
   const [mcpSaved, setMcpSaved] = useState(false);
-  const [mcpTransport, setMcpTransport] = useState<"http" | "stdio">("http");
-  const [mcpBinPath, setMcpBinPath] = useState("");
-  const [mcpCopied, setMcpCopied] = useState<"" | "token" | "config">("");
+  const [mcpAutolaunch, setMcpAutolaunch] = useState(false);
+  const [mcpCopied, setMcpCopied] = useState<"" | "token">("");
   const [tokenVisible, setTokenVisible] = useState(false);
   const [mcpClients, setMcpClients] = useState<McpClientStatus[]>([]);
   const [mcpClientBusy, setMcpClientBusy] = useState<McpClient | "">("");
@@ -71,6 +77,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   // finishes. The autosave effect compares against it so it never writes on
   // open or re-persists unchanged values.
   const mcpSnap = useRef<string | null>(null);
+  const [mcpError, setMcpError] = useState("");
   const [tab, setTab] = useState<Tab>("general");
 
   useEffect(() => {
@@ -85,10 +92,12 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
       try {
         const m = await ipc.getMcpSettings();
         setMcpEnabled(m.enabled); setMcpPort(m.port); setMcpToken(m.token);
-        mcpSnap.current = JSON.stringify({ enabled: m.enabled, port: m.port, token: m.token });
+        setMcpAutolaunch(m.autolaunch);
+        mcpSnap.current = JSON.stringify({ enabled: m.enabled, port: m.port, token: m.token, autolaunch: m.autolaunch });
+
       } catch {}
       try { setMcpClients(await ipc.listMcpClients()); } catch {}
-      try { setMcpBinPath(await ipc.mcpBinaryPath()); } catch {}
+
     })();
   }, []);
 
@@ -97,24 +106,29 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   // skipped on the initial load and when nothing actually changed.
   useEffect(() => {
     if (mcpSnap.current === null) return;
-    const snap = JSON.stringify({ enabled: mcpEnabled, port: mcpPort, token: mcpToken });
+    const snap = JSON.stringify({ enabled: mcpEnabled, port: mcpPort, token: mcpToken, autolaunch: mcpAutolaunch });
     if (snap === mcpSnap.current) return;
-    const id = setTimeout(() => { mcpSnap.current = snap; saveMcp(); }, 400);
+    const id = setTimeout(() => { saveMcp().then(() => { mcpSnap.current = snap; }).catch((e) => setMcpError(String(e))); }, 400);
     return () => clearTimeout(id);
-  }, [mcpEnabled, mcpPort, mcpToken]);
+  }, [mcpEnabled, mcpPort, mcpToken, mcpAutolaunch]);
 
   const refreshMcpClients = async () => { try { setMcpClients(await ipc.listMcpClients()); } catch {} };
   const installMcpClient = async (c: McpClient) => {
     if (!mcpToken) { alert(t("set.mcp.needToken")); return; }
     setMcpClientBusy(c);
-    try { setMcpClients(await ipc.installMcpClient(c)); } catch (e) { alert(String(e)); } finally { setMcpClientBusy(""); }
+    try {
+      await saveMcp();
+      setMcpClients(await ipc.installMcpClient(c));
+
+    } catch (e) { alert(String(e)); } finally { setMcpClientBusy(""); }
   };
   const uninstallMcpClient = async (c: McpClient) => {
     setMcpClientBusy(c);
     try { setMcpClients(await ipc.uninstallMcpClient(c)); } catch (e) { alert(String(e)); } finally { setMcpClientBusy(""); }
   };
   const saveMcp = async () => {
-    await ipc.setMcpSettings({ enabled: mcpEnabled, port: mcpPort, token: mcpToken });
+    await ipc.setMcpSettings({ enabled: mcpEnabled, port: mcpPort, token: mcpToken, transport: "http", autolaunch: mcpAutolaunch });
+    setMcpError("");
     window.dispatchEvent(new Event("tucano:mcp-changed")); // refresh StatusBar MCP indicator
     setMcpSaved(true); setTimeout(() => setMcpSaved(false), 1500);
   };
@@ -123,24 +137,8 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
     const m = await ipc.rotateMcpToken();
     setMcpToken(m.token);
   };
-  const mcpConfigSnippet = (real = false) => {
-    const tok = real || tokenVisible ? mcpToken : "•".repeat(mcpToken.length);
-    const url = `http://127.0.0.1:${mcpPort}/mcp`;
-    const entry = mcpTransport === "stdio"
-      ? {
-          command: mcpBinPath || "/path/to/tucano-proxy",
-          args: ["mcp-stdio"],
-          env: { TUCANO_MCP_URL: url, TUCANO_MCP_TOKEN: tok },
-        }
-      : {
-          type: "http",
-          url,
-          headers: { Authorization: `Bearer ${tok}` },
-        };
-    return JSON.stringify({ mcpServers: { tucano: entry } }, null, 2);
-  };
-  const copyMcp = async (kind: "token" | "config") => {
-    const text = kind === "token" ? mcpToken : mcpConfigSnippet(true);
+  const copyMcp = async (kind: "token") => {
+    const text = mcpToken;
     await navigator.clipboard.writeText(text);
     setMcpCopied(kind); setTimeout(() => setMcpCopied(""), 1500);
   };
@@ -401,52 +399,40 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                   <p className="text-xs opacity-70 leading-relaxed">
                     {t("set.mcp.installHint")}
                   </p>
-                  <div className="flex flex-col gap-2">
-                    {mcpClients.map((c) => (
-                      <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl border border-ink-100 dark:border-ink-400/40">
+                  <Row title={t("set.mcp.autolaunch")} hint={t("set.mcp.autolaunchHint")}>
+                    <Toggle checked={mcpAutolaunch} onChange={setMcpAutolaunch} label={t("set.mcp.autolaunch")} />
+                  </Row>
+                  {mcpError && <p role="alert" className="text-xs text-red-500">{mcpError}</p>}
+                  {(["apps", "cli"] as const).map((group) => (
+                  <section key={group} aria-labelledby={`mcp-group-${group}`} className="flex flex-col gap-2 mt-2">
+                    <h3 id={`mcp-group-${group}`} className="flex items-center gap-2 text-xs font-semibold opacity-70 mb-1">
+                      {group === "apps" ? <Monitor size={14} /> : <Terminal size={14} />}
+                      {t(`set.mcp.group.${group}`)}
+                      <span className="h-px flex-1 bg-ink-100 dark:bg-ink-400/30" />
+                    </h3>
+                    {mcpClients.filter((c) => MCP_CLIENT_GROUP[c.id] === group).map((c) => (
+                      <div key={c.id} title={c.path} className="flex items-center gap-3 p-3 rounded-xl border border-ink-100 dark:border-ink-400/40">
+                        <McpClientLogo client={c.id} />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium flex items-center gap-2">
                             {c.label}
                             {c.installed && <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500 border border-emerald-500/40">{t("set.mcp.installed")}</span>}
                           </div>
-                          <div className="text-[11px] mono opacity-60 truncate">{c.path}</div>
+                          {(c.id === "codex" || c.id === "codexDesktop") && <div className="text-[11px] opacity-60 mt-1">{t("set.mcp.codexShared")}</div>}
+                          {(c.id === "opencode" || c.id === "opencodeDesktop") && <div className="text-[11px] opacity-60 mt-1">{t("set.mcp.opencodeShared")}</div>}
                         </div>
                         {c.installed ? (
-                          <button disabled={mcpClientBusy === c.id} onClick={() => uninstallMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg border border-red-500/40 text-red-500 hover:bg-red-500/10 disabled:opacity-50">{t("set.mcp.remove")}</button>
+                          <button disabled={mcpClientBusy !== ""} onClick={() => uninstallMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg border border-red-500/40 text-red-500 hover:bg-red-500/10 disabled:opacity-50">{t("set.mcp.remove")}</button>
                         ) : (
-                          <button disabled={mcpClientBusy === c.id} onClick={() => installMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg tcn-accent tcn-accent-glow disabled:opacity-50">{t("set.mcp.install")}</button>
+                          <button disabled={mcpClientBusy !== ""} onClick={() => installMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg tcn-accent tcn-accent-glow disabled:opacity-50">{t("set.mcp.install")}</button>
                         )}
                       </div>
                     ))}
-                  </div>
-                  <button onClick={refreshMcpClients} className="h-8 px-3 text-xs rounded-lg border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 flex items-center gap-1.5"><RefreshCw size={12} /> {t("set.mcp.refresh")}</button>
+                  </section>
+                  ))}
+                  <button onClick={refreshMcpClients} className="self-start h-8 px-2 text-xs opacity-60 hover:opacity-100 flex items-center gap-1.5"><RefreshCw size={12} /> {t("set.mcp.refresh")}</button>
                 </Section>
 
-                <Section icon={<Info size={14} />} title={t("set.mcp.configTitle")}>
-                  <p className="text-xs opacity-70 leading-relaxed">
-                    {t("set.mcp.configHint")}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div className="inline-flex p-0.5 rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40">
-                      {(["http", "stdio"] as const).map((tr) => (
-                        <button
-                          key={tr}
-                          onClick={() => setMcpTransport(tr)}
-                          className={`h-7 px-3 text-xs rounded-lg font-medium transition ${mcpTransport === tr ? "tcn-accent" : "opacity-60 hover:opacity-100"}`}
-                        >
-                          {tr === "http" ? t("set.mcp.transportHttp") : t("set.mcp.transportStdio")}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-[11px] opacity-60 leading-relaxed">
-                    {mcpTransport === "stdio" ? t("set.mcp.transportStdioHint") : t("set.mcp.transportHttpHint")}
-                  </p>
-                  <div className="relative">
-                    <pre className="text-[11px] mono p-3 rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 overflow-auto whitespace-pre">{mcpConfigSnippet()}</pre>
-                    <button onClick={() => copyMcp("config")} className={`absolute top-2 right-2 h-7 px-2 text-[11px] rounded-lg border flex items-center gap-1.5 transition ${mcpCopied === "config" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "bg-white dark:bg-[var(--tcn-canvas)] border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}><Copy size={11} /> {mcpCopied === "config" ? t("set.copied") : t("set.copy")}</button>
-                  </div>
-                </Section>
               </>
             )}
 

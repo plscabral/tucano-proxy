@@ -1,17 +1,44 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+/// How the installer wires the `tucano` MCP entry into a client's config.
+/// Claude Desktop only ever accepts `Stdio` (its config format has no `url`
+/// field); every other client can go either way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum McpTransport {
+    #[default]
+    Http,
+    Stdio,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpSettings {
     pub enabled: bool,
     pub port: u16,
     pub token: String,
+    /// Transport the installer uses for clients that support both (all but
+    /// Claude Desktop). `#[serde(default)]` so pre-T3 `mcp-settings.json`
+    /// files without this field still load.
+    #[serde(default)]
+    pub transport: McpTransport,
+    /// When installing a stdio entry, whether to set
+    /// `TUCANO_MCP_AUTOLAUNCH=1` in its env so the bridge launches the app on
+    /// first tool call. `#[serde(default)]` for the same reason as above.
+    #[serde(default)]
+    pub autolaunch: bool,
 }
 
 impl Default for McpSettings {
     fn default() -> Self {
-        Self { enabled: false, port: 7878, token: new_token() }
+        Self {
+            enabled: false,
+            port: 7878,
+            token: new_token(),
+            transport: McpTransport::default(),
+            autolaunch: false,
+        }
     }
 }
 
