@@ -1,7 +1,9 @@
+#[cfg(target_os = "macos")]
 use base64::Engine;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::collections::HashMap;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::process::Command;
 use std::time::{Duration, Instant};
 
@@ -15,6 +17,7 @@ pub struct ClientInfo {
     pub cmdline: Option<String>,
 }
 
+#[cfg(target_os = "macos")]
 static ICON_CACHE: Lazy<Mutex<HashMap<String, Option<String>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
