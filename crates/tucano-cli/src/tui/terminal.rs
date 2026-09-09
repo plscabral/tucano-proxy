@@ -6,10 +6,9 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::style::{Color, Style};
-use std::{
-    io::{self, IsTerminal, Write},
-    time::{Duration, Instant},
-};
+use std::io::{self, IsTerminal, Write};
+#[cfg(unix)]
+use std::time::{Duration, Instant};
 
 /// Only renderer-owned escape sequences may reach the terminal. Keep line breaks
 /// and tabs for documents, but strip OSC/DCS/CSI payloads as well as their introducers.
@@ -254,6 +253,7 @@ fn query_background() -> Option<bool> {
 fn query_background() -> Option<bool> {
     None
 }
+#[cfg(any(unix, test))]
 fn parse_background(reply: &str) -> Option<bool> {
     let value = reply
         .split("11;rgb:")
