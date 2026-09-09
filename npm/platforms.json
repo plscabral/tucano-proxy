@@ -32,7 +32,7 @@
     "executable": "tucano-proxy"
   },
   "win32-x64": {
-    "name": "tucano-proxy-win32-x64",
+    "name": "tucano-proxy-windows-x64",
     "target": "x86_64-pc-windows-msvc",
     "os": "win32",
     "cpu": "x64",
