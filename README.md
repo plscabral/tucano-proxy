@@ -157,6 +157,13 @@ pnpm tauri build --target x86_64-pc-windows-msvc
 
 Use <kbd>Ctrl</kbd> in place of <kbd>⌘</kbd> on Linux / Windows. The full list lives under **Settings → Keyboard shortcuts**.
 
+## 0.2.8 release notes
+
+- Added `stop --all` to shut down every session in a data directory, reporting sessions already stopped and failing with the ones that refused to stop.
+- `session list` now reports each session's ports, capture state, retained flows and OS proxy state as a readable table, and flags two services claiming the same proxy port.
+- An occupied capture port now explains the conflict and the fix instead of surfacing the bare operating-system error.
+- The agent skill now reuses the configured session instead of inventing one, and offers the terminal or web inspector when captures are worth looking at.
+
 ## 0.2.7 release notes
 
 - Added a standalone Rust CLI, persistent named sessions, an interactive terminal inspector and a bundled local web UI. Desktop and standalone clients now share the same capture engine.

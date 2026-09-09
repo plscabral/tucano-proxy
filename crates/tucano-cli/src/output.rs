@@ -26,6 +26,62 @@ pub fn emit(value: Value, json_mode: bool, color: bool) -> Result<()> {
         writeln!(out)?;
         return Ok(());
     }
+    if let Some(sessions) = value.get("sessions").and_then(Value::as_array) {
+        if color {
+            write!(out, "\x1b[1;35m")?;
+        }
+        writeln!(
+            out,
+            "{:<24} {:<24} {:<8} {:<8} {:<7} OS PROXY",
+            "SESSION", "SERVICE", "PROXY", "CAPTURE", "FLOWS"
+        )?;
+        if color {
+            write!(out, "\x1b[0m")?;
+        }
+        for item in sessions {
+            let running = item["running"] == Value::Bool(true);
+            let flag = |key: &str, yes: &'static str, no: &'static str| match item.get(key) {
+                Some(Value::Bool(true)) => yes.to_string(),
+                Some(Value::Bool(false)) => no.to_string(),
+                _ => "-".to_string(),
+            };
+            let number = |key: &str| {
+                item.get(key)
+                    .and_then(Value::as_u64)
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "-".into())
+            };
+            let mut proxy = number("proxyPort");
+            if item["proxyPortConflict"] == Value::Bool(true) {
+                proxy.push_str(" !");
+            }
+            writeln!(
+                out,
+                "{:<24} {:<24} {:<8} {:<8} {:<7} {}",
+                clean(item["session"].as_str().unwrap_or("-")),
+                if running {
+                    clean(item["endpoint"].as_str().unwrap_or("-"))
+                } else {
+                    "stopped".into()
+                },
+                proxy,
+                flag("capturing", "on", "off"),
+                number("flowsCount"),
+                flag("systemProxyOn", "on", "off"),
+            )?;
+        }
+        writeln!(out, "Selected session: {}", value["selected"])?;
+        if sessions
+            .iter()
+            .any(|item| item["proxyPortConflict"] == Value::Bool(true))
+        {
+            writeln!(
+                out,
+                "! Two services claim the same proxy port; only one holds the listener. Stop one, or start it with an explicit --proxy-port."
+            )?;
+        }
+        return Ok(());
+    }
     if let Some(items) = value.get("items").and_then(Value::as_array) {
         if color {
             write!(out, "\x1b[1;35m")?;

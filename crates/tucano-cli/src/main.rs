@@ -11,12 +11,12 @@ mod web;
 use anyhow::{Context, Result};
 use args::*;
 use clap::{CommandFactory, Parser};
-use client::{fail, Client, Failure, Runtime};
+use client::{fail, Client, Failure};
 use serde_json::{json, Value};
 use std::{
     io::{self, IsTerminal, Read, Write},
     path::{Path, PathBuf},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 #[tokio::main]
@@ -242,30 +242,17 @@ async fn run(cli: Cli, color: bool) -> Result<Option<Value>> {
             Ok((runtime, client)) => {
                 json!({"service":lifecycle::summary(&runtime),"capture":client.invoke("get_status",json!({})).await?,"stats":client.invoke("get_stats",json!({})).await?})
             }
-            Err(error) if error.downcast_ref::<Failure>().is_some_and(|e| e.exit == 3) => {
+            Err(error) if client::unavailable(&error) => {
                 json!({"service":{"running":false,"session":cli.session},"detail":error.to_string()})
             }
             Err(error) => return Err(error),
         },
-        Command::Stop => {
-            let (runtime, client) = lifecycle::connect(&root, &cli.session, cli.timeout).await?;
-            client.shutdown(&runtime).await?;
-            let deadline = Instant::now() + Duration::from_secs(cli.timeout);
-            loop {
-                match Runtime::read(&root, &cli.session) {
-                    Err(error) if error.downcast_ref::<Failure>().is_some_and(|e| e.exit == 3) => {
-                        break
-                    }
-                    Ok(current) if current.instance_id != runtime.instance_id => break,
-                    Err(error) => return Err(error),
-                    _ => {}
-                }
-                if Instant::now() >= deadline {
-                    return Err(fail("shutdown_timeout","Shutdown was requested but runtime descriptor remains; inspect service.log before retrying",3));
-                }
-                tokio::time::sleep(Duration::from_millis(100)).await;
+        Command::Stop { all } => {
+            if all {
+                lifecycle::stop_all(&root, cli.timeout).await?
+            } else {
+                lifecycle::stop(&root, &cli.session, cli.timeout).await?
             }
-            json!({"session":cli.session,"running":false})
         }
         Command::McpStdio => {
             if cli.json {
@@ -295,17 +282,45 @@ async fn run(cli: Cli, color: bool) -> Result<Option<Value>> {
         }
         Command::Skill(command) => skills::run(command)?,
         Command::Session(Session::List) => {
-            let names = tucano_service::list_sessions(&root)?;
             let mut items = Vec::new();
-            for name in names {
-                let connected = lifecycle::connect(&root, &name, cli.timeout.min(2)).await;
-                items.push(match connected {
-                    Ok((runtime, _)) => lifecycle::summary(&runtime),
-                    Err(error) => {
-                        json!({"session":name,"running":false,"detail":error.to_string()})
-                    }
-                });
+            for session in tucano_service::list_sessions(&root)? {
+                items.push(
+                    match lifecycle::connect(&root, &session, cli.timeout.min(2)).await {
+                        Ok((runtime, client)) => {
+                            let mut item = lifecycle::summary(&runtime);
+                            // A reachable service always answers get_status; keep the
+                            // row instead of hiding a running session behind an error.
+                            match client.invoke("get_status", json!({})).await {
+                                Ok(status) => {
+                                    for key in
+                                        ["running", "port", "systemProxyOn", "flowsCount"]
+                                    {
+                                        if let Some(value) = status.get(key) {
+                                            let name = match key {
+                                                "running" => "capturing",
+                                                "port" => "capturePort",
+                                                other => other,
+                                            };
+                                            item[name] = value.clone();
+                                        }
+                                    }
+                                }
+                                Err(error) => {
+                                    item["detail"] = json!(output::clean(&error.to_string()))
+                                }
+                            }
+                            item
+                        }
+                        Err(error) if client::unavailable(&error) => {
+                            json!({"session":session,"running":false})
+                        }
+                        Err(error) => {
+                            json!({"session":session,"running":false,"detail":output::clean(&error.to_string())})
+                        }
+                    },
+                );
             }
+            lifecycle::annotate_port_conflicts(&mut items);
             json!({"sessions":items,"selected":cli.session})
         }
         Command::Session(Session::Create { name }) => {
