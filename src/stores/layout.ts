@@ -1,3 +1,4 @@
+import { preferenceStorage } from "@/lib/platform";
 import { create } from "zustand";
 
 export type InspectorPos = "right" | "bottom" | "hidden";
@@ -11,7 +12,7 @@ function clamp(n: number, lo: number, hi: number) {
 
 function load(): State {
   try {
-    const s = JSON.parse(localStorage.getItem(KEY) || "");
+    const s = JSON.parse(preferenceStorage.getItem(KEY) || "");
     return {
       pos: s.pos ?? "right",
       rightPct: clamp(s.rightPct ?? 55, 20, 85),
@@ -20,7 +21,7 @@ function load(): State {
   } catch { return { pos: "right", rightPct: 55, bottomPct: 55 }; }
 }
 
-function persist(s: State) { localStorage.setItem(KEY, JSON.stringify(s)); }
+function persist(s: State) { preferenceStorage.setItem(KEY, JSON.stringify(s)); }
 
 type LayoutState = State & {
   setPos: (p: InspectorPos) => void;

@@ -8,14 +8,14 @@ import { SiJavascript, SiCss, SiHtml5, SiGraphql } from "react-icons/si";
 import {
   FaFileImage, FaCode, FaFileImport, FaPencil, FaPenToSquare, FaTrash, FaEye, FaGear, FaWrench,
 } from "react-icons/fa6";
-import { getVersion } from "@tauri-apps/api/app";
+import { getVersion, isDesktop, useConnection } from "@/lib/platform"
 import { useFlows } from "@/stores/flows";
 import { useUpdater } from "@/stores/updater";
 import { usePrefs } from "@/stores/prefs";
 import { ipc, type McpClient, type McpClientStatus } from "@/lib/ipc";
 import { t, LOCALES, useLocale, setLocale, type Locale } from "@/lib/i18n";
 import { useTheme, setTheme, type ThemeMode } from "@/stores/theme";
-import proxyMark from "@/assets/tucano-proxy-mark.svg";
+import proxyMark from "@/assets/tucano-proxy.png";
 import McpClientLogo from "./McpClientLogo";
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -56,13 +56,26 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   const autoCapture = usePrefs((s) => s.autoCapture);
   const privateMode = usePrefs((s) => s.privateMode);
   const locale = useLocale((s) => s.locale);
+  const connection = useConnection();
+  const writable = isDesktop || (connection.state === "connected" && connection.runtime?.scope === "admin");
+  const runtimeSession = connection.runtime?.session;
+  const caSession = connection.state === "connected" && typeof runtimeSession === "string"
+    && /^[A-Za-z0-9_-]{1,64}$/.test(runtimeSession) ? runtimeSession : null;
 
-  const [port, setPort] = useState(status.port);
+  const capturePort = usePrefs((s) => s.capturePort);
+  const [portDraft, setPortDraft] = useState<string | null>(null);
+  const port = portDraft ?? String(capturePort ?? status.port);
+  const validPort = Number.isInteger(Number(port)) && Number(port) >= 1 && Number(port) <= 65535;
   const [busy, setBusy] = useState(false);
   const [sslMode, setSslMode] = useState<SslMode>("allowlist");
   const [sslHosts, setSslHosts] = useState("");
   const [skipHosts, setSkipHosts] = useState("");
   const [sslSaved, setSslSaved] = useState(false);
+  const [insecureHosts, setInsecureHosts] = useState("");
+  const [tlsLoaded, setTlsLoaded] = useState(false);
+  const [tlsBusy, setTlsBusy] = useState(false);
+  const [tlsSaved, setTlsSaved] = useState(false);
+  const [tlsError, setTlsError] = useState("");
   const [appVersion, setAppVersion] = useState("");
   const [mcpEnabled, setMcpEnabled] = useState(false);
   const [mcpPort, setMcpPort] = useState(7878);
@@ -87,7 +100,9 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
         setSslMode((s.mode as SslMode) || "allowlist");
         setSslHosts((s.hosts || []).join("\n"));
         setSkipHosts((s.skipHosts || []).join("\n"));
-      } catch {}
+        setInsecureHosts((s.insecureHosts || []).join("\n"));
+        setTlsLoaded(true);
+      } catch (error) { setTlsError(String(error)); }
       try { setAppVersion(await getVersion()); } catch {}
       try {
         const m = await ipc.getMcpSettings();
@@ -105,12 +120,12 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   // Debounced so typing in the port field doesn't write on every keystroke;
   // skipped on the initial load and when nothing actually changed.
   useEffect(() => {
-    if (mcpSnap.current === null) return;
+    if (!writable || mcpSnap.current === null) return;
     const snap = JSON.stringify({ enabled: mcpEnabled, port: mcpPort, token: mcpToken, autolaunch: mcpAutolaunch });
     if (snap === mcpSnap.current) return;
     const id = setTimeout(() => { saveMcp().then(() => { mcpSnap.current = snap; }).catch((e) => setMcpError(String(e))); }, 400);
     return () => clearTimeout(id);
-  }, [mcpEnabled, mcpPort, mcpToken, mcpAutolaunch]);
+  }, [mcpEnabled, mcpPort, mcpToken, mcpAutolaunch, writable]);
 
   const refreshMcpClients = async () => { try { setMcpClients(await ipc.listMcpClients()); } catch {} };
   const installMcpClient = async (c: McpClient) => {
@@ -144,10 +159,27 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
   };
 
   const saveSsl = async () => {
+    if (!writable) return;
     const hosts = sslHosts.split("\n").map((s) => s.trim()).filter(Boolean);
     const skipHostsList = skipHosts.split("\n").map((s) => s.trim()).filter(Boolean);
-    await ipc.setSslSettings({ mode: sslMode, hosts, skipHosts: skipHostsList });
+    const current = await ipc.getSslSettings();
+    await ipc.setSslSettings({ ...current, mode: sslMode, hosts, skipHosts: skipHostsList });
     setSslSaved(true); setTimeout(() => setSslSaved(false), 1500);
+  };
+
+  const saveTlsExceptions = async () => {
+    if (!writable || tlsBusy || !tlsLoaded) return;
+    setTlsBusy(true); setTlsError(""); setTlsSaved(false);
+    try {
+      const hosts = [...new Set(insecureHosts.split("\n").map((host) => host.trim().toLowerCase()).filter(Boolean))];
+      const current = await ipc.getSslSettings();
+      const existing = new Set((current.insecureHosts ?? []).map((host) => host.toLowerCase()));
+      const added = hosts.filter((host) => !existing.has(host));
+      if (added.length && !confirm(t("set.tlsConfirm", { hosts: added.join("\n") }))) return;
+      await ipc.setSslSettings({ ...current, insecureHosts: hosts });
+      setInsecureHosts(hosts.join("\n")); setTlsSaved(true);
+    } catch (error) { setTlsError(String(error)); }
+    finally { setTlsBusy(false); }
   };
 
   const setPrivateMode = async (enabled: boolean) => {
@@ -240,7 +272,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
               </div>
             ))}
           </nav>
-          <div className="flex-1 min-w-0 overflow-auto scroll-thin">
+          <fieldset disabled={!writable && (tab === "proxy" || tab === "mcp")} className="flex-1 min-w-0 overflow-auto scroll-thin">
             {tab === "general" && (
               <Section icon={<Sun size={14} />} title={t("set.appearance")}>
                 <Row title={t("set.theme")}>
@@ -268,24 +300,37 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
             {tab === "proxy" && (
               <Section icon={<Network size={14} />} title={t("set.proxy")}>
                 <div className="flex items-center gap-3">
-                  <label className="text-xs opacity-70 w-14">{t("set.port")}</label>
+                  <label htmlFor="capture-port" className="text-xs opacity-70 w-14">{t("set.port")}</label>
                   <input
+                    id="capture-port"
+                    min={1}
+                    max={65535}
+                    step={1}
+                    aria-invalid={!validPort}
                     type="number"
                     value={port}
-                    onChange={(e) => setPort(Number(e.currentTarget.value) || 8888)}
+                    disabled={status.running || !writable}
+                    onChange={(e) => setPortDraft(e.currentTarget.value)}
                     className="w-28 h-9 px-3 mono text-sm rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
                   />
+                  <button
+                    disabled={status.running || !writable || !validPort || portDraft === null}
+                    onClick={() => { usePrefs.getState().setCapturePort(Number(port)); setPortDraft(null); }}
+                    className="h-9 px-3 text-xs rounded-xl tcn-accent disabled:opacity-50"
+                  >Apply for next capture</button>
                   <span className={`mono text-xs ${status.running ? "text-toucan-400" : "opacity-50"}`}>
                     ● {status.running ? t("set.running", { port: status.port }) : t("set.stopped")}
                   </span>
                 </div>
-                <Row icon={<Globe size={14} />} title={t("set.autoCapture")} hint={t("set.autoCaptureHint")}>
+                {!validPort && <p role="alert" className="text-xs text-red-500">Enter an integer port from 1 to 65535.</p>}
+                {!status.running && <p className="text-xs opacity-70">Next capture will use port <code>{capturePort ?? status.port}</code>. Apply a draft before starting; editing does not change the running service.</p>}
+                {isDesktop ? <Row icon={<Globe size={14} />} title={t("set.autoCapture")} hint={t("set.autoCaptureHint")}>
                   <Toggle checked={autoCapture} onChange={(v) => usePrefs.getState().setAutoCapture(v)} label={t("set.autoCapture")} />
-                </Row>
+                </Row> : <p className="text-xs opacity-70">Start capture from the toolbar, then configure your client to use <code>127.0.0.1:{status.port}</code>. Opening this page never starts capture or changes the system proxy.</p>}
                 <Row icon={<EyeOff size={14} />} title="Private capture" hint="Clears current captures and forwards traffic without saving it to Tucano or exposing it to MCP.">
                   <Toggle checked={privateMode} onChange={setPrivateMode} disabled={busy} label="Private capture" />
                 </Row>
-                <p className="text-[11px] opacity-60 leading-relaxed">Use the Keep menu in the capture toolbar to automatically remove older captures. Captures are cleared when Tucano starts unless you save a session.</p>
+                <p className="text-[11px] opacity-60 leading-relaxed">Use the Keep menu in the capture toolbar to automatically remove older captures. Sessions persist until you clear or replace them.</p>
               </Section>
             )}
 
@@ -300,13 +345,13 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
               <>
                 <Section icon={<ShieldCheck size={14} />} title={t("set.cert")}>
                   <p className="text-xs opacity-70 leading-relaxed">{t("set.certHint")}</p>
-                  <p className="text-[11px] opacity-60 leading-relaxed">Tucano generates this root certificate and its private key only on this device. Installing it lets Tucano create temporary per-site certificates so HTTPS can be inspected; uninstalling removes that trust and immediately stops HTTPS interception.</p>
-                  <div className="flex items-center gap-2">
-                    <button onClick={installCa} disabled={busy}
+                  {isDesktop && <p className="text-xs opacity-70 leading-relaxed">{t("set.certTrustHint")}</p>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isDesktop && <button onClick={installCa} disabled={busy}
                       className={`h-9 px-4 text-xs rounded-xl flex items-center gap-1.5 border transition ${status.caInstalled ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-500" : "border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60"}`}>
                       <ShieldCheck size={13} /> {status.caInstalled ? t("set.caTrustedBtn") : t("set.installCa")}
-                    </button>
-                    {status.caInstalled && (
+                    </button>}
+                    {isDesktop && status.caInstalled && (
                       <button onClick={uninstallCa} disabled={busy} className="h-9 px-4 text-xs rounded-xl border border-red-500/40 text-red-500 hover:bg-red-500/10 flex items-center gap-1.5">
                         {t("set.uninstallCa")}
                       </button>
@@ -315,6 +360,37 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                       <Download size={13} /> {t("set.exportCa")}
                     </button>
                   </div>
+                  {!isDesktop && (
+                    <div className="flex flex-col gap-3 min-w-0">
+                      <p className="text-xs leading-relaxed">{t("set.certWebHint")}</p>
+                      {caSession ? (
+                        <>
+                          <h3 className="text-xs font-semibold break-all">{t("set.certSession", { session: caSession })}</h3>
+                          <p className="text-xs opacity-70 leading-relaxed">{t("set.certCliHint")}</p>
+                          <p className="text-xs font-medium leading-relaxed">{t("set.certDataDirHint")}</p>
+                          <div className="flex flex-col gap-1.5">
+                            <h4 className="text-xs font-semibold">{t("set.installCa")}</h4>
+                            <CopyLine value={`tucano-proxy --session=${caSession} ca install --yes`} hint={t("set.installCa")} />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <h4 className="text-xs font-semibold">{t("set.uninstallCa")}</h4>
+                            <CopyLine value={`tucano-proxy --session=${caSession} ca uninstall --yes`} hint={t("set.uninstallCa")} />
+                          </div>
+                        </>
+                      ) : <p role="status" className="text-xs opacity-70 leading-relaxed">{t("set.certSessionUnavailable")}</p>}
+                      <details className="text-xs">
+                        <summary className="cursor-pointer rounded-md py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{t("set.certDetails")}</summary>
+                        <div className="mt-3 flex flex-col gap-3 opacity-70 leading-relaxed">
+                          <p>{t("set.certTrustHint")}</p>
+                          {caSession && <p>{t(status.caInstalled ? "set.certHostTrusted" : "set.certHostUnverified")}{" "}{t("set.certStatusHint")}</p>}
+                          <p>{t("set.certPlatformHint")}</p>
+                          <p>{t("set.certClientHint")}</p>
+                          <p>{t("set.certRemovalHint")}</p>
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                  {isDesktop && <p className="text-xs opacity-70 leading-relaxed">{t("set.certRemovalHint")}</p>}
                 </Section>
 
                 <Section icon={<Lock size={14} />} title={t("set.ssl")}>
@@ -351,8 +427,29 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                       <div className="text-[10px] opacity-50 mt-1">{t("set.sslWildcard")}</div>
                     </div>
                   )}
-                  <button onClick={saveSsl} className={`self-start h-9 px-5 text-xs rounded-xl font-medium transition ${sslSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>
+                  <button disabled={!writable} onClick={() => void saveSsl().catch((error) => alert(String(error)))} className={`self-start h-9 px-5 text-xs rounded-xl font-medium transition disabled:opacity-50 ${sslSaved ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/40" : "tcn-accent tcn-accent-glow"}`}>
                     {sslSaved ? t("set.sslSaved") : t("set.sslSave")}
+                  </button>
+                </Section>
+
+                <Section icon={<ShieldCheck size={14} />} title={t("set.tlsTitle")}>
+                  <p className="text-xs opacity-70 leading-relaxed">{t("set.tlsHint")}</p>
+                  <label htmlFor="insecure-tls-hosts" className="text-xs font-semibold">{t("set.tlsHosts")}</label>
+                  <textarea
+                    id="insecure-tls-hosts"
+                    aria-describedby="insecure-tls-warning"
+                    value={insecureHosts}
+                    disabled={!writable || !tlsLoaded || tlsBusy}
+                    onChange={(event) => { setInsecureHosts(event.currentTarget.value); setTlsSaved(false); }}
+                    placeholder={"localhost\n127.0.0.1"}
+                    spellCheck={false}
+                    className="w-full h-24 px-3 py-2 mono text-xs rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none resize-y disabled:opacity-50"
+                  />
+                  <p id="insecure-tls-warning" className="text-xs text-amber-600 dark:text-amber-400 leading-relaxed">{t("set.tlsWarning")}</p>
+                  {tlsError && <p role="alert" className="text-xs text-red-500">{tlsError}</p>}
+                  {tlsSaved && <p role="status" className="text-xs">{t("set.tlsSaved")}</p>}
+                  <button disabled={!writable || !tlsLoaded || tlsBusy} onClick={() => void saveTlsExceptions()} className="self-start h-9 px-5 text-xs rounded-xl font-medium tcn-accent tcn-accent-glow disabled:opacity-50">
+                    {tlsBusy ? t("set.tlsSaving") : t("set.tlsSave")}
                   </button>
                 </Section>
 
@@ -403,6 +500,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                     <Toggle checked={mcpAutolaunch} onChange={setMcpAutolaunch} label={t("set.mcp.autolaunch")} />
                   </Row>
                   {mcpError && <p role="alert" className="text-xs text-red-500">{mcpError}</p>}
+                  {!isDesktop && <p className="text-xs opacity-70">Client configuration files belong to the service machine. Use the desktop app or configure your MCP client with this HTTP endpoint; browser access never edits local application configuration files.</p>}
                   {(["apps", "cli"] as const).map((group) => (
                   <section key={group} aria-labelledby={`mcp-group-${group}`} className="flex flex-col gap-2 mt-2">
                     <h3 id={`mcp-group-${group}`} className="flex items-center gap-2 text-xs font-semibold opacity-70 mb-1">
@@ -422,9 +520,9 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                           {(c.id === "opencode" || c.id === "opencodeDesktop") && <div className="text-[11px] opacity-60 mt-1">{t("set.mcp.opencodeShared")}</div>}
                         </div>
                         {c.installed ? (
-                          <button disabled={mcpClientBusy !== ""} onClick={() => uninstallMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg border border-red-500/40 text-red-500 hover:bg-red-500/10 disabled:opacity-50">{t("set.mcp.remove")}</button>
+                          <button disabled={!isDesktop || mcpClientBusy !== ""} onClick={() => uninstallMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg border border-red-500/40 text-red-500 hover:bg-red-500/10 disabled:opacity-50">{t("set.mcp.remove")}</button>
                         ) : (
-                          <button disabled={mcpClientBusy !== ""} onClick={() => installMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg tcn-accent tcn-accent-glow disabled:opacity-50">{t("set.mcp.install")}</button>
+                          <button disabled={!isDesktop || mcpClientBusy !== ""} onClick={() => installMcpClient(c.id)} className="h-8 px-3 text-xs rounded-lg tcn-accent tcn-accent-glow disabled:opacity-50">{t("set.mcp.install")}</button>
                         )}
                       </div>
                     ))}
@@ -495,7 +593,7 @@ export default function Settings({ open, onClose }: { open: boolean; onClose: ()
                 </div>
               </Section>
             )}
-          </div>
+          </fieldset>
         </div>
       </div>
     </div>
@@ -509,6 +607,12 @@ function AboutSection({ appVersion }: { appVersion: string }) {
   const error = useUpdater((u) => u.error);
   const notes = useUpdater((u) => u.notes);
   const up = useUpdater.getState();
+  if (!isDesktop) return (
+    <Section icon={<Info size={14} />} title={t("set.aboutTitle")}>
+      <p className="text-sm">Tucano Proxy service <span className="mono">{appVersion || "…"}</span></p>
+      <p className="text-xs opacity-70">Update the service using the same package manager or release download used to install it, then restart the service. Browser updates never install software or restart captures.</p>
+    </Section>
+  );
   return (
     <Section icon={<RefreshCw size={14} />} title={t("set.aboutTitle")}>
       <div className="text-xs flex flex-col gap-2">
@@ -616,16 +720,22 @@ function Row({ icon, title, hint, children }: { icon?: React.ReactNode; title: s
 
 function CopyLine({ value, hint }: { value: string; hint?: string }) {
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const copy = async () => {
-    try { await navigator.clipboard.writeText(value); } catch {}
-    setCopied(true); setTimeout(() => setCopied(false), 1200);
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyFailed(false); setCopied(true); setTimeout(() => setCopied(false), 1200);
+    } catch { setCopied(false); setCopyFailed(true); }
   };
   return (
-    <div className="flex items-center gap-2">
-      <code className="flex-1 min-w-0 truncate mono text-xs px-3 h-9 grid items-center rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40">{value}</code>
-      <button onClick={copy} title={hint} className="h-9 px-3 rounded-xl border text-xs flex items-center gap-1.5 border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 hover:text-toucan-400 transition">
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <div className="flex flex-wrap items-start gap-2">
+      <code className="flex-1 min-w-0 basis-48 whitespace-pre-wrap break-all mono text-xs px-3 py-2 leading-relaxed rounded-xl bg-ink-50 dark:bg-white/[0.04] border border-ink-100 dark:border-ink-400/40">{value}</code>
+      <button onClick={copy} title={hint ? `${t("set.copy")}: ${hint}` : undefined} className="h-9 px-3 shrink-0 rounded-xl border text-xs flex items-center gap-1.5 border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 hover:text-toucan-400 transition">
         <Copy size={12} /> {copied ? t("set.copied") : t("set.copy")}
       </button>
+      </div>
+      {copyFailed && <p role="alert" className="text-xs text-red-500">{t("set.copyFailed")}</p>}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { preferenceStorage } from "@/lib/platform";
 import { create } from "zustand";
 import type { Flow } from "@/lib/types";
 import { ipc } from "@/lib/ipc";
@@ -28,7 +29,7 @@ async function syncSkipHost(host: string, skip: boolean) {
     const s = await ipc.getSslSettings();
     const set = new Set(s.skipHosts ?? []);
     if (skip) set.add(host); else set.delete(host);
-    await ipc.setSslSettings({ mode: s.mode, hosts: s.hosts ?? [], skipHosts: [...set] });
+    await ipc.setSslSettings({ ...s, skipHosts: [...set] });
   } catch {}
 }
 
@@ -38,18 +39,18 @@ async function syncSkipHostsRemove(removed: string[]) {
     const s = await ipc.getSslSettings();
     const set = new Set(s.skipHosts ?? []);
     for (const h of removed) set.delete(h);
-    await ipc.setSslSettings({ mode: s.mode, hosts: s.hosts ?? [], skipHosts: [...set] });
+    await ipc.setSslSettings({ ...s, skipHosts: [...set] });
   } catch {}
 }
 
 function loadSet(key: string): Set<string> {
   try {
-    const arr = JSON.parse(localStorage.getItem(key) || "[]");
+    const arr = JSON.parse(preferenceStorage.getItem(key) || "[]");
     return Array.isArray(arr) ? new Set(arr.filter((x) => typeof x === "string")) : new Set();
   } catch { return new Set(); }
 }
 function saveSet(key: string, s: Set<string>) {
-  try { localStorage.setItem(key, JSON.stringify([...s])); } catch {}
+  try { preferenceStorage.setItem(key, JSON.stringify([...s])); } catch {}
 }
 
 type IgnoredState = {

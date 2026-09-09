@@ -1,3 +1,4 @@
+import { preferenceStorage } from "@/lib/platform";
 import { create } from "zustand";
 
 export type Locale = "en" | "pt-BR" | "es";
@@ -316,6 +317,7 @@ const en: Dict = {
   "set.localhost.chromeHelp": "Launches a fresh Chrome that routes loopback through the proxy. Run from a terminal; close existing Chrome windows first or use a separate profile.",
   "set.copy": "Copy",
   "set.copied": "Copied",
+  "set.copyFailed": "Could not copy. Select the command and copy it manually.",
   "set.port": "Port",
   "set.applyStart": "Apply & Start",
   "set.running": "running on {port}",
@@ -330,12 +332,33 @@ const en: Dict = {
   "set.disabled": "Disabled",
   "set.cert": "Root Certificate",
   "set.certHint":
-    "For HTTPS interception to work, the Tucano Root CA must be trusted by your OS. Install it once — without it, browsers will show certificate errors and many sites won't be captured at all.",
+    "To inspect HTTPS, the client OS or application must trust this session's Tucano Root CA. Otherwise, intercepted connections may fail with certificate errors.",
   "set.caTrustedBtn": "Trusted in this OS",
   "set.installCa": "Install Tucano Root CA",
   "set.uninstallCa": "Uninstall CA",
-  "set.uninstallCaConfirm": "Remove the Tucano Root CA from this system's trust store? HTTPS interception will stop working until you reinstall it.",
+  "set.uninstallCaConfirm": "Remove this Tucano Root CA from the system's trust store? New TLS connections may fail. Existing connections and applications with separate trust stores may remain unaffected.",
   "set.exportCa": "Export .pem",
+  "set.certTrustHint": "Tucano generates the CA and its private key on the machine running the proxy. Trusting this CA allows Tucano to issue per-site certificates for HTTPS inspection. Export downloads only the public certificate.",
+  "set.certWebHint": "The browser cannot install or remove certificates from OS trust stores. Use the CLI on the machine hosting this service, or export this session's PEM for manual setup.",
+  "set.certSession": "Current session: {session}",
+  "set.certHostTrusted": "Service reports: CA trusted on the service machine.",
+  "set.certHostUnverified": "Service reports: CA trust not verified on the service machine.",
+  "set.certStatusHint": "This is not a check of your browser or another device. Automatic trust detection is supported only on macOS and Windows.",
+  "set.certCliHint": "Run in an interactive terminal on the service machine. Keep this session running. --yes confirms the trust change; the OS may request authorization.",
+  "set.certDataDirHint": "Started with --data-dir? Include the same path in both commands to avoid changing another session.",
+  "set.certDetails": "Trust, supported systems and other devices",
+  "set.certPlatformHint": "CLI trust changes support macOS and Windows (current-user Root store). On Linux and other systems, export the PEM and use your distribution's trust tools to install or remove it.",
+  "set.certSessionUnavailable": "Connect to the service to show commands for the current session. No default session is assumed.",
+  "set.certClientHint": "If the client is on another device, install the exported PEM in that device's OS or application trust store. To remove it, delete this same certificate from each store where you installed it. Changing trust on the service machine does not change client devices.",
+  "set.certRemovalHint": "Removing trust does not stop the proxy, delete the session's CA files, or close existing TLS connections. Restart affected applications or connections as needed; applications with separate trust stores require separate removal.",
+  "set.tlsTitle": "Development TLS exceptions",
+  "set.tlsHint": "Upstream TLS certificates are verified by default. These exceptions disable certificate verification only for the listed development hosts, including replay and composed requests. They do not change interception rules or system certificate trust.",
+  "set.tlsHosts": "Exact hostnames or IP addresses, one per line",
+  "set.tlsWarning": "Security warning: untrusted certificates will be accepted for these hosts. Use only for development systems you control. Matching is case-insensitive; wildcards, URLs, paths and ports are not allowed. Remove a host to restore verification.",
+  "set.tlsConfirm": "Disable upstream certificate verification for these exact development hosts?\n\n{hosts}\n\nTucano will accept untrusted, expired or impersonated certificates for these hosts. This exposes their traffic to interception. Use only for development systems you control.",
+  "set.tlsSaved": "TLS exceptions saved.",
+  "set.tlsSaving": "Saving…",
+  "set.tlsSave": "Save TLS exceptions",
   "set.whyTitle": "Why isn't a site captured?",
   "set.why1":
     "HTTP/3 (QUIC) bypasses HTTP proxies. Disable QUIC in your browser (chrome://flags → Experimental QUIC protocol → Disabled).",
@@ -344,7 +367,7 @@ const en: Dict = {
   "set.why3":
     "Certificate pinning apps (mobile, Electron) reject Tucano's CA by design.",
   "set.why4":
-    "Confirm the system proxy is enabled and the CA is installed. Then refresh the page (browsers cache HSTS aggressively).",
+    "Confirm the client is configured to use this proxy and trusts this session's CA. Then retry the connection or restart the application.",
   "set.shortcuts": "Keyboard shortcuts",
   "set.iconsTitle": "Icon legend",
   "set.iconsHint": "Each row in the capture list shows an icon based on the request. Brand icons take priority for known content types; otherwise the HTTP method drives the glyph and the response status drives the color.",
@@ -768,6 +791,7 @@ const ptBR: Dict = {
   "set.localhost.chromeHelp": "Sobe um Chrome novo roteando loopback pelo proxy. Rode no terminal; feche as janelas existentes ou use outro perfil.",
   "set.copy": "Copiar",
   "set.copied": "Copiado",
+  "set.copyFailed": "Não foi possível copiar. Selecione o comando e copie manualmente.",
   "set.port": "Porta",
   "set.applyStart": "Aplicar e iniciar",
   "set.running": "rodando em {port}",
@@ -782,12 +806,33 @@ const ptBR: Dict = {
   "set.disabled": "Desativado",
   "set.cert": "Certificado raiz",
   "set.certHint":
-    "Para a interceptação HTTPS funcionar, o CA raiz do Tucano precisa ser confiado pelo seu SO. Instale uma vez — sem isso, navegadores mostram erros de certificado e muitos sites não serão capturados.",
+    "Para inspecionar HTTPS, o sistema operacional ou aplicativo cliente precisa confiar no CA raiz do Tucano desta sessão. Caso contrário, conexões interceptadas podem falhar com erros de certificado.",
   "set.caTrustedBtn": "Confiável neste SO",
   "set.installCa": "Instalar CA raiz do Tucano",
   "set.uninstallCa": "Desinstalar CA",
-  "set.uninstallCaConfirm": "Remover o CA raiz do Tucano do trust store deste sistema? A interceptação HTTPS vai parar de funcionar até você reinstalar.",
+  "set.uninstallCaConfirm": "Remover este CA raiz do Tucano do repositório de certificados confiáveis do sistema? Novas conexões TLS podem falhar. Conexões existentes e aplicativos com repositórios próprios podem não ser afetados.",
   "set.exportCa": "Exportar .pem",
+  "set.certTrustHint": "O Tucano gera o CA e sua chave privada na máquina que executa o proxy. Confiar nesse CA permite ao Tucano emitir certificados por site para inspecionar HTTPS. A exportação baixa apenas o certificado público.",
+  "set.certWebHint": "O navegador não pode instalar nem remover certificados dos repositórios de confiança do sistema. Use a CLI na máquina que hospeda este serviço ou exporte o PEM desta sessão para configurar manualmente.",
+  "set.certSession": "Sessão atual: {session}",
+  "set.certHostTrusted": "O serviço informa: CA confiável na máquina do serviço.",
+  "set.certHostUnverified": "O serviço informa: confiança no CA não verificada na máquina do serviço.",
+  "set.certStatusHint": "Isso não verifica seu navegador nem outro dispositivo. A detecção automática de confiança só é compatível com macOS e Windows.",
+  "set.certCliHint": "Execute em um terminal interativo na máquina do serviço. Mantenha esta sessão em execução. --yes confirma a alteração; o SO pode pedir autorização.",
+  "set.certDataDirHint": "Iniciou com --data-dir? Inclua o mesmo caminho nos dois comandos para não alterar outra sessão.",
+  "set.certDetails": "Confiança, sistemas compatíveis e outros dispositivos",
+  "set.certPlatformHint": "A CLI altera a confiança no macOS e no Windows (repositório raiz do usuário atual). No Linux e em outros sistemas, exporte o PEM e use as ferramentas de confiança da distribuição para instalar ou remover o certificado.",
+  "set.certSessionUnavailable": "Conecte-se ao serviço para exibir comandos da sessão atual. Nenhuma sessão padrão é presumida.",
+  "set.certClientHint": "Se o cliente estiver em outro dispositivo, instale o PEM exportado no repositório de confiança do sistema ou aplicativo desse dispositivo. Para removê-lo, exclua esse mesmo certificado de cada repositório onde foi instalado. Alterar a confiança na máquina do serviço não altera os dispositivos clientes.",
+  "set.certRemovalHint": "Remover a confiança não para o proxy, não exclui os arquivos do CA da sessão nem fecha conexões TLS existentes. Reinicie os aplicativos ou conexões afetados conforme necessário; aplicativos com repositórios próprios exigem remoção separada.",
+  "set.tlsTitle": "Exceções TLS para desenvolvimento",
+  "set.tlsHint": "Certificados TLS dos servidores de destino são verificados por padrão. Estas exceções desativam a verificação apenas para os hosts de desenvolvimento listados, inclusive em requisições repetidas e compostas. Elas não alteram as regras de interceptação nem a confiança em certificados do sistema.",
+  "set.tlsHosts": "Nomes de host ou endereços IP exatos, um por linha",
+  "set.tlsWarning": "Aviso de segurança: certificados não confiáveis serão aceitos para estes hosts. Use apenas em sistemas de desenvolvimento que você controla. Maiúsculas e minúsculas são equivalentes; curingas, URLs, caminhos e portas não são permitidos. Remova um host para restaurar a verificação.",
+  "set.tlsConfirm": "Desativar a verificação de certificados dos servidores de destino para estes hosts de desenvolvimento específicos?\n\n{hosts}\n\nO Tucano aceitará certificados não confiáveis, expirados ou falsificados para estes hosts. Isso expõe o tráfego deles à interceptação. Use apenas em sistemas de desenvolvimento que você controla.",
+  "set.tlsSaved": "Exceções TLS salvas.",
+  "set.tlsSaving": "Salvando…",
+  "set.tlsSave": "Salvar exceções TLS",
   "set.whyTitle": "Por que um site não está sendo capturado?",
   "set.why1":
     "HTTP/3 (QUIC) ignora proxies HTTP. Desative QUIC no navegador (chrome://flags → Experimental QUIC protocol → Disabled).",
@@ -796,7 +841,7 @@ const ptBR: Dict = {
   "set.why3":
     "Apps com certificate pinning (mobile, Electron) rejeitam o CA do Tucano por design.",
   "set.why4":
-    "Confirme que o proxy do sistema está ligado e o CA instalado. Depois recarregue a página (navegadores cacheiam HSTS).",
+    "Confirme que o cliente está configurado para usar este proxy e confia no CA desta sessão. Depois, tente conectar novamente ou reinicie o aplicativo.",
   "set.shortcuts": "Atalhos de teclado",
   "set.iconsTitle": "Legenda dos ícones",
   "set.iconsHint": "Cada linha da lista mostra um ícone baseado na requisição. Ícones de marca têm prioridade para tipos conhecidos; caso contrário, o método HTTP define o glifo e o status define a cor.",
@@ -1191,6 +1236,7 @@ const es: Dict = {
   "set.localhost.chromeHelp": "Abre un Chrome nuevo enrutando loopback por el proxy. Ejecuta desde la terminal; cierra antes las ventanas de Chrome o usa otro perfil.",
   "set.copy": "Copiar",
   "set.copied": "Copiado",
+  "set.copyFailed": "No se pudo copiar. Selecciona el comando y cópialo manualmente.",
   "set.port": "Puerto",
   "set.applyStart": "Aplicar e iniciar",
   "set.running": "ejecutándose en {port}",
@@ -1205,12 +1251,33 @@ const es: Dict = {
   "set.disabled": "Deshabilitado",
   "set.cert": "Certificado raíz",
   "set.certHint":
-    "Para que la interceptación HTTPS funcione, el CA raíz de Tucano debe ser de confianza para tu SO.",
+    "Para inspeccionar HTTPS, el sistema operativo o la aplicación cliente debe confiar en el CA raíz de Tucano de esta sesión. De lo contrario, las conexiones interceptadas pueden fallar con errores de certificado.",
   "set.caTrustedBtn": "Confiable en este SO",
   "set.installCa": "Instalar CA raíz de Tucano",
   "set.uninstallCa": "Desinstalar CA",
-  "set.uninstallCaConfirm": "¿Eliminar el CA raíz de Tucano del almacén de confianza? La interceptación HTTPS dejará de funcionar hasta reinstalar.",
+  "set.uninstallCaConfirm": "¿Eliminar este CA raíz de Tucano del almacén de confianza del sistema? Las nuevas conexiones TLS pueden fallar. Las conexiones existentes y las aplicaciones con almacenes propios pueden no verse afectadas.",
   "set.exportCa": "Exportar .pem",
+  "set.certTrustHint": "Tucano genera el CA y su clave privada en la máquina que ejecuta el proxy. Confiar en este CA permite a Tucano emitir certificados por sitio para inspeccionar HTTPS. La exportación descarga solo el certificado público.",
+  "set.certWebHint": "El navegador no puede instalar ni eliminar certificados de los almacenes de confianza del sistema. Usa la CLI en la máquina que aloja este servicio o exporta el PEM de esta sesión para configurarlo manualmente.",
+  "set.certSession": "Sesión actual: {session}",
+  "set.certHostTrusted": "El servicio informa: CA de confianza en la máquina del servicio.",
+  "set.certHostUnverified": "El servicio informa: confianza en el CA no verificada en la máquina del servicio.",
+  "set.certStatusHint": "Esto no comprueba tu navegador ni otro dispositivo. La detección automática de confianza solo es compatible con macOS y Windows.",
+  "set.certCliHint": "Ejecuta en una terminal interactiva de la máquina del servicio. Mantén esta sesión en ejecución. --yes confirma el cambio; el sistema puede pedir autorización.",
+  "set.certDataDirHint": "¿Iniciaste con --data-dir? Incluye la misma ruta en ambos comandos para no modificar otra sesión.",
+  "set.certDetails": "Confianza, sistemas compatibles y otros dispositivos",
+  "set.certPlatformHint": "La CLI cambia la confianza en macOS y Windows (almacén raíz del usuario actual). En Linux y otros sistemas, exporta el PEM y usa las herramientas de confianza de tu distribución para instalar o eliminar el certificado.",
+  "set.certSessionUnavailable": "Conéctate al servicio para mostrar los comandos de la sesión actual. No se presupone una sesión predeterminada.",
+  "set.certClientHint": "Si el cliente está en otro dispositivo, instala el PEM exportado en el almacén de confianza del sistema o la aplicación de ese dispositivo. Para eliminarlo, borra ese mismo certificado de cada almacén donde lo instalaste. Cambiar la confianza en la máquina del servicio no modifica los dispositivos cliente.",
+  "set.certRemovalHint": "Eliminar la confianza no detiene el proxy, no borra los archivos del CA de la sesión ni cierra las conexiones TLS existentes. Reinicia las aplicaciones o conexiones afectadas según sea necesario; las aplicaciones con almacenes propios requieren una eliminación por separado.",
+  "set.tlsTitle": "Excepciones TLS para desarrollo",
+  "set.tlsHint": "Los certificados TLS de los servidores de destino se verifican de forma predeterminada. Estas excepciones desactivan la verificación solo para los hosts de desarrollo indicados, incluidas las peticiones repetidas y compuestas. No cambian las reglas de interceptación ni la confianza en certificados del sistema.",
+  "set.tlsHosts": "Nombres de host o direcciones IP exactos, uno por línea",
+  "set.tlsWarning": "Aviso de seguridad: se aceptarán certificados no fiables para estos hosts. Úsalo solo en sistemas de desarrollo que controles. No se distingue entre mayúsculas y minúsculas; no se permiten comodines, URL, rutas ni puertos. Elimina un host para restaurar la verificación.",
+  "set.tlsConfirm": "¿Desactivar la verificación de certificados de los servidores de destino para estos hosts de desarrollo específicos?\n\n{hosts}\n\nTucano aceptará certificados no fiables, caducados o falsificados para estos hosts. Esto expone su tráfico a la interceptación. Úsalo solo en sistemas de desarrollo que controles.",
+  "set.tlsSaved": "Excepciones TLS guardadas.",
+  "set.tlsSaving": "Guardando…",
+  "set.tlsSave": "Guardar excepciones TLS",
   "set.whyTitle": "¿Por qué un sitio no se captura?",
   "set.why1":
     "HTTP/3 (QUIC) omite los proxies HTTP. Deshabilita QUIC en tu navegador.",
@@ -1219,7 +1286,7 @@ const es: Dict = {
   "set.why3":
     "Apps con certificate pinning (móvil, Electron) rechazan el CA de Tucano por diseño.",
   "set.why4":
-    "Confirma que el proxy del sistema está activo y que el CA está instalado. Luego recarga la página.",
+    "Confirma que el cliente está configurado para usar este proxy y confía en el CA de esta sesión. Después, vuelve a conectar o reinicia la aplicación.",
   "set.shortcuts": "Atajos de teclado",
   "set.iconsTitle": "Leyenda de iconos",
   "set.iconsHint": "Cada fila de la lista muestra un icono según la petición. Los iconos de marca tienen prioridad para tipos conocidos; de lo contrario, el método HTTP define el glifo y el estado define el color.",
@@ -1355,7 +1422,7 @@ const dicts: Record<Locale, Dict> = { en, "pt-BR": ptBR, es };
 
 const KEY = "tucano:locale";
 const detected = (): Locale => {
-  const saved = localStorage.getItem(KEY) as Locale | null;
+  const saved = preferenceStorage.getItem(KEY) as Locale | null;
   if (saved && dicts[saved]) return saved;
   const nav = (navigator.language || "en").toLowerCase();
   if (nav.startsWith("pt")) return "pt-BR";
@@ -1374,7 +1441,7 @@ type LocaleState = { locale: Locale; setLocale: (l: Locale) => void };
 export const useLocale = create<LocaleState>((set) => ({
   locale: detected(),
   setLocale: (l: Locale) => {
-    localStorage.setItem(KEY, l);
+    preferenceStorage.setItem(KEY, l);
     document.documentElement.setAttribute("lang", l);
     set({ locale: l });
   },

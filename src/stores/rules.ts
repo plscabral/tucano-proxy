@@ -1,3 +1,4 @@
+import { preferenceStorage } from "@/lib/platform";
 import { create } from "zustand";
 import type { Rule } from "@/lib/rules";
 
@@ -8,14 +9,14 @@ const KEY_MATCH = "tucano:rules:matchMode";
 export type MatchMode = "all" | "any";
 
 function load(): Rule[] {
-  try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
+  try { return JSON.parse(preferenceStorage.getItem(KEY) || "[]"); } catch { return []; }
 }
 
 function loadCapture(): boolean {
-  return localStorage.getItem(KEY_CAPTURE) === "1";
+  return preferenceStorage.getItem(KEY_CAPTURE) === "1";
 }
 
-function persist(list: Rule[]) { localStorage.setItem(KEY, JSON.stringify(list)); }
+function persist(list: Rule[]) { preferenceStorage.setItem(KEY, JSON.stringify(list)); }
 
 type RulesState = {
   list: Rule[];
@@ -33,7 +34,7 @@ type RulesState = {
 export const useRules = create<RulesState>((set, get) => ({
   list: load(),
   captureMode: loadCapture(),
-  matchMode: (localStorage.getItem(KEY_MATCH) as MatchMode) === "any" ? "any" : "all",
+  matchMode: (preferenceStorage.getItem(KEY_MATCH) as MatchMode) === "any" ? "any" : "all",
   set(r) { set({ list: r }); persist(r); },
   add(r) { const list = [...get().list, r]; set({ list }); persist(list); },
   remove(id) { const list = get().list.filter((x) => x.id !== id); set({ list }); persist(list); },
@@ -44,10 +45,10 @@ export const useRules = create<RulesState>((set, get) => ({
   clear() { set({ list: [] }); persist([]); },
   setCaptureMode(on) {
     set({ captureMode: on });
-    localStorage.setItem(KEY_CAPTURE, on ? "1" : "0");
+    preferenceStorage.setItem(KEY_CAPTURE, on ? "1" : "0");
   },
   setMatchMode(m) {
     set({ matchMode: m });
-    localStorage.setItem(KEY_MATCH, m);
+    preferenceStorage.setItem(KEY_MATCH, m);
   },
 }));

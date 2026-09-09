@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = ["crates/tucano-core", "crates/tucano-service", "crates/tucano-cli"]
+exclude = ["src-tauri"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

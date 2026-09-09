@@ -1,3 +1,4 @@
+import { preferenceStorage } from "@/lib/platform";
 import { create } from "zustand";
 
 const KEY = "tucano:sessionPath";
@@ -9,10 +10,10 @@ type SessionState = {
 };
 
 export const useSession = create<SessionState>((set) => ({
-  path: localStorage.getItem(KEY),
+  path: preferenceStorage.getItem(KEY),
   setPath(p) {
     set({ path: p });
-    if (p) localStorage.setItem(KEY, p);
-    else localStorage.removeItem(KEY);
+    if (p) preferenceStorage.setItem(KEY, p);
+    else preferenceStorage.removeItem(KEY);
   },
 }));

@@ -1,3 +1,4 @@
+import { preferenceStorage } from "@/lib/platform";
 import { create } from "zustand";
 
 export type ColId = "index" | "method" | "status" | "host" | "path" | "size" | "duration" | "client" | "scheme" | "mime" | "charset" | "note";
@@ -59,7 +60,7 @@ const KEY = "tucano:columns:v2";
 
 function load(): Col[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || "");
+    const saved = JSON.parse(preferenceStorage.getItem(KEY) || "");
     if (!Array.isArray(saved)) throw new Error();
     // ensure any newly-added columns appear at the end as hidden
     const seen = new Set(saved.map((c: Col) => c.id));
@@ -73,7 +74,7 @@ function load(): Col[] {
   } catch { return DEFAULT.map((c) => ({ ...c })); }
 }
 
-function persist(list: Col[]) { localStorage.setItem(KEY, JSON.stringify(list)); }
+function persist(list: Col[]) { preferenceStorage.setItem(KEY, JSON.stringify(list)); }
 
 type ColumnsState = {
   list: Col[];

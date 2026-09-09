@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Check, Download, WrapText, Sparkles, ChevronDown, Maximize2, Minimize2, Binary } from "lucide-react";
-import { save } from "@tauri-apps/plugin-dialog";
+import { save } from "@/lib/platform"
 import { ipc } from "@/lib/ipc";
 import JsonViewer from "@/viewers/JsonViewer";
 import RawViewer from "@/viewers/RawViewer";

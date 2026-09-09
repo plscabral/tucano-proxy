@@ -11,3 +11,9 @@ Crie `~/.pi/agent/tucano.json` com `{ "url": "http://127.0.0.1:7878/mcp", "token
 Abra o Pi normalmente (`pi`); as tools `tucano_*` aparecem na lista de tools mesmo com o Tucano fechado (usa o snapshot `tucano-tools.json` nesse caso).
 Com o Tucano aberto e o token correto, cada tool chama `tools/call` no endpoint MCP real e devolve o texto do resultado; com o app fechado ou token errado, a tool devolve uma mensagem de erro amigável em vez de travar o Pi.
 Rode `/reload` no Pi após atualizar estes arquivos para recarregar a extensão sem reiniciar a sessão.
+
+## Serviço CLI independente
+
+A skill oficial é uma alternativa à extensão MCP: `tucano-proxy skill install --agent pi` ensina o agente a usar diretamente os comandos do CLI.
+
+Para usar a extensão com um serviço CLI configurado para MCP, a configuração também aceita `binary` (caminho do executável), `autolaunch`, `dataDir` (raiz dos dados do CLI) e `session` (nome da sessão). A ponte `mcp-stdio` usa esse contexto para iniciar a sessão correta sem abrir o desktop. `TUCANO_MCP_DATA_DIR` e `TUCANO_MCP_SESSION` têm precedência sobre o arquivo, assim como as variáveis de URL/token. Mantenha tokens fora do repositório.

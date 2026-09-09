@@ -1,3 +1,4 @@
+import { canMutate, useConnection } from "@/lib/platform";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, ArrowLeftRight, GitCompareArrows, StickyNote, ChevronRight, Check } from "lucide-react";
 import type { Flow } from "@/lib/types";
@@ -130,6 +131,7 @@ function FlowSummary({ label, tone, flow, onNote }: { label: string; tone: "rose
     return `${flow.scheme}://${flow.host}${def ? "" : ":" + flow.port}${flow.path}`;
   };
   const [editing, setEditing] = useState(false);
+  useConnection();
   const [draft, setDraft] = useState(flow.note ?? "");
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -184,7 +186,7 @@ function FlowSummary({ label, tone, flow, onNote }: { label: string; tone: "rose
             className="flex-1 px-2.5 py-1.5 text-xs rounded-lg bg-muted ring-1 ring-inset ring-border focus:ring-toucan-400/60 outline-none resize-y"
           />
         ) : (
-          <button onClick={() => setEditing(true)} className="flex-1 text-left px-2.5 py-1.5 rounded-lg hover:bg-muted transition min-w-0">
+          <button disabled={!canMutate()} onClick={() => setEditing(true)} className="flex-1 text-left px-2.5 py-1.5 rounded-lg hover:bg-muted transition min-w-0">
             {flow.note ? <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">{flow.note}</span> : <span className="opacity-45 italic">{t("note.placeholder")}</span>}
           </button>
         )}

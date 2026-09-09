@@ -3,6 +3,7 @@ import { useRules } from "@/stores/rules";
 import { useUndo } from "@/stores/undo";
 import { ipc } from "./ipc";
 import { applyRules } from "./rules";
+import { canMutate } from "./platform";
 
 /**
  * Retroactively drop every already-captured flow that doesn't match the active
@@ -22,5 +23,5 @@ export function purgeNonMatchingNow() {
 
   useUndo.getState().push(drop.slice());
   useFlows.getState().removeMany(new Set(drop.map((f) => f.id)));
-  ipc.deleteFlows(drop.map((f) => f.id)).catch(() => {});
+  if (canMutate()) void ipc.deleteFlows(drop.map((f) => f.id)).catch(() => {});
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { confirm } from "@tauri-apps/plugin-dialog";
+import { nativeWindow, confirm, save, open, isDesktop, canMutate, connect, listen, getConnection, preferenceStorage } from "@/lib/platform";
+import { ConnectionBanner } from "@/components/PlatformGate";
 
 import TopBar from "@/components/TopBar";
 import StatusBar from "@/components/StatusBar";
@@ -46,7 +46,7 @@ export default function App() {
   useLocale((s) => s.locale);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [onboardingOpen, setOnboardingOpen] = useState(shouldShowOnboarding());
+  const [onboardingOpen, setOnboardingOpen] = useState(isDesktop && shouldShowOnboarding());
   const [compareOpen, setCompareOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerFlow, setComposerFlow] = useState<Flow | null>(null);
@@ -56,6 +56,9 @@ export default function App() {
   const flowsView = useFlows((s) => s.flowsView);
   const flows = useFlows((s) => s.flows);
   const selectedIds = useFlows((s) => s.selectedIds);
+  const proxyPort = useFlows((s) => s.status.port);
+  const captureRunning = useFlows((s) => s.status.running);
+  const systemProxyOn = useFlows((s) => s.status.systemProxyOn);
   const apps = useSidebar((s) => s.selectedApps);
   const domains = useSidebar((s) => s.selectedDomains);
   const cats = useSidebar((s) => s.selectedCategories);
@@ -122,6 +125,7 @@ export default function App() {
 
   // --- Boot: initial load + auto-start + updater + window close hook ---
   useEffect(() => {
+    if (!isDesktop) return;
     let unCloseFn: (() => void) | null = null;
     (async () => {
       const flowsStore = useFlows.getState();
@@ -130,12 +134,25 @@ export default function App() {
         // Native proxy code reads this before it emits or writes any flow;
         // synchronize it before auto-capture can start.
         await ipc.setPrivateMode(usePrefs.getState().privateMode);
-        flowsStore.setFlows(await ipc.listFlows());
-        flowsStore.rebuildIndex();
-        const st = flowsStore.status;
+        const snapshot = await ipc.listFlows();
+        const legacyMarks = preferenceStorage.getItem("tucano:marks");
+        if (legacyMarks) {
+          let marks: Record<string, string> = {};
+          try { marks = JSON.parse(legacyMarks); } catch { /* Discard malformed legacy preferences. */ }
+          await Promise.all(snapshot.map(async (flow) => {
+            const mark = marks?.[flow.id];
+            if (!flow.mark && typeof mark === "string" && MARK_COLORS.some((color) => color.id === mark && mark !== "none")) {
+              await ipc.updateFlowMark(flow.id, mark);
+              flow.mark = mark;
+            }
+          }));
+          preferenceStorage.removeItem("tucano:marks");
+        }
+        flowsStore.setFlows(snapshot);
+        const st = useFlows.getState().status;
         if (usePrefs.getState().autoCapture && !st.running) {
           try {
-            await ipc.startCapture(st.port);
+            await ipc.startCapture(usePrefs.getState().capturePort ?? st.port);
             flowsStore.setStatus(await ipc.status());
           } catch (e) { console.warn("auto-start capture failed", e); }
         }
@@ -149,7 +166,7 @@ export default function App() {
         .catch((e) => console.warn("[updater] boot check failed", e));
 
       try {
-        const win = getCurrentWindow();
+        const win = await nativeWindow();
         let busy = false;
         const un = await win.onCloseRequested(async (e) => {
           e.preventDefault();
@@ -187,55 +204,80 @@ export default function App() {
   useEffect(() => {
     let pending: Flow[] = [];
     let raf: number | null = null;
-    const scheduleFlush = (f: Flow) => {
-      pending.push(f);
-      if (raf === null) {
-        raf = requestAnimationFrame(() => {
-          raf = null;
-          const batch = pending.splice(0);
-          useFlows.getState().batchUpsert(batch);
-        });
+    let alive = true;
+    let loading = false;
+    let reloadAgain = false;
+    let duringReload: Flow[] = [];
+    const flush = () => {
+      raf = null;
+      if (!alive || !pending.length) return;
+      useFlows.getState().batchUpsert(pending.splice(0));
+    };
+    const receive = (flow: Flow) => {
+      const rules = useRules.getState();
+      const active = rules.list.filter((rule) => rule.enabled && rule.value.trim() !== "");
+      if (useIgnored.getState().matches(flow) || (rules.captureMode && active.length > 0 && applyRules([flow], active, rules.matchMode).length === 0)) {
+        useFlows.getState().removeOneIfPresent(flow.id);
+        if (canMutate()) void ipc.deleteFlows([flow.id]).catch(() => {});
+        return;
+      }
+      if (loading) duringReload.push(flow);
+      pending.push(flow);
+      if (raf === null) raf = requestAnimationFrame(flush);
+    };
+    const resync = async () => {
+      if (loading) { reloadAgain = true; return; }
+      loading = true;
+      duringReload = [];
+      try {
+        const [snapshot, status, privateMode] = await Promise.all([ipc.listFlows(), ipc.status(), ipc.getPrivateMode()]);
+        if (!alive) return;
+        // Apply events arriving during the snapshot after it; retain selection
+        // and the open inspector while reconnecting to this same session.
+        useFlows.getState().setFlows(snapshot.filter((flow) => !useIgnored.getState().matches(flow)));
+        useFlows.getState().batchUpsert(duringReload);
+        useFlows.getState().setStatus(status);
+        usePrefs.getState().setPrivateMode(privateMode);
+      } catch (error) { console.warn("Capture resync failed", error); }
+      finally {
+        loading = false;
+        duringReload = [];
+        if (reloadAgain && alive) { reloadAgain = false; void resync(); }
       }
     };
-    let ignoredPending: string[] = [];
-    let ignoredTimer: number | null = null;
-    const dropIgnored = (id: string) => {
-      useFlows.getState().removeOneIfPresent(id);
-      ignoredPending.push(id);
-      if (ignoredTimer == null) {
-        ignoredTimer = window.setTimeout(() => {
-          ignoredTimer = null;
-          const batch = ignoredPending.splice(0);
-          if (batch.length > 0) ipc.deleteFlows(batch).catch(() => {});
-        }, 120);
-      }
-    };
-
-    const pNew = onFlowNew((f) => {
-      if (useIgnored.getState().matches(f)) { dropIgnored(f.id); return; }
-      scheduleFlush(f);
+    const pNew = onFlowNew(receive);
+    const pUp = onFlowUpdate(receive);
+    const pTrimmed = onFlowsTrimmed((ids) => {
+      const removed = new Set(ids);
+      pending = pending.filter((flow) => !removed.has(flow.id));
+      duringReload = duringReload.filter((flow) => !removed.has(flow.id));
+      useFlows.getState().removeMany(removed);
+      if (loading) reloadAgain = true;
     });
-    const pUp = onFlowUpdate((f) => {
-      if (useIgnored.getState().matches(f)) { dropIgnored(f.id); return; }
-      const rs = useRules.getState();
-      if (rs.captureMode) {
-        const active = rs.list.filter((r) => r.enabled && r.value.trim() !== "");
-        if (active.length > 0 && applyRules([f], active, rs.matchMode).length === 0) {
-          useFlows.getState().removeMany(new Set([f.id]));
-          ipc.deleteFlows([f.id]).catch(() => {});
-          return;
+    const pReset = listen("flows:reset", () => {
+      pending = []; duringReload = [];
+      void resync();
+    });
+    const onResync = () => { void resync(); };
+    window.addEventListener("tucano:resync", onResync);
+    let polling = false;
+    const timer = isDesktop ? null : window.setInterval(async () => {
+      if (polling) return;
+      polling = true;
+      try {
+        if (!["unauthorized", "detached"].includes(getConnection().state)) {
+          if (getConnection().state !== "connected") await connect();
+          useFlows.getState().setStatus(await ipc.status());
         }
-      }
-      scheduleFlush(f);
-    });
-    const pTrimmed = onFlowsTrimmed((ids) => useFlows.getState().removeMany(new Set(ids)));
-
+      } catch { /* Connection state and recovery are displayed in the banner. */ }
+      finally { polling = false; }
+    }, 5000);
     return () => {
+      alive = false;
       if (raf != null) cancelAnimationFrame(raf);
-      if (ignoredTimer != null) clearTimeout(ignoredTimer);
-      pNew.then((un) => un());
-      pUp.then((un) => un());
-      pTrimmed.then((un) => un());
+      if (timer != null) clearInterval(timer);
+      window.removeEventListener("tucano:resync", onResync);
+      for (const subscription of [pNew, pUp, pTrimmed, pReset]) void subscription.then((un) => un());
     };
   }, []);
 
@@ -270,6 +312,9 @@ export default function App() {
         tag === "BUTTON" || tag === "A" ||
         target?.isContentEditable === true ||
         !!target?.closest?.(".cm-editor");
+      const mutatingShortcut = (meta && ["l", "o", "z", "0", "1", "2", "3", "4", "5", "6"].includes(e.key.toLowerCase())) ||
+        (!inField && [" ", "Delete", "Backspace", "m"].includes(e.key));
+      if (mutatingShortcut && !canMutate()) { e.preventDefault(); return; }
 
       const flowsStore = useFlows.getState();
 
@@ -307,7 +352,7 @@ export default function App() {
         }
       } else if (meta && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        const { save } = await import("@tauri-apps/plugin-dialog");
+        if (!isDesktop && !useFlows.getState().flows.length) return;
         const p = await save({ defaultPath: "session.tucano", filters: [{ name: "Tucano", extensions: ["tucano"] }] });
         if (p) {
           const sel = useFlows.getState().selectedIds;
@@ -317,9 +362,8 @@ export default function App() {
         }
       } else if (meta && e.key.toLowerCase() === "o") {
         e.preventDefault();
-        const { open } = await import("@tauri-apps/plugin-dialog");
         const p = await open({ multiple: false, filters: [{ name: "Tucano", extensions: ["tucano"] }] });
-        if (p && typeof p === "string") {
+        if (p) {
           await ipc.openSession(p);
           const fs = useFlows.getState();
           fs.setFlows(await ipc.listFlows());
@@ -332,7 +376,7 @@ export default function App() {
       } else if (!inField && e.key === " ") {
         e.preventDefault();
         const s = flowsStore.status;
-        if (s.running) await ipc.stopCapture(); else await ipc.startCapture(s.port);
+        if (s.running) await ipc.stopCapture(); else await ipc.startCapture(usePrefs.getState().capturePort ?? s.port);
         flowsStore.setStatus(await ipc.status());
       } else if (!inField && (e.key === "Delete" || e.key === "Backspace")) {
         const ids = flowsStore.selectedIds;
@@ -345,9 +389,11 @@ export default function App() {
             const f = flowsStore.getById(id);
             if (f) snapshot.push(f);
           }
-          flowsStore.removeMany(ids);
-          useUndo.getState().push(snapshot);
-          void ipc.deleteFlows(arr).catch((err) => console.warn("ipc.deleteFlows failed", err));
+          try {
+            await ipc.deleteFlows(arr);
+            flowsStore.removeMany(ids);
+            useUndo.getState().push(snapshot);
+          } catch (error) { alert(String(error)); }
         }
       } else if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
         if (useUndo.getState().canUndo()) {
@@ -370,8 +416,9 @@ export default function App() {
         if (cat && cat.id !== "all") useSidebar.getState().toggleCategory(cat.id, false);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const handleKey = (event: KeyboardEvent) => { void onKey(event).catch((error) => alert(String(error))); };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
   const onDragRight = (cx: number, _cy: number, rect: DOMRect) => {
@@ -405,8 +452,9 @@ export default function App() {
     <TooltipProvider delayDuration={300}>
       <div className="h-full flex flex-col bg-[var(--tcn-canvas)] text-ink-500 dark:text-ink-50">
         <TopBar onOpenSettings={() => setSettingsOpen(true)} />
+        <ConnectionBanner port={proxyPort} running={captureRunning} systemProxyOn={systemProxyOn} />
         <FilterBar />
-        <FlowToolbar count={filtered.length} flows={filtered} onCompare={openCompare} />
+        <FlowToolbar count={filtered.length} flows={filtered} onCompare={openCompare} onCompose={() => openComposer()} />
         <FindAllBar />
 
         <div ref={sidebarSplitRef} className="flex-1 flex overflow-hidden min-h-0">

@@ -1,0 +1,37 @@
+[package]
+name = "tucano-cli"
+version = "0.2.7"
+edition = "2021"
+license = "MIT"
+
+[[bin]]
+name = "tucano-proxy"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+clap = { version = "4", features = ["derive", "env"] }
+clap_complete = "4"
+crossterm = { version = "0.28", features = ["event-stream"] }
+dirs = "6"
+flate2 = "1"
+futures-util = "0.3"
+html2text = { version = "0.17.1", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png"] }
+libc = "0.2"
+quick-xml = { version = "0.42", default-features = false }
+ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+self-replace = "1.5"
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tar = "0.4"
+tempfile = "3"
+tokio = { version = "1", features = ["full"] }
+tucano-core = { path = "../tucano-core" }
+tucano-service = { path = "../tucano-service" }
+unicode-width = "0.2"
+zip = { version = "6", default-features = false, features = ["deflate-flate2"] }

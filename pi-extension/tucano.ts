@@ -31,6 +31,8 @@ interface TucanoConfig {
 	token: string;
 	binary?: string;
 	autolaunch?: boolean;
+	dataDir?: string;
+	session?: string;
 }
 
 const DEFAULT_URL = "http://127.0.0.1:7878/mcp";
@@ -39,7 +41,7 @@ const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 const SNAPSHOT_PATH = join(EXTENSION_DIR, "tucano-tools.json");
 
 const NOT_RUNNING_MESSAGE =
-	"Tucano Proxy is not running. Open the Tucano Proxy app (and enable Settings > MCP) and try again.";
+	"Tucano Proxy is unavailable. Start the configured CLI session or open the desktop app with MCP enabled, then try again.";
 const UNAUTHORIZED_MESSAGE = "Tucano Proxy rejected this token. Reinstall the integration from Settings > MCP.";
 
 function loadConfig(): TucanoConfig {
@@ -64,6 +66,8 @@ function loadConfig(): TucanoConfig {
 	return {
 		binary: extra.binary,
 		autolaunch: extra.autolaunch,
+		dataDir: process.env.TUCANO_MCP_DATA_DIR || extra.dataDir,
+		session: process.env.TUCANO_MCP_SESSION || extra.session,
 		url: envUrl || fileUrl || DEFAULT_URL,
 		token: envToken || fileToken || "",
 	};
@@ -86,7 +90,14 @@ async function rpc(
 	if (method === "tools/call" && config.binary) {
 		return new Promise((resolve, reject) => {
 			const child = spawn(config.binary!, ["mcp-stdio"], {
-				env: { ...process.env, TUCANO_MCP_URL: config.url, TUCANO_MCP_TOKEN: config.token, TUCANO_MCP_AUTOLAUNCH: config.autolaunch ? "1" : "0" },
+				env: {
+					...process.env,
+					TUCANO_MCP_URL: config.url,
+					TUCANO_MCP_TOKEN: config.token,
+					TUCANO_MCP_AUTOLAUNCH: config.autolaunch ? "1" : "0",
+					TUCANO_MCP_DATA_DIR: config.dataDir,
+					TUCANO_MCP_SESSION: config.session,
+				},
 				stdio: ["pipe", "pipe", "ignore"],
 			});
 			let output = "";

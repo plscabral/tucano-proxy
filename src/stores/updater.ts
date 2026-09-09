@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { check, relaunch } from "@/lib/platform";
+import type { Update } from "@/lib/platform";
 
 export type UpdaterState =
   | "idle"

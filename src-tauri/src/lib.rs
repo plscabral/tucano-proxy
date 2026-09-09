@@ -1,22 +1,8 @@
-mod ca;
-mod client_proc;
 mod commands;
-mod http_client;
-mod mcp_bridge;
-mod mcp_install;
-mod mcp_settings;
-mod mcp_stdio;
-mod proxy;
-mod ssl_settings;
-mod state;
-mod storage;
-mod system_proxy;
-
-use state::AppState;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
-use tauri::Manager;
-use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
+use tauri::menu::{MenuBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::{Emitter, Manager};
+use tucano_core::{mcp_bridge, mcp_stdio, state::AppState};
 
 /// Run the stdio↔HTTP MCP bridge instead of the GUI. Invoked when the binary
 /// is launched as `tucano-proxy mcp-stdio` (how Claude Desktop spawns us).
@@ -32,10 +18,9 @@ pub fn run() {
     // warnings from the rest of hudsucker.
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| {
-                    "tucano_lib=info,hudsucker=warn,hudsucker::proxy::internal=off".into()
-                }),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                "tucano_lib=info,hudsucker=warn,hudsucker::proxy::internal=off".into()
+            }),
         )
         .init();
 
@@ -46,13 +31,36 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let handle = app.handle().clone();
-            let state = Arc::new(AppState::new(handle.clone()).expect("init state"));
+            let state = Arc::new(
+                AppState::new(handle.path().app_data_dir()?)
+                    .map_err(|error| -> Box<dyn std::error::Error> { error })?,
+            );
+            let mut events = state.subscribe();
+            let event_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    match events.recv().await {
+                        Ok(event) => {
+                            let _ = event_handle.emit(&event.event, event.payload);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                            let _ = event_handle.emit("flows:reset", ());
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            });
             app.manage(state.clone());
 
             // Boot the MCP bridge if the user previously enabled it.
             let mcp = state.mcp_settings.lock().clone();
             if mcp.enabled {
-                mcp_bridge::spawn(state.clone(), mcp.port, mcp.token);
+                tauri::async_runtime::block_on(mcp_bridge::spawn(
+                    state.clone(),
+                    mcp.port,
+                    mcp.token,
+                ))
+                .map_err(std::io::Error::other)?;
             }
 
             // Replace the default macOS menu so Cmd+F isn't swallowed by a
@@ -109,19 +117,12 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                eprintln!("[tucano] window close requested — running cleanup");
-                let app = window.app_handle().clone();
-                if let Some(state) = app.try_state::<Arc<AppState>>() {
-                    cleanup_state(&state);
-                }
-                // NOTE: we don't `app.exit(0)` here — that would race the JS
-                // close handler and bypass the user's "are you sure?" prompt.
-                // The frontend calls the `quit_app` command after confirming.
-            }
-        })
         .invoke_handler(tauri::generate_handler![
+            commands::get_version,
+            commands::query_flows,
+            commands::get_stats,
+            commands::export_flows,
+            commands::update_flow_mark,
             commands::get_status,
             commands::start_proxy,
             commands::stop_proxy,
@@ -153,10 +154,10 @@ pub fn run() {
             commands::get_mcp_settings,
             commands::set_mcp_settings,
             commands::rotate_mcp_token,
-            mcp_install::list_mcp_clients,
-            mcp_install::mcp_binary_path,
-            mcp_install::install_mcp_client,
-            mcp_install::uninstall_mcp_client,
+            commands::list_mcp_clients,
+            commands::mcp_binary_path,
+            commands::install_mcp_client,
+            commands::uninstall_mcp_client,
         ])
         .build(tauri::generate_context!())
         .expect("error building Tucano");
@@ -185,17 +186,7 @@ pub fn run() {
 }
 
 pub fn cleanup_state(state: &Arc<AppState>) {
-    eprintln!(
-        "[tucano] cleanup: running={} system_proxy_on={}",
-        state.running.load(Ordering::SeqCst),
-        state.system_proxy_on.load(Ordering::SeqCst),
-    );
-    // ALWAYS try to disable the OS proxy on shutdown, even if our internal
-    // flag desynced — leaves the user with working internet.
-    let _ = system_proxy::restore(&state.data_dir);
-    state.system_proxy_on.store(false, Ordering::SeqCst);
-    if let Some(tx) = state.stop_tx.lock().take() { let _ = tx.send(()); }
-    if let Some(tx) = state.mcp_stop_tx.lock().take() { let _ = tx.send(()); }
-    state.running.store(false, Ordering::SeqCst);
-    eprintln!("[tucano] cleanup done");
+    if let Err(error) = tauri::async_runtime::block_on(tucano_core::cleanup(state)) {
+        tracing::error!("cleanup failed: {error}");
+    }
 }
