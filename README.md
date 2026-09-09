@@ -157,6 +157,11 @@ pnpm tauri build --target x86_64-pc-windows-msvc
 
 Use <kbd>Ctrl</kbd> in place of <kbd>⌘</kbd> on Linux / Windows. The full list lives under **Settings → Keyboard shortcuts**.
 
+## 0.2.9 release notes
+
+- Reworked the installer output on macOS/Linux/Windows: a version headline, the executable path, the session block, and the next commands as a short labelled list instead of a wall of sentences. Colour is used only on real terminals and honours `NO_COLOR`.
+- `setup --status` prints an aligned label column (setup, certificate, sha-1, pem, data, service) with warnings grouped under `!`. `--json` output is unchanged.
+
 ## 0.2.8 release notes
 
 - Added `stop --all` to shut down every session in a data directory, reporting sessions already stopped and failing with the ones that refused to stop.

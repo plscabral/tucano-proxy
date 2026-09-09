@@ -209,74 +209,81 @@ pub async fn status(root: &Path, session: &str) -> Result<Value> {
     Ok(value)
 }
 
-pub fn print_status(value: &Value) -> Result<()> {
+pub fn print_status(value: &Value, color: bool) -> Result<()> {
     let text = |key: &str| value[key].as_str().unwrap_or("unknown");
-    let mut out = io::stdout().lock();
-    writeln!(out, "Tucano Proxy setup — session {}", text("session"))?;
-    writeln!(
-        out,
-        "  Setup: {}",
+    let (head, dim, warn, reset) = if color {
+        ("\x1b[1m", "\x1b[2m", "\x1b[33m", "\x1b[0m")
+    } else {
+        ("", "", "", "")
+    };
+    let mut rows: Vec<(&str, String)> = vec![(
+        "setup",
         if value["complete"] == true {
-            "complete"
+            "complete".to_owned()
         } else {
-            "not complete; run setup in an interactive terminal"
-        }
-    )?;
-    writeln!(out, "  Session: {}", text("sessionDirectory"))?;
-    writeln!(
-        out,
-        "  CA: {}",
-        value["ca"]["state"].as_str().unwrap_or("unknown")
-    )?;
-    writeln!(
-        out,
-        "  Certificate: {}",
-        value["ca"]["path"].as_str().unwrap_or("unknown")
-    )?;
+            "incomplete — run setup in an interactive terminal".to_owned()
+        },
+    )];
+    rows.push((
+        "certificate",
+        format!(
+            "{} · OS trust: {}",
+            value["ca"]["state"].as_str().unwrap_or("unknown"),
+            value["ca"]["trust"].as_str().unwrap_or("unknown")
+        ),
+    ));
     if let Some(fingerprint) = value["ca"]["fingerprint"].as_str() {
-        writeln!(out, "  Exact certificate SHA-1 identifier: {fingerprint}")?;
+        rows.push(("sha-1", fingerprint.to_owned()));
     }
-    writeln!(
-        out,
-        "  OS trust for this CA: {}",
-        value["ca"]["trust"].as_str().unwrap_or("unknown")
-    )?;
-    for error in [
+    rows.push((
+        "pem",
+        value["ca"]["path"].as_str().unwrap_or("unknown").to_owned(),
+    ));
+    rows.push(("data", text("sessionDirectory").to_owned()));
+    rows.push((
+        "service",
+        if value["service"]["running"] == true {
+            format!(
+                "{} · proxy port {}",
+                value["service"]["endpoint"].as_str().unwrap_or("unknown"),
+                value["service"]["proxyPort"]
+            )
+        } else {
+            value["service"]["state"]
+                .as_str()
+                .unwrap_or("unknown")
+                .to_owned()
+        },
+    ));
+    let mut attention: Vec<String> = [
         &value["ca"]["error"],
         &value["ca"]["trustError"],
         &value["markerError"],
-    ] {
-        if let Some(error) = error.as_str() {
-            writeln!(out, "  Attention: {error}")?;
-        }
+    ]
+    .into_iter()
+    .filter_map(|error| error.as_str().map(str::to_owned))
+    .collect();
+    if value["service"]["state"] == "unknown" {
+        attention.push(
+            value["service"]["detail"]
+                .as_str()
+                .unwrap_or("Cannot verify service")
+                .to_owned(),
+        );
     }
-    if value["service"]["running"] == true {
-        writeln!(
-            out,
-            "  Service: {} (proxy port {})",
-            value["service"]["endpoint"].as_str().unwrap_or("unknown"),
-            value["service"]["proxyPort"]
-        )?;
-    } else {
-        writeln!(
-            out,
-            "  Service: {}",
-            value["service"]["state"].as_str().unwrap_or("unknown")
-        )?;
-        if value["service"]["state"] == "unknown" {
-            writeln!(
-                out,
-                "  Attention: {}",
-                value["service"]["detail"]
-                    .as_str()
-                    .unwrap_or("Cannot verify service")
-            )?;
-        }
-    }
-    writeln!(out, "  {}", text("guidance"))?;
     if value["ca"]["trust"] == "unsupported" {
-        writeln!(out, "  Export the public PEM with ca export, or use the certificate path above. Install it with your OS/application trust tooling; never share the private key or disable TLS verification.")?;
+        attention.push("Export the public PEM with ca export, or use the certificate path above. Install it with your OS/application trust tooling; never share the private key or disable TLS verification.".to_owned());
     }
+    let mut out = io::stdout().lock();
+    writeln!(out, "{head}Session {}{reset}", text("session"))?;
+    for (label, detail) in &rows {
+        // Fixed label column keeps the values scannable in a wall of paths.
+        writeln!(out, "  {dim}{label:<13}{reset}{detail}")?;
+    }
+    for detail in &attention {
+        writeln!(out, "  {warn}!{reset} {detail}")?;
+    }
+    writeln!(out, "  {dim}{}{reset}", text("guidance"))?;
     Ok(())
 }
 

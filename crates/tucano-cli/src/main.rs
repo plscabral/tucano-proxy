@@ -115,7 +115,7 @@ async fn run(cli: Cli, color: bool) -> Result<Option<Value>> {
                 if cli.json {
                     return Ok(Some(value));
                 }
-                setup::print_status(&value)?;
+                setup::print_status(&value, color)?;
             } else {
                 if cli.json {
                     return Err(fail("terminal_required", "The setup wizard is interactive. Use setup --status --json for read-only inspection.", 2));

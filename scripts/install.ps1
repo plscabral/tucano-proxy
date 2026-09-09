@@ -9,6 +9,7 @@ $repository = 'plscabral/tucano-proxy'
 $destination = Join-Path $InstallDir 'tucano-proxy.exe'
 $updating = Test-Path -LiteralPath $destination
 $action = if ($updating) { 'Updating' } else { 'Installing' }
+$result = if ($updating) { 'updated' } else { 'installed' }
 $command = "& '" + $destination.Replace("'", "''") + "'"
 $interactive = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected -and -not $env:CI
 if ($Version -eq 'latest') {
@@ -25,8 +26,7 @@ $temp = Join-Path ([IO.Path]::GetTempPath()) ('tucano-install-' + [Guid]::NewGui
 New-Item -ItemType Directory -Path $temp | Out-Null
 try {
     $archive = Join-Path $temp $asset
-    Write-Host "$action Tucano Proxy in $InstallDir"
-    Write-Host "Downloading $asset ($Version)…"
+    Write-Host "$action $asset · $Version" -ForegroundColor DarkGray
     try {
         Invoke-WebRequest -UseBasicParsing -Uri "$base/$asset" -OutFile $archive -TimeoutSec 300 -MaximumRedirection 5
     } catch {
@@ -59,7 +59,7 @@ try {
     if ($Version -ne 'latest' -and $downloadedVersion -cne "tucano-proxy $($Version.Substring(1))") {
         throw 'Downloaded executable version does not match the requested release'
     }
-    Write-Host $downloadedVersion
+    $versionNumber = $downloadedVersion -replace '^tucano-proxy ', ''
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
     $staged = Join-Path $InstallDir ('.tucano-proxy-' + [Guid]::NewGuid().ToString('N') + '.exe')
     Copy-Item -LiteralPath $binary -Destination $staged
@@ -73,22 +73,31 @@ try {
         Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $staged
         throw "Could not replace the executable. If it is in use, try the native updater: $command update. No session was stopped. $($_.Exception.Message)"
     }
-    Write-Host "$action complete: $destination"
-    if (($env:PATH -split ';') -notcontains $InstallDir) { Write-Host "Add this directory to your user PATH: $InstallDir" }
-    Write-Host "`nChecking the selected session certificate (read-only):"
+    Write-Host ''
+    Write-Host "Tucano Proxy $versionNumber " -NoNewline
+    Write-Host $result -ForegroundColor DarkGray
+    Write-Host ('  {0,-12}{1}' -f 'executable', $destination)
+    if (($env:PATH -split ';') -notcontains $InstallDir) {
+        Write-Host ('  {0,-12}{1} (add it to your user PATH)' -f 'not on PATH', $InstallDir)
+    }
+    Write-Host ''
     & $destination setup --status
-    if ($LASTEXITCODE -ne 0) { Write-Host "Certificate status could not be determined. Run: $command setup --status" }
-    Write-Host "`nFirst-run setup: $command setup"
-    Write-Host "Check for updates: $command update --check"
-    Write-Host "Update this installation: $command update"
-    Write-Host 'For automation, use update --yes; normal update asks before replacement.'
-    Write-Host 'No certificate, system proxy, session data, skill, or PATH setting was changed by this installer.'
-    if ($updating) { Write-Host 'Running services keep their previous version. Stop and start each session manually when ready.' }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  ! Certificate status could not be determined. Run: $command setup --status" -ForegroundColor Yellow
+    }
+    Write-Host ''
+    Write-Host 'Next'
+    Write-Host "  $command setup" -NoNewline; Write-Host '  guided first use' -ForegroundColor DarkGray
+    Write-Host "  $command update --check" -NoNewline; Write-Host '  check for a newer CLI' -ForegroundColor DarkGray
+    Write-Host "  $command update" -NoNewline; Write-Host '  replace this executable (--yes for automation)' -ForegroundColor DarkGray
+    Write-Host ''
+    Write-Host 'Only the executable changed: certificate trust, system proxy, session data, skills and PATH were untouched.' -ForegroundColor DarkGray
+    if ($updating) {
+        Write-Host 'Running services keep their previous version until you stop and start them.' -ForegroundColor DarkGray
+    }
     # Never launch a prompt from an installer that may have been piped to Invoke-Expression.
-    if ($interactive) {
-        Write-Host "When ready, run the setup command above. Certificate trust and system proxy changes require your explicit choice."
-    } else {
-        Write-Host 'Setup was not started. Run the setup command above in an interactive terminal.'
+    if (-not $interactive) {
+        Write-Host 'Setup needs an interactive terminal; run the setup command above when you have one.' -ForegroundColor DarkGray
     }
 } finally {
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -LiteralPath $temp

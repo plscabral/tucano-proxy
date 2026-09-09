@@ -8,10 +8,18 @@ INSTALL_DIR=${TUCANO_INSTALL_DIR:-"$HOME/.local/bin"}
 
 DESTINATION="$INSTALL_DIR/tucano-proxy"
 ACTION=Installing
-[ ! -e "$DESTINATION" ] || ACTION=Updating
+RESULT=installed
+if [ -e "$DESTINATION" ]; then ACTION=Updating; RESULT=updated; fi
 # Printed commands must also work before the installation directory is on PATH.
 QUOTED_DESTINATION=$(printf '%s' "$DESTINATION" | sed "s/'/'\\\\''/g; s/^/'/; s/$/'/")
-fail() { printf 'tucano-proxy: %s\n' "$*" >&2; exit 1; }
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
+  BOLD=$(printf '\033[1m'); DIM=$(printf '\033[2m'); WARN=$(printf '\033[33m'); OFF=$(printf '\033[0m')
+else
+  BOLD=; DIM=; WARN=; OFF=
+fi
+fail() { printf '%stucano-proxy:%s %s\n' "$WARN" "$OFF" "$*" >&2; exit 1; }
+step() { printf '%s%s%s\n' "$DIM" "$*" "$OFF"; }
+hint() { printf '  %s%s%s  %s%s%s\n' "$BOLD" "$1" "$OFF" "$DIM" "$2" "$OFF"; }
 command -v curl >/dev/null 2>&1 || fail 'curl is required'
 command -v tar >/dev/null 2>&1 || fail 'tar is required'
 case "$VERSION" in
@@ -31,8 +39,7 @@ esac
 ASSET="tucano-proxy-$TARGET.tar.gz"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
-printf '%s Tucano Proxy in %s\n' "$ACTION" "$INSTALL_DIR"
-printf 'Downloading %s (%s)…\n' "$ASSET" "$VERSION"
+step "$(printf '%s %s · %s' "$ACTION" "$ASSET" "$VERSION")"
 curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 15 --max-time 300 "$BASE/$ASSET" -o "$TMP/$ASSET" ||
   fail 'Standalone CLI archive unavailable for this release/platform. Desktop release assets cannot be used as CLI updates; the current installation was not changed.'
 curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 "$BASE/$ASSET.sha256" -o "$TMP/checksum"
@@ -62,7 +69,7 @@ case "$DOWNLOADED_VERSION" in 'tucano-proxy '[0-9]*.[0-9]*.[0-9]*) ;; *) fail 'D
 if [ "$VERSION" != latest ] && [ "$DOWNLOADED_VERSION" != "tucano-proxy ${VERSION#v}" ]; then
   fail 'Downloaded executable version does not match the requested release'
 fi
-printf '%s\n' "$DOWNLOADED_VERSION"
+VERSION_NUMBER=${DOWNLOADED_VERSION#tucano-proxy }
 mkdir -p "$INSTALL_DIR"
 # Stage in destination filesystem and rename atomically, preserving a running binary.
 STAGED=$(mktemp "$INSTALL_DIR/.tucano-proxy.XXXXXXXX")
@@ -70,30 +77,31 @@ if ! cp "$TMP/tucano-proxy" "$STAGED" || ! chmod 755 "$STAGED" || ! mv -f "$STAG
   rm -f "$STAGED"
   fail 'Could not install executable; check directory permissions'
 fi
-printf '\n%s: %s\n' "$ACTION" "$DESTINATION"
+printf '\n%sTucano Proxy %s%s %s%s%s\n' "$BOLD" "$VERSION_NUMBER" "$OFF" "$DIM" "$RESULT" "$OFF"
+printf '  %s%-12s%s%s\n' "$DIM" "executable" "$OFF" "$DESTINATION"
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;
-  *) printf 'Add this directory to PATH in your shell: %s\n' "$INSTALL_DIR" ;;
+  *) printf '  %s%-12s%s%s (add it to PATH in your shell)\n' "$DIM" "not on PATH" "$OFF" "$INSTALL_DIR" ;;
 esac
-printf '\nChecking the selected session certificate (read-only):\n'
+printf '\n'
 if ! "$DESTINATION" setup --status; then
-  printf 'Certificate status could not be determined. Run: %s setup --status\n' "$QUOTED_DESTINATION"
+  printf '  %s!%s Certificate status could not be determined. Run: %s setup --status\n' "$WARN" "$OFF" "$QUOTED_DESTINATION"
 fi
-printf '\nFirst-run setup: %s setup\n' "$QUOTED_DESTINATION"
-printf 'Check for updates: %s update --check\n' "$QUOTED_DESTINATION"
-printf 'Update this installation: %s update\n' "$QUOTED_DESTINATION"
-printf 'For automation, use update --yes; normal update asks before replacement.\n'
-printf 'No CA certificate, system proxy, session data, skill, or shell profile was changed by this installer.\n'
+printf '\n%sNext%s\n' "$BOLD" "$OFF"
+hint "$(printf '%s setup' "$QUOTED_DESTINATION")" 'guided first use'
+hint "$(printf '%s update --check' "$QUOTED_DESTINATION")" 'check for a newer CLI'
+hint "$(printf '%s update' "$QUOTED_DESTINATION")" 'replace this executable (--yes for automation)'
+printf '\n%sOnly the executable changed: CA trust, system proxy, session data, skills and shell profiles were untouched.%s\n' "$DIM" "$OFF"
 if [ "$ACTION" = Updating ]; then
-  printf 'Running services keep their previous version. Stop and start each session manually when ready.\n'
+  printf '%sRunning services keep their previous version until you stop and start them.%s\n' "$DIM" "$OFF"
 fi
 if [ -t 0 ] && [ -t 1 ] && [ -z "${CI:-}" ]; then
-  printf '\nRun the first-use setup wizard now? [y/N] '
+  printf '\n%sRun the guided setup now?%s [y/N] ' "$BOLD" "$OFF"
   IFS= read -r ANSWER || ANSWER=
   case "$ANSWER" in
-    y|Y|yes|YES) "$DESTINATION" setup ;;
-    *) printf 'You can run %s setup whenever you are ready.\n' "$QUOTED_DESTINATION" ;;
+    y|Y|yes|YES) printf '\n'; "$DESTINATION" setup ;;
+    *) step "Run setup whenever you are ready." ;;
   esac
 else
-  printf 'Setup was not started because this installer is non-interactive. Run the setup command above in a terminal.\n'
+  step 'Setup needs a terminal; run the setup command above when you have one.'
 fi
