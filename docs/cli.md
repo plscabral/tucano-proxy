@@ -47,10 +47,10 @@ The skill is procedural guidance, not the executable. Install it independently:
 npx skills add plscabral/tucano-proxy --skill tucano-proxy
 ```
 
-The source is `skills/tucano-proxy/SKILL.md`; the default-branch command works after that file is published there. Before merging a development branch, use its explicit GitHub tree URL. For example:
+The source is `skills/tucano-proxy/SKILL.md`; the default-branch command works after that file is published there. To pin the skill to a published release, use its tag URL (branch names containing slashes are not handled reliably by the skills CLI):
 
 ```sh
-npx skills add https://github.com/plscabral/tucano-proxy/tree/feat/standalone-cli-web-integrations/skills/tucano-proxy
+npx skills add https://github.com/plscabral/tucano-proxy/tree/v0.2.7/skills/tucano-proxy
 ```
 
 `npx skills add ./skills --list` checks local discovery without installing anything. The skill is also included in the native archives and `tucano-proxy-skill.zip`. A public GitHub source is discoverable by the skills CLI; the skills.sh leaderboard uses installation telemetry rather than an npm-style skill publication command.
