@@ -2,6 +2,7 @@
 'use strict';
 
 const { spawn } = require('node:child_process');
+const fs = require('node:fs');
 const { constants } = require('node:os');
 const path = require('node:path');
 const platforms = require('../platforms.json');
@@ -66,6 +67,18 @@ function launch() {
     );
   }
   const executable = path.join(path.dirname(manifest), 'bin', platform.executable);
+  // A package published with a 0644 binary installs cleanly and then cannot be
+  // spawned. Restore the bit in place when the file is ours to fix; a read-only
+  // or foreign-owned installation still reaches the explicit error below.
+  if (process.platform !== 'win32') {
+    try {
+      fs.accessSync(executable, fs.constants.X_OK);
+    } catch {
+      try {
+        fs.chmodSync(executable, (fs.statSync(executable).mode & 0o777) | 0o111);
+      } catch {}
+    }
+  }
   // Pass the original descriptors through untouched. The native CLI exclusively
   // owns raw mode, input reads, alternate-screen entry and terminal restoration.
   // In particular, never create/resume a Node stdin stream or call setRawMode.

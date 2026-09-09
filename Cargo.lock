@@ -3101,7 +3101,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "tucano-cli"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "anyhow",
  "base64",
@@ -3133,7 +3133,7 @@ dependencies = [
 
 [[package]]
 name = "tucano-core"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "axum",
  "base64",
@@ -3179,7 +3179,7 @@ dependencies = [
 
 [[package]]
 name = "tucano-service"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "anyhow",
  "async-stream",

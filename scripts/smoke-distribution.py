@@ -38,9 +38,17 @@ with tempfile.TemporaryDirectory(prefix='tucano-distribution-') as directory:
     tarballs = []
     for name in (platform['name'], 'tucano-proxy'):
         packed = json.loads(run([npm, 'pack', str(packages / name), '--pack-destination', str(temp), '--json']))[0]
-        files = {entry['path'] for entry in packed['files']}
-        if name == platform['name'] and 'bin/.tucano-proxy-install.json' not in files:
-            raise RuntimeError('npm omitted native installation ownership marker')
+        files = {entry['path']: entry for entry in packed['files']}
+        if name == platform['name']:
+            if 'bin/.tucano-proxy-install.json' not in files:
+                raise RuntimeError('npm omitted native installation ownership marker')
+            # npm packs whatever mode it finds, and CI artifact transport drops
+            # permission bits: a 0644 binary installs and then cannot be spawned.
+            entry = files.get('bin/' + platform['executable'])
+            if entry is None:
+                raise RuntimeError('npm omitted the native executable')
+            if platform['os'] != 'win32' and not entry.get('mode', 0) & 0o111:
+                raise RuntimeError(f"packed executable is not executable: mode {entry.get('mode')}")
         tarballs.append(str(temp / packed['filename']))
     prefix = temp / 'installed'
     run([npm, 'install', '--prefix', str(prefix), '--ignore-scripts', '--no-audit', '--no-fund',

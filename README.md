@@ -157,6 +157,11 @@ pnpm tauri build --target x86_64-pc-windows-msvc
 
 Use <kbd>Ctrl</kbd> in place of <kbd>⌘</kbd> on Linux / Windows. The full list lives under **Settings → Keyboard shortcuts**.
 
+## 0.2.10 release notes
+
+- Fixed npm installations failing with `EACCES` on first run: GitHub artifact transport drops POSIX permission bits, so the published platform packages carried a non-executable binary. The publisher now restores and verifies the executable bit, the launcher repairs a non-executable install in place, and the distribution smoke test rejects a packed binary without it.
+- `npm publish` no longer fails a whole release when a concurrent run already published the same version.
+
 ## 0.2.9 release notes
 
 - Reworked the installer output on macOS/Linux/Windows: a version headline, the executable path, the session block, and the next commands as a short labelled list instead of a wall of sentences. Colour is used only on real terminals and honours `NO_COLOR`.
