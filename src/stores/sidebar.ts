@@ -1,3 +1,4 @@
+import { preferenceStorage } from "@/lib/platform";
 import { create } from "zustand";
 
 const KEY = "tucano:sidebar";
@@ -9,13 +10,13 @@ function clamp(n: number, lo: number, hi: number) {
 
 function load(): Persisted {
   try {
-    const s = JSON.parse(localStorage.getItem(KEY) || "");
+    const s = JSON.parse(preferenceStorage.getItem(KEY) || "");
     return { open: s.open ?? true, width: clamp(s.width ?? 220, 160, 480) };
   } catch { return { open: true, width: 220 }; }
 }
 
 function persist(open: boolean, width: number) {
-  localStorage.setItem(KEY, JSON.stringify({ open, width }));
+  preferenceStorage.setItem(KEY, JSON.stringify({ open, width }));
 }
 
 function toggleIn(set: Set<string>, value: string, additive: boolean): Set<string> {

@@ -1,0 +1,128 @@
+name: Package catalogs
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published stable release tag (for example v0.2.7)
+        type: string
+        required: true
+      npm:
+        description: Publish npm packages
+        type: boolean
+        default: true
+      homebrew:
+        description: Update Homebrew tap
+        type: boolean
+        default: true
+      winget:
+        description: Submit WinGet pull request
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-catalogs-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  prepare:
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate selected release
+        env:
+          GITHUB_REF: refs/tags/${{ env.RELEASE_TAG }}
+        run: python scripts/release-version.py
+      - name: Download published native archives and hashes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$RELEASE_TAG" --repo plscabral/tucano-proxy --dir release --pattern 'tucano-proxy-*.tar.gz' --pattern 'tucano-proxy-*.zip' --pattern 'tucano-proxy-*.sha256'
+      - run: python scripts/package-npm.py
+      - run: python scripts/package-managers.py --artifacts release --output release/package-managers
+      - uses: actions/upload-artifact@v4
+        with:
+          name: catalog-packages
+          path: release
+          include-hidden-files: true
+
+  npm:
+    needs: prepare
+    if: github.event_name == 'release' || inputs.npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm install --global npm@11
+      - uses: actions/download-artifact@v4
+        with:
+          name: catalog-packages
+          path: release
+      - name: Publish platforms before launcher
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: python scripts/publish-npm.py --provenance
+
+  homebrew:
+    needs: prepare
+    if: github.event_name == 'release' || inputs.homebrew
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: catalog-packages
+          path: release
+      - name: Update public tap
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_GITHUB_TOKEN }}
+        run: python scripts/publish-homebrew.py --formula release/package-managers/Formula/tucano-proxy.rb
+
+  winget:
+    needs: prepare
+    if: github.event_name == 'release' || inputs.winget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: catalog-packages
+          path: release
+      - name: Submit manifest for WinGet review
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_GITHUB_TOKEN }}
+        run: python scripts/submit-winget.py --manifests release/package-managers --version "${RELEASE_TAG#v}"

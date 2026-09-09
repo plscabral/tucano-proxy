@@ -1,15 +1,16 @@
+import { preferenceStorage } from "@/lib/platform";
 import { useState } from "react";
 import { ShieldCheck, Globe, Check, ArrowRight, ArrowLeft, Zap, Lock, Filter } from "lucide-react";
 import { useFlows } from "@/stores/flows";
 import { ipc } from "@/lib/ipc";
 import { t, LOCALES, useLocale, setLocale, type Locale } from "@/lib/i18n";
 import { Display, Accent } from "./Display";
-import proxyMark from "@/assets/tucano-proxy-mark.svg";
+import proxyMark from "@/assets/tucano-proxy.png";
 
 const STORAGE_KEY = "tucano:onboarded";
 
 export function shouldShowOnboarding(): boolean {
-  try { return !localStorage.getItem(STORAGE_KEY); } catch { return false; }
+  try { return !preferenceStorage.getItem(STORAGE_KEY); } catch { return false; }
 }
 
 export default function Onboarding({ onClose }: { onClose: () => void }) {
@@ -18,7 +19,7 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
 
   const finish = () => {
-    try { localStorage.setItem(STORAGE_KEY, "1"); } catch {}
+    try { preferenceStorage.setItem(STORAGE_KEY, "1"); } catch {}
     onClose();
   };
   const installCert = async () => {

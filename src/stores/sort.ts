@@ -1,3 +1,4 @@
+import { preferenceStorage } from "@/lib/platform";
 import { create } from "zustand";
 import type { ColId } from "./columns";
 
@@ -6,11 +7,11 @@ const KEY = "tucano:sort";
 export type SortState = { by: ColId | null; dir: "asc" | "desc" };
 
 function load(): SortState {
-  try { return JSON.parse(localStorage.getItem(KEY) || "") as SortState; }
+  try { return JSON.parse(preferenceStorage.getItem(KEY) || "") as SortState; }
   catch { return { by: null, dir: "asc" }; }
 }
 
-function persist(s: SortState) { localStorage.setItem(KEY, JSON.stringify(s)); }
+function persist(s: SortState) { preferenceStorage.setItem(KEY, JSON.stringify(s)); }
 
 type SortStore = {
   by: ColId | null;

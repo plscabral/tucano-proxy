@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Flow, ProxyStatus } from "@/lib/types";
+import { useMarks } from "./marks";
 
 // id → index in the flows array. Kept in sync with every mutation so upsert
 // is O(1) instead of O(n) findIndex on every Tauri flow:new / flow:update event.
@@ -63,6 +64,9 @@ export const useFlows = create<FlowsState>((set, get) => {
     status: { running: false, port: 8888, caInstalled: false, systemProxyOn: false, flowsCount: 0 },
 
     setFlows(next) {
+      _idx.clear();
+      next.forEach((flow, index) => _idx.set(flow.id, index));
+      useMarks.getState().sync(next, true);
       set({ flows: next });
       publishView(next, true);
     },
@@ -109,6 +113,7 @@ export const useFlows = create<FlowsState>((set, get) => {
     clearSelection() { set({ selectedIds: new Set<string>(), anchorId: null }); },
 
     upsert(f) {
+      useMarks.getState().sync([f]);
       const prev = get().flows;
       let updated: Flow[];
       const idx = _idx.get(f.id);
@@ -124,6 +129,7 @@ export const useFlows = create<FlowsState>((set, get) => {
     },
     batchUpsert(batch) {
       if (batch.length === 0) return;
+      useMarks.getState().sync(batch);
       const updated = get().flows.slice();
       for (const f of batch) {
         const idx = _idx.get(f.id);
@@ -153,11 +159,15 @@ export const useFlows = create<FlowsState>((set, get) => {
       const updated = get().flows.filter((f) => !ids.has(f.id));
       _idx.clear();
       updated.forEach((f, i) => _idx.set(f.id, i));
-      set({ flows: updated, selectedIds: new Set<string>(), anchorId: null });
+      const selectedIds = new Set([...get().selectedIds].filter((id) => !ids.has(id)));
+      const anchorId = get().anchorId;
+      set({ flows: updated, selectedIds, anchorId: anchorId && ids.has(anchorId) ? null : anchorId });
+      useMarks.getState().sync(updated, true);
       publishView(updated, true);
     },
     clear() {
       _idx.clear();
+      useMarks.getState().clear();
       set({ flows: [], selectedIds: new Set<string>(), anchorId: null });
       publishView([], true);
     },

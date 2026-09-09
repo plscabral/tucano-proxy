@@ -1,13 +1,21 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke, listen, isDesktop, saveSession, openSession, writeTextFile, writeBinaryFile, quitApp } from "./platform";
+import type { UnlistenFn } from "./platform";
 import type { Flow, ProxyStatus } from "./types";
+
+export type SslSettings = {
+  mode: "all" | "allowlist" | "blocklist";
+  hosts: string[];
+  skipHosts: string[];
+  skipApps: string[];
+  insecureHosts: string[];
+};
 
 export const ipc = {
   status: () => invoke<ProxyStatus>("get_status"),
   startProxy: (port: number) => invoke<void>("start_proxy", { port }),
   stopProxy: () => invoke<void>("stop_proxy"),
-  startCapture: (port: number) => invoke<void>("start_capture", { port }),
-  stopCapture: () => invoke<void>("stop_capture"),
+  startCapture: (port: number) => invoke<void>(isDesktop ? "start_capture" : "start_proxy", { port }),
+  stopCapture: () => invoke<void>(isDesktop ? "stop_capture" : "stop_proxy"),
   installCa: () => invoke<void>("install_ca"),
   uninstallCa: () => invoke<void>("uninstall_ca"),
   exportCa: () => invoke<string>("export_ca"),
@@ -20,21 +28,21 @@ export const ipc = {
   listFlows: () => invoke<Flow[]>("list_flows"),
   getFlow: (id: string) => invoke<Flow>("get_flow", { id }),
   updateFlowNote: (id: string, note: string | null) => invoke<void>("update_flow_note", { id, note }),
+  updateFlowMark: (id: string, mark: string | null) => invoke<void>("update_flow_mark", { id, mark }),
   replay: (id: string, headers: [string, string][], body: string | null) =>
     invoke<string>("replay_flow", { id, headers, body }),
   composeRequest: (args: {
     method: string; url: string;
     headers: [string, string][]; body: string | null; log: boolean;
   }) => invoke<Flow>("compose_request", args),
-  saveSession: (path: string, ids?: string[]) =>
-    invoke<void>("save_session", { path, ids: ids ?? null }),
-  openSession: (path: string) => invoke<void>("open_session", { path }),
-  writeTextFile: (path: string, contents: string) => invoke<void>("write_text_file", { path, contents }),
-  writeBinaryFile: (path: string, contentsBase64: string) => invoke<void>("write_binary_file", { path, contentsBase64 }),
-  quitApp: () => invoke<void>("quit_app"),
+  saveSession,
+  openSession,
+  writeTextFile,
+  writeBinaryFile,
+  quitApp,
   getSslSettings: () =>
-    invoke<{ mode: "all" | "allowlist" | "blocklist"; hosts: string[]; skipHosts: string[] }>("get_ssl_settings"),
-  setSslSettings: (settings: { mode: "all" | "allowlist" | "blocklist"; hosts: string[]; skipHosts: string[] }) =>
+    invoke<SslSettings>("get_ssl_settings"),
+  setSslSettings: (settings: SslSettings) =>
     invoke<void>("set_ssl_settings", { settings }),
   getKeepLimit: () => invoke<number>("get_keep_limit"),
   setKeepLimit: (limit: number) => invoke<void>("set_keep_limit", { limit }),

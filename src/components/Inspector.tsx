@@ -7,6 +7,7 @@ import TimingView from "./TimingView";
 import RawView from "./RawView";
 import { buildRawRequest, buildRawResponse } from "@/lib/rawHttp";
 import { ipc } from "@/lib/ipc";
+import { canMutate, useConnection } from "@/lib/platform";
 import { t } from "@/lib/i18n";
 
 type SubTab = "headers" | "body" | "raw";
@@ -38,6 +39,7 @@ function buildFullUrl(f: Flow): string {
 }
 
 export default function Inspector({ flow, onClose, onComposer }: { flow: Flow | null; onClose?: () => void; onComposer?: (flow: Flow) => void }) {
+  useConnection();
   const [reqTab, setReqTab] = useState<SubTab>("headers");
   const [resTab, setResTab] = useState<SubTab>("body");
   const [showTiming, setShowTiming] = useState(false);
@@ -80,7 +82,7 @@ export default function Inspector({ flow, onClose, onComposer }: { flow: Flow | 
               </span>
               <button
                 onClick={replay}
-                disabled={replaying}
+                disabled={replaying || !canMutate()}
                 title="Replay request"
                 className="h-7 px-2.5 rounded-lg text-[11px] flex items-center gap-1.5 transition shrink-0 opacity-60 hover:opacity-100 hover:bg-toucan-400/10 hover:text-toucan-400 disabled:opacity-30"
               >
@@ -151,6 +153,11 @@ export default function Inspector({ flow, onClose, onComposer }: { flow: Flow | 
               </button>
             </div>
           </div>
+          {(flow.reqTruncated || flow.resTruncated) && (
+            <p role="status" className="px-5 py-2 text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              {flow.reqTruncated && flow.resTruncated ? "Request and response bodies" : flow.reqTruncated ? "Request body" : "Response body"} exceeded the capture limit. The inspector and exports contain only the retained prefix; traffic was still forwarded in full.
+            </p>
+          )}
 
           {showTiming ? (
             <div className="flex-1 overflow-auto scroll-thin bg-[var(--tcn-canvas)]">

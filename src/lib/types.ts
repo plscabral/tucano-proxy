@@ -27,6 +27,10 @@ export type Flow = {
   clientPort: number | null;
   clientIcon: string | null;
   note?: string | null;
+  mark?: string | null;
+  reqTruncated?: boolean;
+  resTruncated?: boolean;
+  state?: "pending" | "streaming" | "complete" | "truncated" | "error" | "tunnel";
 };
 
 export type ProxyStatus = {

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Trash2, Save, FileDown, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2, GitCompareArrows, ChevronDown, Layers, RotateCcw, PanelLeft } from "lucide-react";
+import { Trash2, Save, FileDown, FolderOpen, Tag, PanelRight, PanelBottom, EyeOff, Share2, GitCompareArrows, ChevronDown, Layers, RotateCcw, PanelLeft, Send } from "lucide-react";
 import { useLayout, type InspectorPos } from "@/stores/layout";
 import { useSidebar } from "@/stores/sidebar";
 import ColumnsMenu from "./ColumnsMenu";
-import { save, open } from "@tauri-apps/plugin-dialog";
+import { save, open, isDesktop, useConnection } from "@/lib/platform";
 import { useFlows } from "@/stores/flows";
 import { useMarks, MARK_COLORS } from "@/stores/marks";
 import { useSession } from "@/stores/session";
@@ -35,7 +35,7 @@ function useOutsideClose(open: boolean, ref: React.RefObject<HTMLElement | null>
   }, [open, ref, close]);
 }
 
-export default function FlowToolbar({ count, flows, onCompare }: { count: number; flows: Flow[]; onCompare?: () => void }) {
+export default function FlowToolbar({ count, flows, onCompare, onCompose }: { count: number; flows: Flow[]; onCompare?: () => void; onCompose: () => void }) {
   const [openMark, setOpenMark] = useState(false);
   const [openExport, setOpenExport] = useState(false);
   const [openRemove, setOpenRemove] = useState(false);
@@ -53,6 +53,8 @@ export default function FlowToolbar({ count, flows, onCompare }: { count: number
   const flowsViewLen = useFlows((s) => s.flowsView.length);
   const sessionPath = useSession((s) => s.path);
   const keepLimit = usePrefs((s) => s.keepLimit);
+  const connection = useConnection();
+  const writable = isDesktop || (connection.state === "connected" && connection.runtime?.scope === "admin");
 
   useOutsideClose(openExport, exportRef, () => setOpenExport(false));
   useOutsideClose(openRemove, removeRef, () => setOpenRemove(false));
@@ -113,11 +115,11 @@ export default function FlowToolbar({ count, flows, onCompare }: { count: number
   };
   const onOpen = async () => {
     const path = await open({ multiple: false, filters: [{ name: "Tucano Session", extensions: ["tucano"] }] });
-    if (path && typeof path === "string") {
+    if (path) {
       await ipc.openSession(path);
       useFlows.getState().setFlows(await ipc.listFlows());
       useFlows.getState().rebuildIndex();
-      useSession.getState().setPath(path);
+      useSession.getState().setPath(typeof path === "string" ? path : path.name);
     }
   };
 
@@ -235,7 +237,7 @@ export default function FlowToolbar({ count, flows, onCompare }: { count: number
         <button onClick={() => useSidebar.getState().toggleOpen()} className={tbBtn(sidebarOpen)} title={t("sidebar.toggle")}><PanelLeft size={13} /></button>
 
         <div className="relative" ref={keepRef}>
-          <button onClick={() => setOpenKeep(!openKeep)} className={tbBtn(openKeep)}>
+          <button disabled={!writable} onClick={() => setOpenKeep(!openKeep)} className={`${tbBtn(openKeep)} disabled:opacity-30`}>
             <Layers size={13} /> Keep: {keepLabel()} <ChevronDown size={11} className="opacity-60" />
           </button>
           {openKeep && (
@@ -252,14 +254,17 @@ export default function FlowToolbar({ count, flows, onCompare }: { count: number
           )}
         </div>
 
-        <button onClick={replay} disabled={!hasSelection || replaying} title="Replay selected request" className={`${tbBtn()} disabled:opacity-30`}>
+        <button onClick={replay} disabled={!writable || !hasSelection || replaying} title="Replay selected request" className={`${tbBtn()} disabled:opacity-30`}>
           <RotateCcw size={13} className={replaying ? "animate-spin" : ""} /> Replay
+        </button>
+        <button onClick={onCompose} disabled={!writable} title="Compose a new request" className={`${tbBtn()} disabled:opacity-30`}>
+          <Send size={13} /> Compose
         </button>
 
         <Sep />
 
         <div className="relative" ref={removeRef}>
-          <button onClick={() => setOpenRemove(!openRemove)} className={`${tbBtn(openRemove)} hover:bg-red-500/10 hover:text-red-500`}>
+          <button disabled={!writable} onClick={() => setOpenRemove(!openRemove)} className={`${tbBtn(openRemove)} hover:bg-red-500/10 hover:text-red-500 disabled:opacity-30`}>
             <Trash2 size={13} /> Remove <ChevronDown size={11} className="opacity-60" />
           </button>
           {openRemove && (
@@ -285,7 +290,7 @@ export default function FlowToolbar({ count, flows, onCompare }: { count: number
         <Sep />
 
         <div className="relative">
-          <button onClick={() => setOpenMark(!openMark)} disabled={!hasSelection} title={t("tb.markTitle")} className={`${tbBtn(openMark)} disabled:opacity-30`}>
+          <button onClick={() => setOpenMark(!openMark)} disabled={!writable || !hasSelection} title={t("tb.markTitle")} className={`${tbBtn(openMark)} disabled:opacity-30`}>
             <Tag size={13} /> {t("tb.mark")}
           </button>
           {openMark && hasSelection && (
@@ -324,9 +329,9 @@ export default function FlowToolbar({ count, flows, onCompare }: { count: number
 
       <div className="flex items-center gap-1 px-1 shrink-0">
         <Sep />
-        <button onClick={onOpen} title={t("tb.openTitle")} className={tbBtn()}><FolderOpen size={13} /> {t("tb.open")}</button>
-        <button onClick={onSave} title={sessionPath ? t("tb.saveTitleBound", { path: sessionPath }) : t("tb.saveTitle")} className={tbBtn()}><Save size={13} /> {t("tb.save")}</button>
-        <button onClick={onSaveAs} title={t("tb.saveAsTitle")} className={tbBtn()}><FileDown size={13} /> {t("tb.saveAs")}</button>
+        <button onClick={() => void onOpen().catch((error) => alert(String(error)))} disabled={!writable} title={t("tb.openTitle")} className={`${tbBtn()} disabled:opacity-30`}><FolderOpen size={13} /> {t("tb.open")}</button>
+        <button onClick={() => void onSave().catch((error) => alert(String(error)))} title={sessionPath ? t("tb.saveTitleBound", { path: sessionPath }) : t("tb.saveTitle")} className={tbBtn()}><Save size={13} /> {t("tb.save")}</button>
+        <button onClick={() => void onSaveAs().catch((error) => alert(String(error)))} title={t("tb.saveAsTitle")} className={tbBtn()}><FileDown size={13} /> {t("tb.saveAs")}</button>
         {openLlm && <LlmExportDialog flows={flowsForExport} onClose={() => setOpenLlm(false)} />}
       </div>
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Play, Clock, X, ChevronDown, Terminal, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { ipc } from "@/lib/ipc";
+import { canMutate, useConnection } from "@/lib/platform";
 import type { Flow } from "@/lib/types";
 import BodyView from "./BodyView";
 import HeadersView from "./HeadersView";
@@ -11,23 +12,47 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
 function buildUrl(f: Flow): string {
   const def = (f.scheme === "https" && f.port === 443) || (f.scheme === "http" && f.port === 80);
-  return `${f.scheme}://${f.host}${def ? "" : ":" + f.port}${f.path}`;
+  const host = f.host.includes(":") && !f.host.startsWith("[") ? `[${f.host}]` : f.host;
+  return `${f.scheme}://${host}${def ? "" : ":" + f.port}${f.path}`;
 }
 function parseHeaders(raw: string): [string, string][] {
-  return raw.split("\n").map((l) => l.trim()).filter((l) => l && l.includes(":")).map((l) => {
-    const idx = l.indexOf(":");
-    return [l.slice(0, idx).trim(), l.slice(idx + 1).trim()] as [string, string];
+  return raw.split("\n").filter((line) => line.trim()).map((line) => {
+    const index = line.indexOf(":");
+    if (index <= 0) throw new Error("Invalid HTTP header. Use Header-Name: value.");
+    return [line.slice(0, index).trim(), line.slice(index + 1).trim()] as [string, string];
   });
 }
 function headersToRaw(h: [string, string][]): string {
   return h.map(([k, v]) => `${k}: ${v}`).join("\n");
 }
 
+function parseRawRequest(raw: string, baseUrl: string) {
+  const lines = raw.split("\n");
+  const first = /^(\S+)\s+(\S+)\s+HTTP\/1\.[01]\r?$/.exec(lines[0] ?? "");
+  if (!first) throw new Error("Use a request line such as POST /path HTTP/1.1.");
+  let target: URL;
+  try {
+    target = /^https?:\/\//i.test(first[2]) ? new URL(first[2]) : new URL(first[2], baseUrl);
+  } catch {
+    throw new Error("Enter a complete HTTP(S) URL, or set the URL bar before using a relative request path.");
+  }
+  if (target.protocol !== "http:" && target.protocol !== "https:") throw new Error("Only HTTP(S) request URLs are supported.");
+  const separator = lines.findIndex((line, index) => index > 0 && line.trim() === "");
+  return {
+    method: first[1],
+    url: target.href,
+    headersRaw: lines.slice(1, separator < 0 ? undefined : separator).join("\n"),
+    bodyText: separator < 0 ? "" : lines.slice(separator + 1).join("\n"),
+  };
+}
+
 export default function Composer({ onClose, initialFlow }: { onClose: () => void; initialFlow?: Flow | null }) {
+  useConnection();
   const [method, setMethod] = useState(initialFlow?.method ?? "GET");
   const [url, setUrl] = useState(initialFlow ? buildUrl(initialFlow) : "https://");
   const [headersRaw, setHeadersRaw] = useState(initialFlow ? headersToRaw(initialFlow.reqHeaders) : "User-Agent: Tucano Composer\nAccept: */*");
   const [bodyText, setBodyText] = useState(initialFlow?.reqBody ?? "");
+  const [rawDraft, setRawDraft] = useState<string | null>(null);
   const [log, setLog] = useState(true);
   const [executing, setExecuting] = useState(false);
   const [response, setResponse] = useState<Flow | null>(null);
@@ -41,21 +66,26 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
     setUrl(buildUrl(f));
     setHeadersRaw(headersToRaw(f.reqHeaders));
     setBodyText(f.reqBody ?? "");
+    setRawDraft(null);
     setResponse(null);
     setError(null);
   };
 
   const execute = async () => {
-    if (executing) return;
+    if (executing || !canMutate()) return;
     setExecuting(true);
     setResponse(null);
     setError(null);
     try {
-      const headers = parseHeaders(headersRaw);
-      const body = bodyText.trim() || null;
-      const flow = await ipc.composeRequest({ method, url, headers, body, log });
+      const request = rawDraft === null ? { method, url, headersRaw, bodyText } : parseRawRequest(rawDraft, url);
+      if (initialFlow && (initialFlow.reqBodyEncoding === "base64" || initialFlow.reqTruncated) && request.bodyText === initialFlow.reqBody) {
+        throw new Error("This captured body is binary or truncated. Supply an explicit text replacement; use Replay to send a complete original binary body.");
+      }
+      const headers = parseHeaders(request.headersRaw);
+      const body = request.bodyText.length ? request.bodyText : null;
+      const flow = await ipc.composeRequest({ method: request.method, url: request.url, headers, body, log });
       setResponse(flow);
-      setHistory((h) => [{ method, host: flow.host, path: flow.path, flow }, ...h.slice(0, 19)]);
+      setHistory((h) => [{ method: request.method, host: flow.host, path: flow.path, flow }, ...h.slice(0, 19)]);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -93,7 +123,7 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
               <input type="checkbox" checked={log} onChange={(e) => setLog(e.currentTarget.checked)} className="accent-toucan-400" />
               Log requests
             </label>
-            <button onClick={onClose} className="h-8 w-8 grid place-items-center rounded-lg opacity-70 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-white/10 transition"><X size={18} /></button>
+            <button aria-label="Close composer" onClick={onClose} className="h-8 w-8 grid place-items-center rounded-lg opacity-70 hover:opacity-100 hover:bg-ink-100 dark:hover:bg-white/10 transition"><X size={18} /></button>
           </div>
         </div>
 
@@ -101,8 +131,9 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
         <div className="flex items-center gap-2 px-5 py-3 border-b border-ink-100 dark:border-white/10 shrink-0">
           <div className="relative shrink-0">
             <select
+              aria-label="HTTP method"
               value={method}
-              onChange={(e) => setMethod(e.currentTarget.value)}
+              onChange={(e) => { setMethod(e.currentTarget.value); setRawDraft(null); }}
               className="appearance-none h-9 pl-3.5 pr-8 text-xs mono font-semibold rounded-xl bg-transparent border border-ink-200 dark:border-ink-400/40 hover:border-toucan-400/60 outline-none cursor-pointer"
             >
               {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -111,15 +142,16 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
           </div>
           <input
             type="text"
+            aria-label="Request URL"
             value={url}
-            onChange={(e) => setUrl(e.currentTarget.value)}
+            onChange={(e) => { setUrl(e.currentTarget.value); setRawDraft(null); }}
             onKeyDown={(e) => { if (e.key === "Enter") execute(); }}
             placeholder="https://api.example.com/endpoint"
             className="flex-1 h-9 px-3.5 mono text-xs rounded-xl bg-transparent border border-ink-200 dark:border-ink-400/40 focus:border-toucan-400 outline-none"
           />
           <button
             onClick={execute}
-            disabled={executing}
+            disabled={executing || !canMutate()}
             className="h-9 px-5 text-xs font-semibold rounded-xl tcn-accent tcn-accent-glow disabled:opacity-50 flex items-center gap-1.5 shrink-0"
           >
             <Play size={12} className={executing ? "animate-pulse" : ""} />
@@ -139,15 +171,20 @@ export default function Composer({ onClose, initialFlow }: { onClose: () => void
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-4 pt-2.5 pb-1 text-[10px] uppercase tracking-wider opacity-50 shrink-0">Raw HTTP request</div>
               <textarea
-                value={`${method} ${url.replace(/^https?:\/\/[^/]+/, "") || "/"} HTTP/1.1\n${headersRaw}\n\n${bodyText}`}
+                aria-label="Raw HTTP request"
+                value={rawDraft ?? `${method} ${url.replace(/^https?:\/\/[^/]+/, "") || "/"} HTTP/1.1\n${headersRaw}\n\n${bodyText}`}
                 onChange={(e) => {
-                  const lines = e.currentTarget.value.split("\n");
-                  const parts = lines[0]?.split(" ") ?? [];
-                  if (parts[0]) setMethod(parts[0]);
-                  const emptyLine = lines.findIndex((l) => l.trim() === "");
-                  const headerLines = lines.slice(1, emptyLine > 0 ? emptyLine : undefined).join("\n");
-                  setHeadersRaw(headerLines);
-                  if (emptyLine > 0) setBodyText(lines.slice(emptyLine + 1).join("\n"));
+                  const next = e.currentTarget.value;
+                  setRawDraft(next);
+                  try {
+                    const parsed = parseRawRequest(next, url);
+                    setMethod(parsed.method);
+                    setUrl(parsed.url);
+                    setHeadersRaw(parsed.headersRaw);
+                    setBodyText(parsed.bodyText);
+                  } catch {
+                    // Preserve incomplete edits verbatim; Execute reports invalid requests.
+                  }
                 }}
                 spellCheck={false}
                 className="flex-1 min-h-0 px-4 pb-3 mono text-xs bg-transparent resize-none outline-none scroll-thin"

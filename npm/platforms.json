@@ -1,0 +1,41 @@
+{
+  "darwin-arm64": {
+    "name": "tucano-proxy-darwin-arm64",
+    "target": "aarch64-apple-darwin",
+    "os": "darwin",
+    "cpu": "arm64",
+    "executable": "tucano-proxy"
+  },
+  "darwin-x64": {
+    "name": "tucano-proxy-darwin-x64",
+    "target": "x86_64-apple-darwin",
+    "os": "darwin",
+    "cpu": "x64",
+    "executable": "tucano-proxy"
+  },
+  "linux-x64": {
+    "name": "tucano-proxy-linux-x64",
+    "target": "x86_64-unknown-linux-gnu",
+    "os": "linux",
+    "cpu": "x64",
+    "libc": "glibc",
+    "minimumGlibc": "2.35",
+    "executable": "tucano-proxy"
+  },
+  "linux-arm64": {
+    "name": "tucano-proxy-linux-arm64",
+    "target": "aarch64-unknown-linux-gnu",
+    "os": "linux",
+    "cpu": "arm64",
+    "libc": "glibc",
+    "minimumGlibc": "2.39",
+    "executable": "tucano-proxy"
+  },
+  "win32-x64": {
+    "name": "tucano-proxy-win32-x64",
+    "target": "x86_64-pc-windows-msvc",
+    "os": "win32",
+    "cpu": "x64",
+    "executable": "tucano-proxy.exe"
+  }
+}

@@ -1,10 +1,10 @@
 import { create } from "zustand";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { preferenceStorage, nativeWindow, isDesktop } from "@/lib/platform";
 
 export type ThemeMode = "dark" | "light" | "system";
 
 const KEY = "tucano:theme";
-const initialMode = (localStorage.getItem(KEY) as ThemeMode) || "system";
+const initialMode = (preferenceStorage.getItem(KEY) as ThemeMode) || "system";
 
 type ThemeState = {
   mode: ThemeMode;
@@ -17,7 +17,7 @@ export const useTheme = create<ThemeState>((set, get) => ({
   mode: initialMode,
   systemDark: window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true,
   setMode(m) {
-    localStorage.setItem(KEY, m);
+    preferenceStorage.setItem(KEY, m);
     set({ mode: m });
   },
   toggle() {
@@ -42,13 +42,14 @@ if (window.matchMedia) {
 // title bar (Transparent style) in sync by repainting the window background.
 // Matches the CSS body backgrounds in styles.css so there's no seam between
 // OS chrome and the TopBar.
-function applyTheme() {
+async function applyTheme() {
   const { mode } = useTheme.getState();
   const dark = effectiveTheme() === "dark";
   document.documentElement.classList.toggle("dark", dark);
+  if (!isDesktop) return;
   const color = dark ? "#0F1014" : "#FBFBF8";
   try {
-    const win = getCurrentWindow();
+    const win = await nativeWindow();
     win.setBackgroundColor(color).catch((e) => {
       console.warn("[theme] setBackgroundColor failed", e);
     });

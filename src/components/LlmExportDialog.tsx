@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X, Bot, Languages, MessageSquareText, SlidersHorizontal, Copy, Download, ChevronDown } from "lucide-react";
-import { save } from "@tauri-apps/plugin-dialog";
+import { save } from "@/lib/platform"
 import { toLlmMarkdown, LLM_TARGET_LANGUAGES, DEFAULT_LLM_PROMPT, type LlmExportOptions } from "@/lib/exporters";
 import type { Flow } from "@/lib/types";
 import { ipc } from "@/lib/ipc";

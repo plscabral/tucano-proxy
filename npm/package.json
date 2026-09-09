@@ -1,0 +1,19 @@
+{
+  "name": "tucano-proxy",
+  "description": "Standalone native HTTP(S) inspection CLI, terminal inspector and local web UI.",
+  "author": "Paulo Cabral",
+  "license": "MIT",
+  "homepage": "https://github.com/plscabral/tucano-proxy",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/plscabral/tucano-proxy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/plscabral/tucano-proxy/issues"
+  },
+  "keywords": ["proxy", "http", "https", "cli", "tui", "debugging"],
+  "engines": { "node": ">=18" },
+  "publishConfig": { "access": "public" },
+  "bin": { "tucano-proxy": "bin/launcher.cjs" },
+  "files": ["bin/launcher.cjs", "platforms.json", "LICENSE"]
+}

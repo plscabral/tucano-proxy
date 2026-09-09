@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Sun, Moon, Monitor, Settings as Cog, Play, Loader2 } from "lucide-react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { nativeWindow, isDesktop, useConnection } from "@/lib/platform";
 import { useFlows } from "@/stores/flows";
 import { ipc } from "@/lib/ipc";
+import { usePrefs } from "@/stores/prefs";
 import { useTheme, toggleTheme } from "@/stores/theme";
 import { t } from "@/lib/i18n";
 import { Accent } from "@/components/Display";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import logo from "@/assets/tucano-proxy-mark.svg";
+import logo from "@/assets/tucano-proxy.png";
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -16,16 +17,21 @@ async function refresh() { useFlows.getState().setStatus(await ipc.status()); }
 export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const running = useFlows((s) => s.status.running);
   const port = useFlows((s) => s.status.port);
+  const capturePort = usePrefs((s) => s.capturePort);
   const mode = useTheme((s) => s.mode);
   const [busy, setBusy] = useState(false);
+  const connection = useConnection();
+  const writable = isDesktop || (connection.state === "connected" && connection.runtime?.scope === "admin");
 
   const toggle = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.currentTarget.blur(); // avoid Space double-toggle
     if (busy) return;
     setBusy(true);
     try {
-      if (running) await ipc.stopCapture(); else await ipc.startCapture(port);
+      if (running) await ipc.stopCapture(); else await ipc.startCapture(capturePort ?? port);
       await refresh();
+    } catch (error) {
+      alert(String(error));
     } finally {
       setBusy(false);
     }
@@ -37,19 +43,19 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
   const isInteractive = (el: EventTarget | null) =>
     el instanceof Element && !!el.closest("button, a, input, select, [role='switch'], [data-no-drag]");
   const onBarMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0 || isInteractive(e.target)) return;
-    getCurrentWindow().startDragging().catch(() => {});
+    if (!isDesktop || e.button !== 0 || isInteractive(e.target)) return;
+    void nativeWindow().then((win) => win.startDragging()).catch(() => {});
   };
   const onBarDoubleClick = (e: React.MouseEvent) => {
-    if (isInteractive(e.target)) return;
-    getCurrentWindow().toggleMaximize().catch(() => {});
+    if (!isDesktop || isInteractive(e.target)) return;
+    void nativeWindow().then((win) => win.toggleMaximize()).catch(() => {});
   };
 
   return (
     <header
       onMouseDown={onBarMouseDown}
       onDoubleClick={onBarDoubleClick}
-      style={{ paddingTop: IS_MAC ? 42 : 12, paddingBottom: 12 }}
+      style={{ paddingTop: isDesktop && IS_MAC ? 42 : 12, paddingBottom: 12 }}
       className="px-[18px] flex items-center gap-3 tcn-glass relative select-none border-b border-ink-100/40 dark:border-white/[0.06]
         after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-toucan-400/30 after:via-transparent after:to-transparent after:pointer-events-none"
     >
@@ -67,7 +73,7 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
         <TooltipTrigger asChild>
           <button
             onClick={toggle}
-            disabled={busy}
+            disabled={busy || !writable}
             className={`h-9 pl-3 pr-3.5 rounded-xl flex items-center gap-2 text-xs font-semibold shrink-0 transition
               ${busy ? "opacity-70 cursor-not-allowed" : ""}
               ${running
@@ -96,7 +102,7 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
       <div className="flex items-center gap-0.5 p-0.5 rounded-xl ring-1 ring-inset ring-ink-100 dark:ring-white/[0.07] bg-ink-50/50 dark:bg-white/[0.02] shrink-0">
         <Tooltip>
           <TooltipTrigger asChild>
-            <button onClick={toggleTheme} className="h-8 w-8 grid place-items-center rounded-lg opacity-75 hover:opacity-100 hover:bg-ink-100/70 dark:hover:bg-white/[0.06] transition">
+            <button aria-label={t("topbar.toggleTheme")} onClick={toggleTheme} className="h-8 w-8 grid place-items-center rounded-lg opacity-75 hover:opacity-100 hover:bg-ink-100/70 dark:hover:bg-white/[0.06] transition">
               {themeIcon}
             </button>
           </TooltipTrigger>
@@ -104,7 +110,7 @@ export default function TopBar({ onOpenSettings }: { onOpenSettings: () => void 
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button onClick={onOpenSettings} className="h-8 w-8 grid place-items-center rounded-lg opacity-75 hover:opacity-100 hover:bg-ink-100/70 dark:hover:bg-white/[0.06] transition">
+            <button aria-label={t("topbar.settings")} onClick={onOpenSettings} className="h-8 w-8 grid place-items-center rounded-lg opacity-75 hover:opacity-100 hover:bg-ink-100/70 dark:hover:bg-white/[0.06] transition">
               <Cog size={15} />
             </button>
           </TooltipTrigger>

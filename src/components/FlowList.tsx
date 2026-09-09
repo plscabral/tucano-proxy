@@ -1,3 +1,4 @@
+import { canMutate, useConnection } from "@/lib/platform";
 import * as React from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -24,7 +25,7 @@ import {
 import { EXPORT_FORMATS } from "@/lib/exporters";
 import NoteDialog from "./NoteDialog";
 import { Display, Accent } from "./Display";
-import proxyMark from "@/assets/tucano-proxy-mark.svg";
+import proxyMark from "@/assets/tucano-proxy.png";
 
 function statusChipClass(s: number | null) {
   if (s == null) return "bg-ink-100/70 dark:bg-white/[0.04] text-ink-300 backdrop-blur-sm";
@@ -287,6 +288,7 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
   const noteOpenId = useNote((s) => s.openId);
   const selectedCount = useFlows((s) => s.selectedIds.size);
 
+  useConnection();
   const INDICATOR_W = 48;
   const gridTemplate = useMemo(
     () => `${INDICATOR_W}px ${visibleCols.map((c) => `${c.width}px`).join(" ")}`,
@@ -629,11 +631,11 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
               <span>Open</span><span className="opacity-50 mono text-[10px]">↵</span>
             </button>
           )}
-          <button onClick={deleteSelected}
+          <button disabled={!canMutate()} onClick={() => void deleteSelected().catch((error) => alert(String(error)))}
             className="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-red-500/10 hover:text-red-500">
             <span>{t("list.delete")}</span><span className="opacity-50 mono">⌫</span>
           </button>
-          <button onClick={editNote}
+          <button disabled={!canMutate()} onClick={editNote}
             className="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-toucan-400/10 hover:text-toucan-400">
             <span>{rows.find((f) => f.id === ctx.id)?.note ? t("list.editNote") : t("list.addNote")}</span>
             <StickyNote size={11} className="opacity-60" />
@@ -660,13 +662,14 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
               ipc.deleteFlows(matchIds).catch(() => {});
               closeCtx();
             }}
-            disabled={!ctxFlow()?.clientApp}
+            disabled={!canMutate() || !ctxFlow()?.clientApp}
             className="w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-red-500/10 hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <span>{t("list.ignoreApp", { app: ctxFlow()?.clientApp ?? "—" })}</span>
             <EyeOff size={11} className="opacity-60" />
           </button>
           <button
+            disabled={!canMutate()}
             onClick={() => {
               const f = ctxFlow();
               if (!f) return;
@@ -725,6 +728,7 @@ export default function FlowList({ flows, onCompare, onOpen }: { flows: Flow[]; 
           {MARK_COLORS.map((col) => (
             <button
               key={col.id}
+              disabled={!canMutate()}
               onClick={() => markSelected(col.id)}
               className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-toucan-400/10"
             >

@@ -1,0 +1,121 @@
+name: Standalone CLI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: standalone-cli-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Native CLI (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: tucano-proxy
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            binary: tucano-proxy
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            binary: tucano-proxy
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            binary: tucano-proxy
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: tucano-proxy.exe
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: swatinem/rust-cache@v2
+      - name: Verify release version
+        run: python scripts/release-version.py
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: cargo test --workspace --locked
+      - run: cargo build --release --locked -p tucano-cli --target ${{ matrix.target }}
+      - name: Package native executable
+        run: python scripts/package-release.py --target ${{ matrix.target }} --binary target/${{ matrix.target }}/release/${{ matrix.binary }}
+      - name: Package npm executable and launcher
+        run: python scripts/package-npm.py --target ${{ matrix.target }}
+      - name: Smoke native CLI and npm distribution
+        run: python scripts/smoke-distribution.py --target ${{ matrix.target }} --artifacts release
+      - uses: actions/attest-build-provenance@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          subject-path: |
+            release/*.tar.gz
+            release/*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: standalone-${{ matrix.target }}
+          path: |
+            release/*.tar.gz
+            release/*.zip
+            release/*.sha256
+          if-no-files-found: error
+
+  bundle:
+    name: Assemble verified distribution
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: standalone-*
+          path: release
+          merge-multiple: true
+      - run: python scripts/package-npm.py
+      - run: python scripts/package-managers.py --artifacts release --output release/package-managers
+      - name: Assemble release extras
+        run: python scripts/release-extras.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: standalone-distribution
+          path: release/*
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Attach complete CLI distribution to release draft
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish-release.py --artifacts release

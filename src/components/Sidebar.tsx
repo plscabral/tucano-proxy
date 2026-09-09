@@ -1,3 +1,4 @@
+import { preferenceStorage, canMutate } from "@/lib/platform";
 import { useMemo, useState } from "react";
 import { ChevronRight, ChevronDown, Globe, AppWindow, X, PanelLeftClose, Layers, EyeOff } from "lucide-react";
 import { useFlows } from "@/stores/flows";
@@ -17,7 +18,7 @@ function purgeMatching(predicate: (f: Flow) => boolean) {
   }
   if (ids.length === 0) return;
   useFlows.getState().removeMany(new Set(ids));
-  ipc.deleteFlows(ids).catch(() => {});
+  if (canMutate()) void ipc.deleteFlows(ids).catch(() => {});
 }
 
 const CAT_DOT: Record<Category, string> = {
@@ -166,8 +167,8 @@ function Section({ icon, label, count, storeKey, accent, children, headerAction 
   icon: React.ReactNode; label: string; count: number; storeKey: string; accent?: string; children: React.ReactNode; headerAction?: SectionAction;
 }) {
   const KEY = `tucano:sidebar:section:${storeKey}`;
-  const [open, setOpenState] = useState(localStorage.getItem(KEY) !== "0");
-  const setOpen = (v: boolean) => { setOpenState(v); localStorage.setItem(KEY, v ? "1" : "0"); };
+  const [open, setOpenState] = useState(preferenceStorage.getItem(KEY) !== "0");
+  const setOpen = (v: boolean) => { setOpenState(v); preferenceStorage.setItem(KEY, v ? "1" : "0"); };
   void accent;
   return (
     <div className="mb-1.5 group/sec">
