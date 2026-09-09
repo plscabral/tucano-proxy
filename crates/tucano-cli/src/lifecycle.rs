@@ -2,6 +2,7 @@ use crate::client::{fail, Client, Runtime};
 use anyhow::{Context, Result};
 use serde_json::{json, Value};
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     time::{Duration, Instant},
@@ -63,6 +64,91 @@ pub fn browser_open(runtime: &Runtime, token: &str) -> Result<()> {
 }
 pub fn summary(runtime: &Runtime) -> Value {
     json!({"running":true,"session":runtime.session,"endpoint":runtime.endpoint,"proxyPort":runtime.proxy_port,"instanceId":runtime.instance_id,"persistent":true})
+}
+/// One graceful shutdown, confirmed by the runtime descriptor disappearing or
+/// being replaced. Shared by `stop` and `stop --all`.
+pub async fn stop(root: &Path, session: &str, timeout: u64) -> Result<Value> {
+    let (runtime, client) = connect(root, session, timeout).await?;
+    client.shutdown(&runtime).await?;
+    let deadline = Instant::now() + Duration::from_secs(timeout);
+    loop {
+        match Runtime::read(root, session) {
+            Err(error) if crate::client::unavailable(&error) => break,
+            Ok(current) if current.instance_id != runtime.instance_id => break,
+            Err(error) => return Err(error),
+            _ => {}
+        }
+        if Instant::now() >= deadline {
+            return Err(fail("shutdown_timeout","Shutdown was requested but runtime descriptor remains; inspect service.log before retrying",3));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Ok(json!({"session":session,"running":false}))
+}
+
+/// Stops every session that answers in this data directory. Sessions that are
+/// already down are reported, not treated as failures; a session that refuses
+/// to stop never hides the ones that did.
+pub async fn stop_all(root: &Path, timeout: u64) -> Result<Value> {
+    let mut stopped = Vec::new();
+    let mut already_stopped = Vec::new();
+    let mut failed = Vec::new();
+    for session in tucano_service::list_sessions(root)? {
+        match connect(root, &session, timeout.min(2)).await {
+            Ok(_) => match stop(root, &session, timeout).await {
+                Ok(_) => stopped.push(session),
+                Err(error) => failed.push(json!({
+                    "session": session,
+                    "detail": crate::output::clean(&error.to_string()),
+                })),
+            },
+            Err(error) if crate::client::unavailable(&error) => already_stopped.push(session),
+            Err(error) => failed.push(json!({
+                "session": session,
+                "detail": crate::output::clean(&error.to_string()),
+            })),
+        }
+    }
+    if !failed.is_empty() {
+        return Err(fail(
+            "stop_incomplete",
+            format!(
+                "Stopped {}; still running: {}. Inspect service.log for each and retry.",
+                if stopped.is_empty() {
+                    "no session".to_string()
+                } else {
+                    stopped.join(", ")
+                },
+                failed
+                    .iter()
+                    .map(|item| item["session"].as_str().unwrap_or("?").to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            6,
+        ));
+    }
+    Ok(json!({"stopped":stopped,"alreadyStopped":already_stopped}))
+}
+/// Two running services must not claim the same proxy port: only one can hold
+/// the listener, so the other silently captures nothing. Mark both rows rather
+/// than reporting a port that belongs to a different session.
+pub fn annotate_port_conflicts(items: &mut [Value]) {
+    let mut seen: HashMap<u64, usize> = HashMap::new();
+    for item in items.iter() {
+        if let Some(port) = item.get("proxyPort").and_then(Value::as_u64) {
+            *seen.entry(port).or_default() += 1;
+        }
+    }
+    for item in items.iter_mut() {
+        let shared = item
+            .get("proxyPort")
+            .and_then(Value::as_u64)
+            .is_some_and(|port| seen.get(&port).copied().unwrap_or(0) > 1);
+        if shared {
+            item["proxyPortConflict"] = json!(true);
+        }
+    }
 }
 pub async fn ensure(
     root: &Path,
@@ -238,4 +324,25 @@ pub async fn foreground(
     }
     result?;
     Ok(json!({"session":session,"running":false}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::annotate_port_conflicts;
+    use serde_json::json;
+
+    #[test]
+    fn marks_every_session_sharing_a_proxy_port() {
+        let mut items = vec![
+            json!({"session":"a","running":true,"proxyPort":8888}),
+            json!({"session":"b","running":true,"proxyPort":8889}),
+            json!({"session":"c","running":true,"proxyPort":8888}),
+            json!({"session":"d","running":false}),
+        ];
+        annotate_port_conflicts(&mut items);
+        assert_eq!(items[0]["proxyPortConflict"], json!(true));
+        assert_eq!(items[2]["proxyPortConflict"], json!(true));
+        assert!(items[1].get("proxyPortConflict").is_none());
+        assert!(items[3].get("proxyPortConflict").is_none());
+    }
 }

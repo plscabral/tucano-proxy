@@ -64,8 +64,15 @@ async fn start_locked(
     {
         Ok(listener) => listener,
         Err(e) => {
-            *lifecycle = Lifecycle::Failed(e.to_string());
-            return Err(e.to_string());
+            // A port already held by another session (or any other process) is the
+            // common failure here; the bare OS text leaves the user guessing.
+            let message = if e.kind() == std::io::ErrorKind::AddrInUse {
+                format!("Port {port} is already in use by another process, commonly a second Tucano Proxy session. Choose a free capture port, or stop the service that owns this one.")
+            } else {
+                e.to_string()
+            };
+            *lifecycle = Lifecycle::Failed(message.clone());
+            return Err(message);
         }
     };
     let actual = listener.local_addr().map_err(err)?.port();

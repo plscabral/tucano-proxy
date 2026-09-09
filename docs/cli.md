@@ -153,7 +153,7 @@ Run `tucano-proxy <command> --help` for exact arguments and defaults. The execut
 
 | Command | Purpose |
 | --- | --- |
-| `start`, `serve`, `stop`, `status` | Own, discover and stop a local service; inspect readiness. |
+| `start`, `serve`, `stop`, `stop --all`, `status` | Own, discover and stop a local service; `--all` stops every session in the data directory. |
 | `web` | Report the local inspector address, or open it with authentication using `--open`. |
 | `tui` | Interactive capture table and detailed inspector, with automatic or explicit theme. |
 | `doctor` | Non-mutating diagnostic of the installation/session environment. |
@@ -166,7 +166,7 @@ Run `tucano-proxy <command> --help` for exact arguments and defaults. The execut
 | `capture start`, `capture stop` | Control traffic capture independently of the service/UI lifetime. |
 | `compose`, `replay` | Send an authorized HTTP request or reproduce a retained one. |
 | `export` | Export selected evidence in supported formats. |
-| `session` | List/create/remove sessions and import/export portable SQLite evidence. |
+| `session` | Inventory sessions with ports, capture state and retained flows; create/remove sessions and import/export portable SQLite evidence. |
 | `ca` | Inspect/export the CA and explicitly manage trust where supported. |
 | `ssl` | Inspect or update HTTPS interception settings. |
 | `privacy` | Inspect or change private capture policy. |
@@ -175,7 +175,16 @@ Run `tucano-proxy <command> --help` for exact arguments and defaults. The execut
 | `completions` | Generate shell completions from actual command metadata. |
 | `skill` | Install, inspect or remove the official coding-agent skill. |
 
-Use explicit named sessions to isolate projects. Active sessions need distinct API/proxy ports. A session name is not an arbitrary path; use `--data-dir` to choose the root storage location. Do not share private data directories across untrusted users.
+Use explicit named sessions to isolate concurrent work: two agents capturing different targets get separate listeners, certificates and evidence instead of one mixed capture. Active sessions need distinct API/proxy ports. A session name is not an arbitrary path; use `--data-dir` to choose the root storage location. Do not share private data directories across untrusted users.
+
+A session outlives the terminal that created it, so review and close them deliberately:
+
+```sh
+tucano-proxy session list
+tucano-proxy stop --all
+```
+
+`session list` reports each session's service endpoint, proxy port, capture state, retained flow count and OS proxy state, and flags two services claiming the same proxy port — only one holds the listener, so the other captures nothing. `stop --all` shuts down every reachable session, reports sessions that were already stopped, and fails with the sessions that refused to stop rather than hiding the ones that succeeded. Stopping a service is not deletion: certificates, settings and captures stay on disk.
 
 ## Machine output
 

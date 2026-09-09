@@ -117,7 +117,13 @@ pub enum Command {
         yes: bool,
     },
     /// Gracefully shut down this session's verified service (never kills a PID)
-    Stop,
+    Stop {
+        #[arg(
+            long,
+            help = "Shut down every running session in this data directory instead of the selected one"
+        )]
+        all: bool,
+    },
     /// Show session/service state without exposing credentials
     Status,
     /// Start or locate the local browser UI without implicitly enabling capture

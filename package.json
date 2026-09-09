@@ -1,6 +1,6 @@
 {
   "name": "tucano-proxy",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "private": true,
   "type": "module",
   "description": "Local HTTP/HTTPS debugging with a native CLI, terminal inspector, web UI and desktop app.",

@@ -23,6 +23,13 @@ pub fn fail(code: &'static str, message: impl Into<String>, exit: i32) -> anyhow
     }
     .into()
 }
+/// A stopped service is a normal state for status/stop reporting, not an error
+/// to surface as a failure. Exit 3 is the documented service-unavailable code.
+pub fn unavailable(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<Failure>()
+        .is_some_and(|failure| failure.exit == 3)
+}
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
